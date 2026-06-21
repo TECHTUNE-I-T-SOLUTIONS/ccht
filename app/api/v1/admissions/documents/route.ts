@@ -57,3 +57,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to upload document' }, { status: 500 })
   }
 }
+
+export async function GET() {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const data = await AdmissionService.getAdmissionDocuments(user.id)
+    return NextResponse.json({ data }, { status: 200 })
+  } catch (error) {
+    console.error('[admissions/documents] fetch error:', error)
+    return NextResponse.json({ error: 'Failed to load documents' }, { status: 500 })
+  }
+}

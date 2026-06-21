@@ -51,9 +51,21 @@ export type ProfilePhoto = {
   is_primary: boolean
   created_at: string
   updated_at: string
+  image_url?: string | null
+}
+
+export type AdmissionDocumentWithUrl = AdmissionDocument & {
+  file_url?: string | null
 }
 
 export class AdmissionService {
+  static async createSignedUrl(bucket: string, path: string, expiresIn = 60 * 60) {
+    const supabase = await createServerClient()
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn)
+    if (error) throw new Error(error.message)
+    return data?.signedUrl || null
+  }
+
   static async getAspirantProfile(profileId: string): Promise<AspirantProfile | null> {
     const supabase = createPublicClient()
     const { data, error } = await supabase
@@ -75,7 +87,14 @@ export class AdmissionService {
       .order('uploaded_at', { ascending: false })
 
     if (error) throw new Error('Failed to load admission documents')
-    return data || []
+
+    const documents = data || []
+    return Promise.all(
+      documents.map(async (doc) => ({
+        ...doc,
+        file_url: await this.createSignedUrl(doc.storage_bucket, doc.storage_path).catch(() => null),
+      })),
+    ) as Promise<AdmissionDocumentWithUrl[]>
   }
 
   static async getProfilePhotos(profileId: string): Promise<ProfilePhoto[]> {
@@ -87,7 +106,14 @@ export class AdmissionService {
       .order('created_at', { ascending: false })
 
     if (error) throw new Error('Failed to load profile photos')
-    return data || []
+
+    const photos = data || []
+    return Promise.all(
+      photos.map(async (photo) => ({
+        ...photo,
+        image_url: await this.createSignedUrl(photo.storage_bucket, photo.storage_path).catch(() => null),
+      })),
+    )
   }
 
   static async uploadProfilePhoto(profileId: string, file: File, userId: string) {

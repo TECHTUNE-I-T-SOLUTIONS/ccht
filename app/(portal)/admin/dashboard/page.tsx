@@ -1,24 +1,26 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BookOpen, CreditCard, FileText, GraduationCap, Settings, ArrowRight } from 'lucide-react'
+import { Users, BookOpen, CreditCard, FileText, GraduationCap, Settings, ArrowRight, UserRound } from 'lucide-react'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ users: 0, programs: 0, payments: 0, posts: 0 })
+  const [recentUsers, setRecentUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
   useEffect(() => {
     const getStats = async () => {
-      const [usersRes, programsRes, paymentsRes, postsRes] = await Promise.all([
+      const [usersRes, programsRes, paymentsRes, postsRes, recentUsersRes] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact', head: true }),
         supabase.from('programs').select('id', { count: 'exact', head: true }),
         supabase.from('payments').select('id', { count: 'exact', head: true }),
         supabase.from('blog_posts').select('id', { count: 'exact', head: true }),
+        supabase.from('profiles').select('id, first_name, last_name, role, created_at').order('created_at', { ascending: false }).limit(4),
       ])
       setStats({
         users: usersRes.count || 0,
@@ -26,6 +28,7 @@ export default function AdminDashboard() {
         payments: paymentsRes.count || 0,
         posts: postsRes.count || 0,
       })
+      setRecentUsers(recentUsersRes.data || [])
       setLoading(false)
     }
     getStats()
@@ -61,7 +64,7 @@ export default function AdminDashboard() {
         })}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <Card className="rounded-[2rem] p-6">
           <h2 className="text-2xl font-bold">Management modules</h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -82,25 +85,47 @@ export default function AdminDashboard() {
           <Card className="rounded-[2rem] p-6">
             <h2 className="text-2xl font-bold">Quick actions</h2>
             <div className="mt-4 space-y-3">
-              <Button className="w-full justify-start rounded-2xl">
-                <GraduationCap className="mr-2 h-4 w-4" />
-                Review admissions
+              <Button asChild className="w-full justify-start rounded-2xl">
+                <Link href="/admin/admissions">
+                  <GraduationCap className="mr-2 h-4 w-4" />
+                  Review admissions
+                </Link>
               </Button>
-              <Button variant="outline" className="w-full justify-start rounded-2xl">
-                <Users className="mr-2 h-4 w-4" />
-                Manage users
+              <Button asChild variant="outline" className="w-full justify-start rounded-2xl">
+                <Link href="/admin/users">
+                  <Users className="mr-2 h-4 w-4" />
+                  Manage users
+                </Link>
               </Button>
-              <Button variant="outline" className="w-full justify-start rounded-2xl">
-                <Settings className="mr-2 h-4 w-4" />
-                System settings
+              <Button asChild variant="outline" className="w-full justify-start rounded-2xl">
+                <Link href="/admin/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  System settings
+                </Link>
               </Button>
             </div>
           </Card>
           <Card className="rounded-[2rem] p-6">
-            <h2 className="text-2xl font-bold">Portal links</h2>
-            <Link href="/secure/admin/signup" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary">
-              Admin signup <ArrowRight className="h-4 w-4" />
-            </Link>
+            <h2 className="text-2xl font-bold">Recent users</h2>
+            <div className="mt-4 space-y-3">
+              {recentUsers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No recent users found.</p>
+              ) : (
+                recentUsers.map((member) => (
+                  <div key={member.id} className="rounded-2xl border border-border bg-background p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <UserRound className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground">{[member.first_name, member.last_name].filter(Boolean).join(' ') || 'User'}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </Card>
         </div>
       </div>

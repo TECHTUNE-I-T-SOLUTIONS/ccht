@@ -1,11 +1,20 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { Menu, X, LogOut, Home, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, Sparkles, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText } from 'lucide-react'
+import { Menu, X, LogOut, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { ThemeToggle } from '@/components/public/theme-toggle'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,13 +31,33 @@ import { toast } from 'sonner'
 interface PortalLayoutProps {
   children: React.ReactNode
   role: string
-  userName?: string
 }
 
-export function PortalLayout({ children, role, userName = 'User' }: PortalLayoutProps) {
+type PortalUser = {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  role: string
+  avatarUrl?: string
+}
+
+export function PortalLayout({ children, role }: PortalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [user, setUser] = useState<PortalUser | null>(null)
   const router = useRouter()
   const pathname = usePathname()
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const response = await fetch('/api/v1/auth/me')
+      const data = await response.json().catch(() => null)
+      setUser(data?.user || null)
+    }
+
+    loadUser()
+  }, [])
 
   const handleLogout = async () => {
     try {
@@ -87,6 +116,8 @@ export function PortalLayout({ children, role, userName = 'User' }: PortalLayout
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
   const pageTitle = navItems.find((item) => isActive(item.href))?.label || 'Dashboard'
+  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'User'
+  const userInitial = displayName.charAt(0).toUpperCase()
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -116,15 +147,46 @@ export function PortalLayout({ children, role, userName = 'User' }: PortalLayout
               <Bell className="h-4 w-4" />
             </button>
             <ThemeToggle />
-            <div className="hidden items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm sm:flex">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                {userName.charAt(0).toUpperCase()}
-              </div>
-              <div className="leading-tight">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-foreground/50">Signed in</p>
-                <p className="font-semibold text-foreground capitalize">{userName}</p>
-              </div>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1.5 text-sm transition hover:border-primary/40">
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src={user?.avatarUrl} alt={displayName} />
+                    <AvatarFallback className="bg-primary/10 text-primary">{userInitial}</AvatarFallback>
+                  </Avatar>
+                  <div className="hidden min-w-0 text-left sm:block">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-foreground/50">Signed in</p>
+                    <p className="max-w-32 truncate font-semibold text-foreground">{displayName}</p>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="border-border bg-white text-foreground shadow-2xl dark:bg-black">
+                <DropdownMenuLabel>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={user?.avatarUrl} alt={displayName} />
+                      <AvatarFallback className="bg-primary/10 text-primary">{userInitial}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-semibold">{displayName}</p>
+                      <p className="text-xs text-foreground/60">{user?.email || ''}</p>
+                      <p className="text-[11px] capitalize text-foreground/50">{user?.role || role}</p>
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href={ROUTES.home}>Home</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={role === 'student' ? '/student/profile' : role === 'teacher' ? '/teacher/courses' : role === 'admin' ? '/admin/dashboard' : '/aspirant/profile'}>Profile</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={handleLogout} className="text-red-600 focus:text-red-600">
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <button
@@ -135,7 +197,7 @@ export function PortalLayout({ children, role, userName = 'User' }: PortalLayout
                   <span className="hidden sm:inline">Logout</span>
                 </button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent className="border-border bg-white dark:bg-zinc-950">
                 <AlertDialogHeader>
                   <AlertDialogTitle>Sign out of your portal?</AlertDialogTitle>
                   <AlertDialogDescription>
@@ -154,20 +216,39 @@ export function PortalLayout({ children, role, userName = 'User' }: PortalLayout
 
       <div className="flex min-h-[calc(100vh-64px)]">
         <aside
-          className={`fixed inset-y-16 left-0 z-30 w-80 border-r border-border bg-card/95 backdrop-blur transition-transform xl:relative xl:translate-x-0 ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          className={`fixed inset-y-16 left-0 z-30 border-r border-border bg-white/95 dark:bg-black/95 backdrop-blur transition-all duration-300 xl:sticky xl:top-16 xl:h-[calc(100vh-4rem)] ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'
+          } ${sidebarCollapsed ? 'w-[5rem] xl:w-[5rem]' : 'w-[18rem] xl:w-[18rem]'}`}
         >
           <div className="border-b border-border/70 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-foreground/45">Portal menu</p>
-            <div className="mt-3 rounded-2xl border border-border bg-background p-4">
-              <p className="text-sm font-semibold text-foreground capitalize">{role} portal</p>
-              <p className="mt-1 text-xs leading-6 text-foreground/60">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-foreground/45">Portal menu</p>
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed((value) => !value)}
+                className="hidden rounded-lg border border-border p-2 text-foreground/70 transition hover:border-primary/40 hover:text-primary xl:inline-flex"
+                aria-label="Collapse sidebar"
+              >
+                {sidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+              </button>
+            </div>
+            <div className={`mt-3 rounded-2xl border border-border bg-background p-4 ${sidebarCollapsed ? 'xl:hidden' : ''}`}>
+              <div className="flex items-center gap-3">
+                <Avatar className="h-11 w-11">
+                  <AvatarImage src={user?.avatarUrl} alt={displayName} />
+                  <AvatarFallback className="bg-primary/10 text-primary">{userInitial}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground capitalize">{displayName}</p>
+                  <p className="text-xs capitalize text-foreground/60">{user?.role || role}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-6 text-foreground/60">
                 Secure workspace for {role === 'admin' ? 'administration and approvals' : role === 'aspirant' ? 'admission progress' : 'academic management'}.
               </p>
             </div>
           </div>
-          <nav className="flex h-full flex-col gap-2 overflow-y-auto p-4">
+          <nav className="flex h-[calc(100vh-12rem)] flex-col gap-2 overflow-y-auto p-4">
             {navItems.map((item) => {
               const Icon = item.icon
               return (
@@ -182,17 +263,23 @@ export function PortalLayout({ children, role, userName = 'User' }: PortalLayout
                   }`}
                 >
                   <Icon className="h-5 w-5" />
-                  {item.label}
+                  <span className={sidebarCollapsed ? 'xl:hidden' : ''}>{item.label}</span>
                   <ChevronRight className="ml-auto h-4 w-4 opacity-40" />
                 </Link>
               )
             })}
+            <div className={`mt-4 rounded-2xl border border-border bg-background p-4 ${sidebarCollapsed ? 'xl:hidden' : ''}`}>
+              <p className="text-xs uppercase tracking-[0.22em] text-foreground/45">Account</p>
+              <p className="mt-2 text-sm font-semibold text-foreground capitalize">{displayName}</p>
+              <p className="text-xs text-foreground/55">{user?.email || ''}</p>
+              <p className="mt-1 text-xs capitalize text-foreground/55">Status: {user?.role || role}</p>
+            </div>
           </nav>
         </aside>
 
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+            className="fixed inset-0 z-20 bg-white/50 dark:bg-black/60 xl:hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}
