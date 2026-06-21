@@ -8,14 +8,20 @@ CREATE TABLE public.profiles (
   last_name text,
   middle_name text,
   phone text,
-  role text NOT NULL DEFAULT 'student'::text CHECK (role = ANY (ARRAY['student'::text, 'teacher'::text, 'admin'::text, 'super_admin'::text])),
+  role text NOT NULL DEFAULT 'student'::text CHECK (role = ANY (ARRAY['student'::text, 'lecturer'::text, 'admin'::text, 'super_admin'::text, 'aspirant'::text])),
   avatar_url text,
   is_active boolean NOT NULL DEFAULT true,
   last_seen_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  profile_photo_bucket text NOT NULL DEFAULT 'profile-photos'::text,
+  profile_photo_path text UNIQUE,
+  profile_photo_mime_type text,
+  profile_photo_uploaded_by uuid,
+  profile_photo_uploaded_at timestamp with time zone,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
-  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
+  CONSTRAINT profiles_profile_photo_uploaded_by_fkey FOREIGN KEY (profile_photo_uploaded_by) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.student_profiles (
   profile_id uuid NOT NULL,
@@ -464,4 +470,76 @@ CREATE TABLE public.audit_logs (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
   CONSTRAINT audit_logs_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.aspirant_profiles (
+  profile_id uuid NOT NULL,
+  admission_number text UNIQUE,
+  jamb_reg_no text NOT NULL UNIQUE,
+  preferred_program_id uuid,
+  application_type text NOT NULL DEFAULT 'Fresh admission'::text CHECK (application_type = ANY (ARRAY['Fresh admission'::text, 'Transfer candidate'::text, 'Returning applicant'::text, 'Special consideration'::text])),
+  application_status text NOT NULL DEFAULT 'draft'::text CHECK (application_status = ANY (ARRAY['draft'::text, 'incomplete'::text, 'submitted'::text, 'under_review'::text, 'correction_required'::text, 'approved'::text, 'rejected'::text])),
+  current_stage text NOT NULL DEFAULT 'signup'::text CHECK (current_stage = ANY (ARRAY['signup'::text, 'profile'::text, 'course_selection'::text, 'review'::text, 'submitted'::text, 'admitted'::text])),
+  profile_completion integer NOT NULL DEFAULT 0 CHECK (profile_completion >= 0 AND profile_completion <= 100),
+  admission_session text,
+  submission_notes text,
+  submitted_at timestamp with time zone,
+  reviewed_at timestamp with time zone,
+  reviewed_by uuid,
+  review_feedback text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT aspirant_profiles_pkey PRIMARY KEY (profile_id),
+  CONSTRAINT aspirant_profiles_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id),
+  CONSTRAINT aspirant_profiles_preferred_program_id_fkey FOREIGN KEY (preferred_program_id) REFERENCES public.programs(id),
+  CONSTRAINT aspirant_profiles_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.admin_profiles(profile_id)
+);
+CREATE TABLE public.admission_documents (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  application_id uuid NOT NULL,
+  uploaded_by uuid NOT NULL,
+  document_type text NOT NULL CHECK (document_type = ANY (ARRAY['passport_photo'::text, 'signature'::text, 'birth_certificate'::text, 'age_declaration'::text, 'primary_certificate'::text, 'secondary_certificate'::text, 'indigene_certificate'::text, 'nin_slip'::text, 'jamb_result'::text, 'jamb_registration_form'::text, 'other'::text])),
+  storage_bucket text NOT NULL DEFAULT 'admission-documents'::text,
+  storage_path text NOT NULL UNIQUE,
+  file_name text NOT NULL,
+  mime_type text,
+  file_size bigint,
+  verification_status text NOT NULL DEFAULT 'pending'::text CHECK (verification_status = ANY (ARRAY['pending'::text, 'verified'::text, 'rejected'::text, 'needs_correction'::text])),
+  verification_note text,
+  uploaded_at timestamp with time zone NOT NULL DEFAULT now(),
+  verified_by uuid,
+  verified_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT admission_documents_pkey PRIMARY KEY (id),
+  CONSTRAINT admission_documents_application_id_fkey FOREIGN KEY (application_id) REFERENCES public.aspirant_profiles(profile_id),
+  CONSTRAINT admission_documents_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.profiles(id),
+  CONSTRAINT admission_documents_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES public.admin_profiles(profile_id)
+);
+CREATE TABLE public.aspirant_profile_photos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  application_id uuid NOT NULL,
+  uploaded_by uuid NOT NULL,
+  storage_bucket text NOT NULL DEFAULT 'profile-photos'::text,
+  storage_path text NOT NULL UNIQUE,
+  file_name text NOT NULL,
+  mime_type text,
+  file_size bigint,
+  is_primary boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT aspirant_profile_photos_pkey PRIMARY KEY (id),
+  CONSTRAINT aspirant_profile_photos_application_id_fkey FOREIGN KEY (application_id) REFERENCES public.aspirant_profiles(profile_id),
+  CONSTRAINT aspirant_profile_photos_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.admission_status_history (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  application_id uuid NOT NULL,
+  previous_status text,
+  new_status text NOT NULL,
+  note text,
+  changed_by uuid,
+  changed_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT admission_status_history_pkey PRIMARY KEY (id),
+  CONSTRAINT admission_status_history_application_id_fkey FOREIGN KEY (application_id) REFERENCES public.aspirant_profiles(profile_id),
+  CONSTRAINT admission_status_history_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.profiles(id)
 );

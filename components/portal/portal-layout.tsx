@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { Menu, X, LogOut, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { Menu, X, LogOut, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText, ChevronsLeft, ChevronsRight, BellDot } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { ThemeToggle } from '@/components/public/theme-toggle'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -15,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,6 +47,8 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [user, setUser] = useState<PortalUser | null>(null)
+  const [passportUploaded, setPassportUploaded] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -54,16 +57,49 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
       const response = await fetch('/api/v1/auth/me')
       const data = await response.json().catch(() => null)
       setUser(data?.user || null)
+
+      if ((data?.user?.role || role) === 'aspirant') {
+        const [photoRes, notificationRes] = await Promise.all([
+          fetch('/api/v1/admissions/profile-photo'),
+          fetch('/api/v1/notifications/aspirant'),
+        ])
+        const photoData = await photoRes.json().catch(() => null)
+        const notificationData = await notificationRes.json().catch(() => null)
+        setPassportUploaded(Boolean(photoData?.data?.length))
+        setUnreadCount((notificationData?.data || []).filter((item: { is_read?: boolean }) => !item.is_read).length)
+      }
     }
 
     loadUser()
+
+    const refreshHandler = async () => {
+      const response = await fetch('/api/v1/auth/me')
+      const data = await response.json().catch(() => null)
+      setUser(data?.user || null)
+
+      if ((data?.user?.role || role) === 'aspirant') {
+        const [photoRes, notificationRes] = await Promise.all([
+          fetch('/api/v1/admissions/profile-photo'),
+          fetch('/api/v1/notifications/aspirant'),
+        ])
+        const photoData = await photoRes.json().catch(() => null)
+        const notificationData = await notificationRes.json().catch(() => null)
+        setPassportUploaded(Boolean(photoData?.data?.length))
+        setUnreadCount((notificationData?.data || []).filter((item: { is_read?: boolean }) => !item.is_read).length)
+      }
+    }
+
+    window.addEventListener('portal-profile-updated', refreshHandler)
+    return () => window.removeEventListener('portal-profile-updated', refreshHandler)
   }, [])
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/v1/auth/logout', { method: 'POST' })
+      const response = await fetch('/api/v1/auth/logout', { method: 'POST' })
+      if (!response.ok) throw new Error('Logout failed')
       toast.success('You have been signed out.')
-      router.push(ROUTES.login)
+      router.replace(ROUTES.login)
+      router.refresh()
     } catch (error) {
       console.error('Logout error:', error)
       toast.error('We could not sign you out. Please try again.')
@@ -105,8 +141,9 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
       aspirant: [
         { label: 'Dashboard', href: ROUTES.aspirantDashboard, icon: LayoutDashboard },
         { label: 'Application', href: '/aspirant/application', icon: ClipboardList },
+        { label: 'Upload passport', href: '/aspirant/dashboard#passport-photo', icon: FileText },
+        { label: 'Documents', href: '/aspirant/dashboard#documents', icon: FileText },
         { label: 'Profile', href: '/aspirant/profile', icon: Users },
-        { label: 'Documents', href: '/aspirant/documents', icon: FileText },
         { label: 'Status', href: '/aspirant/status', icon: ShieldCheck },
       ],
     }
@@ -120,7 +157,10 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
   const userInitial = displayName.charAt(0).toUpperCase()
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div
+      className="min-h-screen bg-background text-foreground"
+      style={{ ['--sidebar-width' as never]: sidebarCollapsed ? '5rem' : '18rem' }}
+    >
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur">
         <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-4">
@@ -143,9 +183,21 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="hidden rounded-xl border border-border bg-card p-2 text-foreground/70 transition hover:text-primary sm:inline-flex" aria-label="Notifications">
-              <Bell className="h-4 w-4" />
-            </button>
+            {role === 'aspirant' ? (
+              <button
+                type="button"
+                onClick={() => router.push('/aspirant/notifications')}
+                className="hidden rounded-xl border border-border bg-card p-2 text-foreground/70 transition hover:text-primary sm:inline-flex"
+                aria-label="Notifications"
+              >
+                {unreadCount > 0 ? <BellDot className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                {unreadCount > 0 && (
+                  <span className="ml-1 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+            ) : null}
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -216,9 +268,10 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
 
       <div className="flex min-h-[calc(100vh-64px)]">
         <aside
-          className={`fixed inset-y-16 left-0 z-30 border-r border-border bg-white/95 dark:bg-black/95 backdrop-blur transition-all duration-300 xl:sticky xl:top-16 xl:h-[calc(100vh-4rem)] ${
+          className={`fixed inset-y-16 left-0 z-30 overflow-hidden border-r border-border bg-white/95 dark:bg-black/95 backdrop-blur transition-all duration-300 xl:fixed xl:top-16 xl:h-[calc(100vh-4rem)] ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'
-          } ${sidebarCollapsed ? 'w-[5rem] xl:w-[5rem]' : 'w-[18rem] xl:w-[18rem]'}`}
+          } ${sidebarCollapsed ? 'w-[4.75rem]' : 'w-[18rem]'}`}
+          style={{ width: 'var(--sidebar-width)' }}
         >
           <div className="border-b border-border/70 p-4">
             <div className="mb-3 flex items-center justify-between">
@@ -226,7 +279,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
               <button
                 type="button"
                 onClick={() => setSidebarCollapsed((value) => !value)}
-                className="hidden rounded-lg border border-border p-2 text-foreground/70 transition hover:border-primary/40 hover:text-primary xl:inline-flex"
+                className="hidden h-9 w-9 items-center justify-center rounded-lg border border-border p-0 text-foreground/70 transition hover:border-primary/40 hover:text-primary xl:inline-flex"
                 aria-label="Collapse sidebar"
               >
                 {sidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
@@ -246,26 +299,45 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
               <p className="mt-3 text-xs leading-6 text-foreground/60">
                 Secure workspace for {role === 'admin' ? 'administration and approvals' : role === 'aspirant' ? 'admission progress' : 'academic management'}.
               </p>
+              {role === 'aspirant' && passportUploaded && (
+                <div className="mt-3 inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+                  Passport uploaded
+                </div>
+              )}
             </div>
           </div>
           <nav className="flex h-[calc(100vh-12rem)] flex-col gap-2 overflow-y-auto p-4">
             {navItems.map((item) => {
               const Icon = item.icon
-              return (
+              const navLink = (
                 <Link
-                  key={item.href}
                   href={item.href}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 rounded-2xl px-4 py-3 font-medium transition-colors ${
+                  className={`flex w-full items-center rounded-2xl px-4 py-3 font-medium transition-colors ${
                     isActive(item.href)
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'text-foreground/75 hover:bg-accent hover:text-foreground'
                   }`}
                 >
-                  <Icon className="h-5 w-5" />
-                  <span className={sidebarCollapsed ? 'xl:hidden' : ''}>{item.label}</span>
-                  <ChevronRight className="ml-auto h-4 w-4 opacity-40" />
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className={`ml-3 truncate ${sidebarCollapsed ? 'xl:hidden' : ''}`}>{item.label}</span>
+                  {!sidebarCollapsed && <ChevronRight className="ml-auto h-4 w-4 shrink-0 opacity-40" />}
                 </Link>
+              )
+
+              return (
+                <div key={item.href} className="relative">
+                  {sidebarCollapsed ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>{navLink}</TooltipTrigger>
+                      <TooltipContent side="right" className="border border-border bg-white text-foreground dark:bg-black dark:text-foreground">
+                        {item.label}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    navLink
+                  )}
+                </div>
               )
             })}
             <div className={`mt-4 rounded-2xl border border-border bg-background p-4 ${sidebarCollapsed ? 'xl:hidden' : ''}`}>
@@ -273,6 +345,11 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
               <p className="mt-2 text-sm font-semibold text-foreground capitalize">{displayName}</p>
               <p className="text-xs text-foreground/55">{user?.email || ''}</p>
               <p className="mt-1 text-xs capitalize text-foreground/55">Status: {user?.role || role}</p>
+              {role === 'aspirant' && passportUploaded && (
+                <div className="mt-3 inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+                  Passport uploaded
+                </div>
+              )}
             </div>
           </nav>
         </aside>
@@ -284,7 +361,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
           />
         )}
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto xl:pl-[var(--sidebar-width)]">
           <div className="p-4 sm:p-6 lg:p-8">
             {children}
           </div>
