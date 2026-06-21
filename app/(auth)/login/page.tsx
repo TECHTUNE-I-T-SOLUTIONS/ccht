@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { AlertCircle, ArrowRight, Lock, Mail, ShieldCheck, BadgeCheck } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -24,15 +25,20 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       })
       if (!response.ok) {
-        setError('Invalid credentials or account status.')
+        const data = await response.json().catch(() => null)
+        const message = data?.error || 'Invalid credentials or account status.'
+        setError(message)
+        toast.error(message)
         return
       }
-      const { user } = await response.json()
-      if (user.role === 'admin') router.push(ROUTES.adminDashboard)
-      else if (user.role === 'lecturer' || user.role === 'teacher') router.push(ROUTES.lecturerDashboard)
-      else router.push(ROUTES.studentDashboard)
+      const { user, redirectTo } = await response.json()
+      toast.success('Login successful.')
+      router.replace(redirectTo || (user.role === 'admin' ? ROUTES.adminDashboard : user.role === 'lecturer' ? ROUTES.lecturerDashboard : ROUTES.studentDashboard))
+      router.refresh()
     } catch {
-      setError('Unable to sign in right now. Please try again.')
+      const message = 'Unable to sign in right now. Please try again.'
+      setError(message)
+      toast.error(message)
     } finally {
       setLoading(false)
     }

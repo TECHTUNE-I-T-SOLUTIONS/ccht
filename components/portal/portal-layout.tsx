@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { Menu, X, LogOut, Home, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight } from 'lucide-react'
+import { Menu, X, LogOut, Home, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, Sparkles, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { ThemeToggle } from '@/components/public/theme-toggle'
 import {
@@ -42,44 +42,50 @@ export function PortalLayout({ children, role, userName = 'User' }: PortalLayout
   }
 
   // Define navigation items based on user role
-  const getNavItems = () => {
-    const roleSegment = role === 'lecturer' ? 'teacher' : role
-    const baseItems = [
-      { label: 'Dashboard', href: `${ROUTES.portal}/${roleSegment}/dashboard`, icon: Home },
-      { label: 'Profile', href: `${ROUTES.portal}/${roleSegment}/profile`, icon: Users },
-      { label: 'Settings', href: `${ROUTES.portal}/${roleSegment}/settings`, icon: Settings },
-    ]
-
+  const navItems = useMemo(() => {
     const roleItems = {
       student: [
-        { label: 'Courses', href: `${ROUTES.portal}/student/courses`, icon: BookOpen },
-        { label: 'Results', href: `${ROUTES.portal}/student/results`, icon: BarChart3 },
-        { label: 'Fees', href: `${ROUTES.portal}/student/fees`, icon: FileText },
+        { label: 'Dashboard', href: ROUTES.studentDashboard, icon: LayoutDashboard },
+        { label: 'Courses', href: '/student/courses', icon: BookOpen },
+        { label: 'Results', href: '/student/results', icon: BarChart3 },
+        { label: 'Payments', href: '/student/payments', icon: ReceiptText },
+        { label: 'Profile', href: '/student/profile', icon: Users },
       ],
       teacher: [
-        { label: 'Courses', href: `${ROUTES.portal}/teacher/courses`, icon: BookOpen },
-        { label: 'Grades', href: `${ROUTES.portal}/teacher/grades`, icon: BarChart3 },
-        { label: 'Students', href: `${ROUTES.portal}/teacher/students`, icon: Users },
+        { label: 'Dashboard', href: ROUTES.teacherDashboard, icon: LayoutDashboard },
+        { label: 'My Classes', href: '/teacher/courses', icon: BookOpen },
+        { label: 'Students', href: '/teacher/students', icon: Users },
+        { label: 'Grades', href: '/teacher/grades', icon: ClipboardList },
+        { label: 'Sessions', href: '/teacher/sessions', icon: CalendarDays },
       ],
       lecturer: [
-        { label: 'Courses', href: `${ROUTES.portal}/teacher/courses`, icon: BookOpen },
-        { label: 'Grades', href: `${ROUTES.portal}/teacher/grades`, icon: BarChart3 },
-        { label: 'Students', href: `${ROUTES.portal}/teacher/students`, icon: Users },
+        { label: 'Dashboard', href: ROUTES.lecturerDashboard, icon: LayoutDashboard },
+        { label: 'My Classes', href: '/teacher/courses', icon: BookOpen },
+        { label: 'Students', href: '/teacher/students', icon: Users },
+        { label: 'Grades', href: '/teacher/grades', icon: ClipboardList },
+        { label: 'Sessions', href: '/teacher/sessions', icon: CalendarDays },
       ],
       admin: [
-        { label: 'Users', href: `${ROUTES.portal}/admin/users`, icon: Users },
-        { label: 'Content', href: `${ROUTES.portal}/admin/content`, icon: FileText },
-        { label: 'Payments', href: `${ROUTES.portal}/admin/payments`, icon: BarChart3 },
-        { label: 'Reports', href: `${ROUTES.portal}/admin/reports`, icon: BarChart3 },
+        { label: 'Dashboard', href: ROUTES.adminDashboard, icon: LayoutDashboard },
+        { label: 'Admissions', href: '/admin/admissions', icon: GraduationCap },
+        { label: 'Users', href: '/admin/users', icon: Users },
+        { label: 'Programs', href: '/admin/programs', icon: BookOpen },
+        { label: 'Payments', href: '/admin/payments', icon: ReceiptText },
+        { label: 'Settings', href: '/admin/settings', icon: Settings },
+      ],
+      aspirant: [
+        { label: 'Dashboard', href: ROUTES.aspirantDashboard, icon: LayoutDashboard },
+        { label: 'Application', href: '/aspirant/application', icon: ClipboardList },
+        { label: 'Profile', href: '/aspirant/profile', icon: Users },
+        { label: 'Documents', href: '/aspirant/documents', icon: FileText },
+        { label: 'Status', href: '/aspirant/status', icon: ShieldCheck },
       ],
     }
 
-    return [...baseItems, ...(roleItems[role as keyof typeof roleItems] || [])]
-  }
+    return roleItems[role as keyof typeof roleItems] || []
+  }, [role])
 
-  const navItems = getNavItems()
-
-  const isActive = (href: string) => pathname === href
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
   const pageTitle = navItems.find((item) => isActive(item.href))?.label || 'Dashboard'
 
   return (
@@ -89,7 +95,7 @@ export function PortalLayout({ children, role, userName = 'User' }: PortalLayout
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="rounded-lg p-2 transition-colors hover:bg-accent lg:hidden"
+              className="rounded-lg p-2 transition-colors hover:bg-accent xl:hidden"
               aria-label="Toggle sidebar"
             >
               {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -110,9 +116,14 @@ export function PortalLayout({ children, role, userName = 'User' }: PortalLayout
               <Bell className="h-4 w-4" />
             </button>
             <ThemeToggle />
-            <div className="hidden items-center gap-2 text-sm sm:flex">
-              <span className="text-foreground/70">Welcome,</span>
-              <span className="font-semibold text-foreground capitalize">{userName}</span>
+            <div className="hidden items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm sm:flex">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                {userName.charAt(0).toUpperCase()}
+              </div>
+              <div className="leading-tight">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-foreground/50">Signed in</p>
+                <p className="font-semibold text-foreground capitalize">{userName}</p>
+              </div>
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -143,10 +154,19 @@ export function PortalLayout({ children, role, userName = 'User' }: PortalLayout
 
       <div className="flex min-h-[calc(100vh-64px)]">
         <aside
-          className={`fixed inset-y-16 left-0 z-30 w-72 border-r border-border bg-card/95 backdrop-blur transition-transform lg:relative lg:translate-x-0 ${
+          className={`fixed inset-y-16 left-0 z-30 w-80 border-r border-border bg-card/95 backdrop-blur transition-transform xl:relative xl:translate-x-0 ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
+          <div className="border-b border-border/70 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-foreground/45">Portal menu</p>
+            <div className="mt-3 rounded-2xl border border-border bg-background p-4">
+              <p className="text-sm font-semibold text-foreground capitalize">{role} portal</p>
+              <p className="mt-1 text-xs leading-6 text-foreground/60">
+                Secure workspace for {role === 'admin' ? 'administration and approvals' : role === 'aspirant' ? 'admission progress' : 'academic management'}.
+              </p>
+            </div>
+          </div>
           <nav className="flex h-full flex-col gap-2 overflow-y-auto p-4">
             {navItems.map((item) => {
               const Icon = item.icon

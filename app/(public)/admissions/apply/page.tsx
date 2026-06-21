@@ -8,12 +8,15 @@ import { z } from 'zod'
 import { Navbar } from '@/components/public/navbar'
 import { Footer } from '@/components/public/footer'
 import { ROUTES } from '@/lib/constants'
-import { ArrowRight, CheckCircle2, ChevronDown, Check, GraduationCap, School, Users } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ChevronDown, Check, GraduationCap, School, ShieldCheck, Users, X } from 'lucide-react'
+import { toast } from 'sonner'
 
 const initial = {
   firstName: '',
   lastName: '',
   email: '',
+  password: '',
+  confirmPassword: '',
   phone: '',
   jambRegNo: '',
 }
@@ -22,8 +25,13 @@ const signupSchema = z.object({
   firstName: z.string().min(2, 'First name is required'),
   lastName: z.string().min(2, 'Last name is required'),
   email: z.string().email('Enter a valid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string().min(8, 'Confirm your password'),
   phone: z.string().min(10, 'Enter a valid phone number').regex(/^[0-9+\-\s()]+$/, 'Enter a valid phone number'),
   jambRegNo: z.string().min(5, 'Enter your JAMB registration number'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
 })
 
 const courses = [
@@ -39,6 +47,14 @@ const applicantTips = [
   'Choose the course that matches your interest and result profile.',
 ]
 
+const passwordRules = [
+  { label: 'At least 10 characters', test: (value: string) => value.length >= 10 },
+  { label: 'One uppercase letter', test: (value: string) => /[A-Z]/.test(value) },
+  { label: 'One lowercase letter', test: (value: string) => /[a-z]/.test(value) },
+  { label: 'One number', test: (value: string) => /[0-9]/.test(value) },
+  { label: 'One special character', test: (value: string) => /[^A-Za-z0-9]/.test(value) },
+]
+
 export default function ApplyPage() {
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -50,6 +66,8 @@ export default function ApplyPage() {
   const [courseOpen, setCourseOpen] = useState(false)
 
   const progress = useMemo(() => Math.round((step / 3) * 100), [step])
+  const passwordScore = passwordRules.filter((rule) => rule.test(form.password)).length
+  const passwordStrong = passwordScore === passwordRules.length
 
   const validateStepOne = () => {
     const result = signupSchema.safeParse(form)
@@ -59,6 +77,8 @@ export default function ApplyPage() {
         delete next.firstName
         delete next.lastName
         delete next.email
+        delete next.password
+        delete next.confirmPassword
         delete next.phone
         delete next.jambRegNo
         return next
@@ -88,26 +108,37 @@ export default function ApplyPage() {
 
     setSubmitting(true)
     try {
-        const response = await fetch('/api/v1/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            firstName: form.firstName,
-            lastName: form.lastName,
-            email: form.email,
-            phone: form.phone,
-            jambRegNo: form.jambRegNo,
-            role: 'aspirant',
-            jamb_reg_no: form.jambRegNo,
-          }),
-        })
+      const response = await fetch('/api/v1/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: form.firstName,
+          lastName: form.lastName,
+          email: form.email,
+          password: form.password,
+          confirmPassword: form.confirmPassword,
+          phone: form.phone,
+          jambRegNo: form.jambRegNo,
+          role: 'aspirant',
+          jamb_reg_no: form.jambRegNo,
+        }),
+      })
 
       if (!response.ok) {
         const data = await response.json().catch(() => null)
-        setErrors({ submit: data?.error || 'We could not complete your signup right now.' })
+        const message =
+          data?.error ||
+          data?.details?.fieldErrors?.email?.[0] ||
+          data?.details?.fieldErrors?.password?.[0] ||
+          'We could not complete your signup right now.'
+        setErrors({
+          submit: message,
+        })
+        toast.error(message)
         return
       }
 
+      toast.success('Admission profile created successfully.')
       router.push(`${ROUTES.login}?application=created`)
     } finally {
       setSubmitting(false)
@@ -223,6 +254,52 @@ export default function ApplyPage() {
                   {errors.email && <p className="mt-2 text-xs text-red-600">{errors.email}</p>}
                 </label>
                 <label className="block">
+                  <span className="mb-2 block text-sm font-medium">Password</span>
+                  <input
+                    className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm"
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  />
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <p className={`text-xs ${passwordStrong ? 'text-emerald-600' : 'text-foreground/60'}`}>
+                      {form.password ? `${passwordScore} of ${passwordRules.length} checks passed` : 'Choose a strong password.'}
+                    </p>
+                    <span className={`inline-flex items-center gap-1 text-xs font-medium ${passwordStrong ? 'text-emerald-600' : 'text-foreground/50'}`}>
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      {passwordStrong ? 'Secure' : 'Needs work'}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-border">
+                    <div
+                      className={`h-full rounded-full transition-all ${passwordStrong ? 'bg-emerald-500' : passwordScore >= 3 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                      style={{ width: `${(passwordScore / passwordRules.length) * 100}%` }}
+                    />
+                  </div>
+                  <ul className="mt-3 grid gap-2 text-xs text-foreground/65 sm:grid-cols-2">
+                    {passwordRules.map((rule) => {
+                      const met = rule.test(form.password)
+                      return (
+                        <li key={rule.label} className={`flex items-center gap-2 ${met ? 'text-emerald-600' : ''}`}>
+                          {met ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                          <span>{rule.label}</span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                  {errors.password && <p className="mt-2 text-xs text-red-600">{errors.password}</p>}
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium">Confirm password</span>
+                  <input
+                    className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm"
+                    type="password"
+                    value={form.confirmPassword}
+                    onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                  />
+                  {errors.confirmPassword && <p className="mt-2 text-xs text-red-600">{errors.confirmPassword}</p>}
+                </label>
+                <label className="block">
                   <span className="mb-2 block text-sm font-medium">Phone number</span>
                   <input
                     className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm"
@@ -276,10 +353,10 @@ export default function ApplyPage() {
                             setErrors((prev) => ({ ...prev, course: '' }))
                             setCourseOpen(false)
                           }}
-                          className={`bg-white dark:bg-black flex w-full items-center justify-between px-4 py-3 text-left text-sm transition ${
+                          className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm transition ${
                             course === item
-                              ? 'text-primary-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary-foreground)/0.2)]'
-                              : 'text-foreground'
+                              ? 'bg-primary text-primary-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary-foreground)/0.2)]'
+                              : 'bg-background text-foreground hover:bg-accent/40 dark:bg-popover dark:text-popover-foreground dark:hover:bg-accent/20'
                           }`}
                         >
                           <span>{item}</span>

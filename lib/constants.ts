@@ -26,10 +26,11 @@ export const ROUTES = {
   register: '/register',
   forgotPassword: '/forgot-password',
   portal: '/portal',
-  studentDashboard: '/portal/student/dashboard',
-  teacherDashboard: '/portal/teacher/dashboard',
-  lecturerDashboard: '/portal/teacher/dashboard',
-  adminDashboard: '/portal/admin/dashboard',
+  studentDashboard: '/student/dashboard',
+  teacherDashboard: '/teacher/dashboard',
+  lecturerDashboard: '/teacher/dashboard',
+  aspirantDashboard: '/aspirant/dashboard',
+  adminDashboard: '/admin/dashboard',
 };
 
 // User Roles

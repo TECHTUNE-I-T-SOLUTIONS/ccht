@@ -49,12 +49,12 @@ export async function proxy(request: NextRequest) {
   try {
     const supabase = createClient(request)
     const {
-      data: { session },
+      data: { user },
       error,
-    } = await supabase.auth.getSession()
+    } = await supabase.auth.getUser()
 
     // If no session, redirect to login.
-    if (!session || error) {
+    if (!user || error) {
       const loginUrl = new URL('/login', request.url)
       loginUrl.searchParams.set('redirect', pathname)
       return NextResponse.redirect(loginUrl)
@@ -64,33 +64,33 @@ export async function proxy(request: NextRequest) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
 
     const userRole = profile?.role || 'student'
 
     // Check role-based access.
-    if (pathname.startsWith('/portal/student') && userRole !== 'student') {
+    if (pathname.startsWith('/student') && userRole !== 'student') {
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    if (pathname.startsWith('/portal/teacher') && !['teacher', 'lecturer'].includes(userRole)) {
+    if (pathname.startsWith('/teacher') && !['teacher', 'lecturer'].includes(userRole)) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    if (pathname.startsWith('/portal/admin') && userRole !== 'admin') {
+    if (pathname.startsWith('/admin') && userRole !== 'admin') {
       return NextResponse.redirect(new URL('/secure/admin/login', request.url))
     }
 
-    if (pathname.startsWith('/portal/aspirant') && !['aspirant', 'student', 'admin'].includes(userRole)) {
+    if (pathname.startsWith('/aspirant') && !['aspirant', 'student', 'admin'].includes(userRole)) {
       return NextResponse.redirect(new URL('/admissions', request.url))
     }
 
     // Attach user info to request for use in components.
     const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-user-id', session.user.id)
+    requestHeaders.set('x-user-id', user.id)
     requestHeaders.set('x-user-role', userRole)
-    requestHeaders.set('x-user-email', session.user.email || '')
+    requestHeaders.set('x-user-email', user.email || '')
 
     return NextResponse.next({
       request: {

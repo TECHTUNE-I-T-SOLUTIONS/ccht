@@ -1,12 +1,45 @@
+'use client'
+
 import Link from 'next/link'
-import { ShieldCheck, Lock, Mail, ArrowRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 
-export const metadata = {
-  title: `Admin Login | ${SCHOOL_INFO.name}`,
-}
-
 export default function AdminLoginPage() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    const formData = new FormData(e.currentTarget)
+    try {
+      const response = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: String(formData.get('email') || ''),
+          password: String(formData.get('password') || ''),
+        }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        setError(data?.error || 'Unable to sign in.')
+        return
+      }
+
+      router.push('/admin/dashboard')
+    } catch {
+      setError('Unable to sign in right now.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,hsl(var(--background)),hsl(var(--card)))]">
       <div className="mx-auto flex min-h-screen w-full max-w-5xl items-center px-4 py-12 sm:px-6 md:px-8">
@@ -24,23 +57,29 @@ export default function AdminLoginPage() {
 
           <section className="rounded-[1.5rem] border border-border bg-background p-6">
             <h2 className="text-2xl font-bold">Sign in</h2>
-            <form className="mt-6 space-y-4">
+            {error && (
+              <div className="mt-4 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/40 dark:bg-red-950/30">
+                <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
               <label className="block">
                 <span className="mb-2 block text-sm font-medium">Email</span>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3.5 h-4 w-4 text-foreground/40" />
-                  <input className="w-full rounded-2xl border border-border bg-card py-3 pl-10 pr-4 text-sm outline-none focus:border-primary" type="email" placeholder="admin@school.edu" />
+                  <input name="email" className="w-full rounded-2xl border border-border bg-card py-3 pl-10 pr-4 text-sm outline-none focus:border-primary" type="email" placeholder="admin@school.edu" required />
                 </div>
               </label>
               <label className="block">
                 <span className="mb-2 block text-sm font-medium">Password</span>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3.5 h-4 w-4 text-foreground/40" />
-                  <input className="w-full rounded-2xl border border-border bg-card py-3 pl-10 pr-4 text-sm outline-none focus:border-primary" type="password" placeholder="••••••••" />
+                  <input name="password" className="w-full rounded-2xl border border-border bg-card py-3 pl-10 pr-4 text-sm outline-none focus:border-primary" type="password" placeholder="••••••••" required />
                 </div>
               </label>
-              <button className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground">
-                Continue <ArrowRight className="h-4 w-4" />
+              <button disabled={loading} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+                {loading ? 'Signing in...' : 'Continue'} <ArrowRight className="h-4 w-4" />
               </button>
             </form>
             <p className="mt-6 text-sm text-foreground/65">

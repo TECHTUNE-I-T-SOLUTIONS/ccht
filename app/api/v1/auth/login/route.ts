@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
 import { LoginSchema } from '@/lib/validation';
+import { AuthService } from '@/lib/services/auth.service';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -15,46 +15,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password } = validationResult.data;
-
-    const supabase = await createClient();
-
-    // Sign in user
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      console.error('[ccht] Login error:', error);
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
-    }
-
-    if (!data.user) {
-      return NextResponse.json(
-        { error: 'Failed to log in' },
-        { status: 401 }
-      );
-    }
-
-    // Get user profile to determine role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
-      .single();
+    const result = await AuthService.login(validationResult.data);
 
     return NextResponse.json(
       {
         success: true,
-        user: {
-          id: data.user.id,
-          email: data.user.email,
-          role: profile?.role || 'student',
-        },
+        user: result.user,
+        redirectTo:
+          result.user.role === 'admin'
+            ? '/admin/dashboard'
+            : result.user.role === 'lecturer'
+              ? '/teacher/dashboard'
+              : result.user.role === 'aspirant'
+                ? '/aspirant/dashboard'
+                : '/student/dashboard',
       },
       { status: 200 }
     );
