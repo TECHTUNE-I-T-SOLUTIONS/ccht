@@ -3,8 +3,13 @@ import { Providers } from '@/components/providers'
 import './globals.css'
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://covenantcollegeofhealthtech.com.ng'),
   title: 'Covenant College of Health Technology - Quality Education for Health-Filled Society',
   description: 'Premier health education institution offering quality programs in health technology. Dedicated to producing competent healthcare professionals.',
+  robots: {
+    index: true,
+    follow: true,
+  },
   icons: {
     icon: [
       {

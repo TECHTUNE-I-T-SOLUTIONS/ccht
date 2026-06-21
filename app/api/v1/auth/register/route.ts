@@ -16,6 +16,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { email, password, firstName, lastName, role } = validationResult.data;
+    const phone = typeof body.phone === 'string' ? body.phone : '';
+    const jambRegNo = typeof body.jambRegNo === 'string' ? body.jambRegNo : typeof body.jamb_reg_no === 'string' ? body.jamb_reg_no : '';
 
     const supabase = await createClient();
 
@@ -29,6 +31,8 @@ export async function POST(request: NextRequest) {
           first_name: firstName,
           last_name: lastName,
           role: role,
+          phone,
+          jamb_reg_no: jambRegNo,
         },
       },
     });

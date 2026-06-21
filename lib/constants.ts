@@ -21,6 +21,7 @@ export const ROUTES = {
   contact: '/contact',
   privacy: '/privacy',
   terms: '/terms',
+  admissions: '/admissions',
   login: '/login',
   register: '/register',
   forgotPassword: '/forgot-password',
@@ -32,9 +33,10 @@ export const ROUTES = {
 };
 
 // User Roles
-export type UserRole = 'student' | 'lecturer' | 'admin';
+export type UserRole = 'student' | 'lecturer' | 'admin' | 'aspirant';
 
 export const USER_ROLES = {
+  ASPIRANT: 'aspirant',
   STUDENT: 'student',
   TEACHER: 'lecturer',
   LECTURER: 'lecturer',

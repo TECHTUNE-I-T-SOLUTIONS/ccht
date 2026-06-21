@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { BookOpen, FileText, CreditCard, User } from 'lucide-react'
+import { BookOpen, CreditCard, FileText, UserRound, ReceiptText, ArrowRight, BadgeCheck } from 'lucide-react'
 
 export default function StudentDashboard() {
   const [user, setUser] = useState<any>(null)
@@ -13,110 +14,90 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user }, error } = await supabase.auth.getUser()
+      const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
         setUser(data)
       }
       setLoading(false)
     }
-
     getUser()
   }, [])
 
   if (loading) return <div className="p-8">Loading...</div>
 
+  const stats = [
+    { label: 'Registered courses', value: '6', icon: BookOpen },
+    { label: 'Pending fees', value: '₦18,000', icon: CreditCard },
+    { label: 'Result entries', value: '3', icon: FileText },
+    { label: 'Profile completion', value: '88%', icon: BadgeCheck },
+  ]
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold text-foreground mb-2">Welcome, {user?.first_name || 'Student'}</h1>
-        <p className="text-muted-foreground">Manage your academic journey and payments</p>
+      <div className="rounded-[2rem] border border-border bg-[linear-gradient(160deg,hsl(var(--primary)/0.12),hsl(var(--secondary)/0.08),hsl(var(--card)))] p-6 md:p-8">
+        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Student portal</p>
+        <h1 className="mt-3 text-3xl font-extrabold md:text-5xl">Welcome, {user?.first_name || 'Student'}</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-foreground/70">
+          Manage your academic progress, course registration, results, payments, and personal records from one place.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-6 hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Enrolled Courses</p>
-              <p className="text-3xl font-bold">0</p>
-            </div>
-            <BookOpen className="w-12 h-12 text-primary opacity-20" />
-          </div>
-        </Card>
-
-        <Card className="p-6 hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Results Available</p>
-              <p className="text-3xl font-bold">0</p>
-            </div>
-            <FileText className="w-12 h-12 text-primary opacity-20" />
-          </div>
-        </Card>
-
-        <Card className="p-6 hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Pending Payments</p>
-              <p className="text-3xl font-bold">₦0</p>
-            </div>
-            <CreditCard className="w-12 h-12 text-primary opacity-20" />
-          </div>
-        </Card>
-
-        <Card className="p-6 hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Profile Complete</p>
-              <p className="text-3xl font-bold">60%</p>
-            </div>
-            <User className="w-12 h-12 text-primary opacity-20" />
-          </div>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {stats.map((item) => {
+          const Icon = item.icon
+          return (
+            <Card key={item.label} className="rounded-3xl p-6">
+              <Icon className="h-5 w-5 text-primary" />
+              <p className="mt-4 text-sm text-muted-foreground">{item.label}</p>
+              <p className="mt-1 text-2xl font-bold">{item.value}</p>
+            </Card>
+          )
+        })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 p-6">
-          <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
-          <div className="space-y-3">
-            <Button className="w-full justify-start">
-              <BookOpen className="w-4 h-4 mr-2" />
-              View Enrolled Courses
+      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <Card className="rounded-[2rem] p-6">
+          <h2 className="text-2xl font-bold">Quick actions</h2>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <Button className="justify-start rounded-2xl">
+              <BookOpen className="mr-2 h-4 w-4" />
+              Register courses
             </Button>
-            <Button variant="outline" className="w-full justify-start">
-              <FileText className="w-4 h-4 mr-2" />
-              Check Results
+            <Button variant="outline" className="justify-start rounded-2xl">
+              <FileText className="mr-2 h-4 w-4" />
+              View results
             </Button>
-            <Button variant="outline" className="w-full justify-start">
-              <CreditCard className="w-4 h-4 mr-2" />
-              Pay Fees
+            <Button variant="outline" className="justify-start rounded-2xl">
+              <CreditCard className="mr-2 h-4 w-4" />
+              Pay fees
+            </Button>
+            <Button variant="outline" className="justify-start rounded-2xl">
+              <ReceiptText className="mr-2 h-4 w-4" />
+              Download receipt
             </Button>
           </div>
         </Card>
 
-        <Card className="p-6">
-          <h2 className="text-xl font-bold mb-4">Account Info</h2>
-          <div className="space-y-3 text-sm">
-            <div>
-              <p className="text-muted-foreground">Email</p>
-              <p className="font-medium">{user?.email}</p>
+        <div className="space-y-6">
+          <Card className="rounded-[2rem] p-6">
+            <h2 className="text-2xl font-bold">Profile snapshot</h2>
+            <div className="mt-4 space-y-3 text-sm">
+              <p><span className="text-muted-foreground">Email:</span> {user?.email}</p>
+              <p><span className="text-muted-foreground">Phone:</span> {user?.phone || 'Not set'}</p>
+              <p><span className="text-muted-foreground">Status:</span> Active student</p>
             </div>
-            <div>
-              <p className="text-muted-foreground">Phone</p>
-              <p className="font-medium">{user?.phone || 'Not set'}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Status</p>
-              <p className={`font-medium ${user?.is_active ? 'text-green-600' : 'text-red-600'}`}>
-                {user?.is_active ? 'Active' : 'Inactive'}
-              </p>
-            </div>
-          </div>
-        </Card>
+          </Card>
+          <Card className="rounded-[2rem] p-6">
+            <h2 className="text-2xl font-bold">Need help?</h2>
+            <p className="mt-3 text-sm leading-7 text-muted-foreground">
+              Upload missing documents or contact support if a record is incorrect.
+            </p>
+            <Link href="/contact" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-primary">
+              Contact support <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Card>
+        </div>
       </div>
     </div>
   )

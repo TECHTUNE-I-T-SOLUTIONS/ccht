@@ -8,13 +8,20 @@ export async function proxy(request: NextRequest) {
   const publicRoutes = [
     '/',
     '/about',
+    '/admissions',
+    '/admissions/apply',
     '/programs',
     '/blog',
     '/events',
     '/contact',
+    '/faq',
+    '/privacy',
+    '/terms',
     '/login',
     '/register',
     '/forgot-password',
+    '/secure/admin/login',
+    '/secure/admin/signup',
   ]
 
   const isPublicRoute = publicRoutes.some(
@@ -64,15 +71,19 @@ export async function proxy(request: NextRequest) {
 
     // Check role-based access.
     if (pathname.startsWith('/portal/student') && userRole !== 'student') {
-      return NextResponse.redirect(new URL('/portal', request.url))
+      return NextResponse.redirect(new URL('/login', request.url))
     }
 
     if (pathname.startsWith('/portal/teacher') && !['teacher', 'lecturer'].includes(userRole)) {
-      return NextResponse.redirect(new URL('/portal', request.url))
+      return NextResponse.redirect(new URL('/login', request.url))
     }
 
     if (pathname.startsWith('/portal/admin') && userRole !== 'admin') {
-      return NextResponse.redirect(new URL('/portal', request.url))
+      return NextResponse.redirect(new URL('/secure/admin/login', request.url))
+    }
+
+    if (pathname.startsWith('/portal/aspirant') && !['aspirant', 'student', 'admin'].includes(userRole)) {
+      return NextResponse.redirect(new URL('/admissions', request.url))
     }
 
     // Attach user info to request for use in components.

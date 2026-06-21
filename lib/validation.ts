@@ -8,7 +8,7 @@ export const SignUpSchema = z.object({
   confirmPassword: z.string(),
   firstName: z.string().min(2, 'First name is required'),
   lastName: z.string().min(2, 'Last name is required'),
-  role: z.enum([USER_ROLES.STUDENT, USER_ROLES.LECTURER]),
+  role: z.enum([USER_ROLES.STUDENT, USER_ROLES.LECTURER, 'aspirant']),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],

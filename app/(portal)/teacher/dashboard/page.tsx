@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BookOpen, FileText } from 'lucide-react'
+import { BookOpen, Users, FileText, ClipboardCheck, Video, ArrowRight } from 'lucide-react'
 
 export default function TeacherDashboard() {
   const [user, setUser] = useState<any>(null)
@@ -13,18 +13,13 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user }, error } = await supabase.auth.getUser()
+      const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
         setUser(data)
       }
       setLoading(false)
     }
-
     getUser()
   }, [])
 
@@ -32,81 +27,72 @@ export default function TeacherDashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold text-foreground mb-2">Welcome, {user?.first_name || 'Lecturer'}</h1>
-        <p className="text-muted-foreground">Manage your courses, students, and grades</p>
+      <div className="rounded-[2rem] border border-border bg-[linear-gradient(160deg,hsl(var(--primary)/0.12),hsl(var(--secondary)/0.08),hsl(var(--card)))] p-6 md:p-8">
+        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Lecturer dashboard</p>
+        <h1 className="mt-3 text-3xl font-extrabold md:text-5xl">Teaching and assessment workspace</h1>
+        <p className="mt-3 max-w-3xl text-sm leading-7 text-foreground/70">
+          Manage your course list, student records, assessments, class activity, and uploads from a clean academic dashboard.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6 hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">My Courses</p>
-              <p className="text-3xl font-bold">0</p>
-            </div>
-            <BookOpen className="w-12 h-12 text-primary opacity-20" />
-          </div>
-        </Card>
-
-        <Card className="p-6 hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Total Students</p>
-              <p className="text-3xl font-bold">0</p>
-            </div>
-            <Users className="w-12 h-12 text-primary opacity-20" />
-          </div>
-        </Card>
-
-        <Card className="p-6 hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Grades Entered</p>
-              <p className="text-3xl font-bold">0</p>
-            </div>
-            <FileText className="w-12 h-12 text-primary opacity-20" />
-          </div>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-3">
+        {[
+          { label: 'My courses', value: 0, icon: BookOpen },
+          { label: 'Students assigned', value: 0, icon: Users },
+          { label: 'Results uploaded', value: 0, icon: FileText },
+        ].map((item) => {
+          const Icon = item.icon
+          return (
+            <Card key={item.label} className="rounded-3xl p-6">
+              <Icon className="h-5 w-5 text-primary" />
+              <p className="mt-4 text-sm text-muted-foreground">{item.label}</p>
+              <p className="mt-1 text-2xl font-bold">{item.value}</p>
+            </Card>
+          )
+        })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 p-6">
-          <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
-          <div className="space-y-3">
-            <Button className="w-full justify-start">
-              <BookOpen className="w-4 h-4 mr-2" />
-              View My Courses
-            </Button>
-            <Button variant="outline" className="w-full justify-start">
-              <Users className="w-4 h-4 mr-2" />
-              Manage Students
-            </Button>
-            <Button variant="outline" className="w-full justify-start">
-              <FileText className="w-4 h-4 mr-2" />
-              Enter Grades
-            </Button>
+      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <Card className="rounded-[2rem] p-6">
+          <h2 className="text-2xl font-bold">Teaching modules</h2>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {[
+              'Course outline and content management',
+              'Assignments and continuous assessment',
+              'Online class session links',
+              'Exam schedules and quizzes',
+              'Results upload and grade entry',
+              'Student progress and feedback',
+            ].map((item) => (
+              <div key={item} className="rounded-2xl border border-border bg-background p-4 text-sm">{item}</div>
+            ))}
           </div>
         </Card>
 
-        <Card className="p-6">
-          <h2 className="text-xl font-bold mb-4">Account Info</h2>
-          <div className="space-y-3 text-sm">
-            <div>
-              <p className="text-muted-foreground">Email</p>
-              <p className="font-medium">{user?.email}</p>
+        <div className="space-y-6">
+          <Card className="rounded-[2rem] p-6">
+            <h2 className="text-2xl font-bold">Quick actions</h2>
+            <div className="mt-4 space-y-3">
+              <Button className="w-full justify-start rounded-2xl">
+                <ClipboardCheck className="mr-2 h-4 w-4" />
+                Enter grades
+              </Button>
+              <Button variant="outline" className="w-full justify-start rounded-2xl">
+                <Video className="mr-2 h-4 w-4" />
+                Start online class
+              </Button>
+              <Button variant="outline" className="w-full justify-start rounded-2xl">
+                <ArrowRight className="mr-2 h-4 w-4" />
+                View assigned students
+              </Button>
             </div>
-            <div>
-              <p className="text-muted-foreground">Phone</p>
-              <p className="font-medium">{user?.phone || 'Not set'}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Status</p>
-              <p className={`font-medium ${user?.is_active ? 'text-green-600' : 'text-red-600'}`}>
-                {user?.is_active ? 'Active' : 'Inactive'}
-              </p>
-            </div>
-          </div>
-        </Card>
+          </Card>
+
+          <Card className="rounded-[2rem] p-6">
+            <h2 className="text-2xl font-bold">Account info</h2>
+            <p className="mt-3 text-sm text-muted-foreground">{user?.email}</p>
+          </Card>
+        </div>
       </div>
     </div>
   )
