@@ -28,7 +28,7 @@ export function StepCard({
         <div className={cn(
           'flex items-center justify-center w-16 h-16 rounded-2xl font-bold text-xl flex-shrink-0',
           isActive
-            ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white'
+            ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-muted-foreground'
             : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
         )}>
           {step}

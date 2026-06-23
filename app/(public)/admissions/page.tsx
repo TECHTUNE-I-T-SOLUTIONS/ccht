@@ -79,10 +79,10 @@ export default function AdmissionsPage() {
                   className="object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-6 text-white">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">Student admission</p>
+                <div className="absolute inset-x-0 bottom-0 p-6 text-muted-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground/75">Student admission</p>
                   <h2 className="mt-2 text-2xl font-bold">Simple, guided, and welcoming</h2>
-                  <p className="mt-2 max-w-lg text-sm leading-7 text-white/80">
+                  <p className="mt-2 max-w-lg text-sm leading-7 text-muted-foreground/80">
                     Find your course, prepare your documents, and complete the admission form in a few easy steps.
                   </p>
                 </div>

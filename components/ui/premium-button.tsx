@@ -25,8 +25,8 @@ export function PremiumButton({
         size === 'lg' && 'px-8 py-4 text-lg',
         size === 'xl' && 'px-10 py-5 text-xl',
         // Variants
-        variant === 'primary' && 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 hover:scale-105',
-        variant === 'secondary' && 'bg-gradient-to-r from-slate-700 to-slate-800 text-white hover:from-slate-800 hover:to-slate-900 hover:scale-105',
+        variant === 'primary' && 'bg-gradient-to-r from-blue-600 to-blue-700 text-muted-foreground hover:from-blue-700 hover:to-blue-800 hover:scale-105',
+        variant === 'secondary' && 'bg-gradient-to-r from-slate-700 to-slate-800 text-muted-foreground hover:from-slate-800 hover:to-slate-900 hover:scale-105',
         variant === 'outline' && 'border-2 border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20',
         variant === 'ghost' && 'text-foreground hover:bg-slate-100 dark:hover:bg-slate-800',
         className

@@ -1,7 +1,24 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
+import { Plus_Jakarta_Sans, DM_Sans, Space_Grotesk } from 'next/font/google'
 import { Providers } from '@/components/providers'
 import './globals.css'
+import { cn } from '@/lib/utils'
+
+const fontSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-sans',
+})
+
+const fontDisplay = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-display',
+})
+
+const fontTechnical = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-technical',
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://covenantcollegeofhealthtech.com.ng'),
@@ -37,7 +54,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="font-sans antialiased bg-background text-foreground">
+      <body className={cn(
+        "min-h-screen bg-background font-sans antialiased selection:bg-primary/10 selection:text-primary",
+        fontSans.variable,
+        fontDisplay.variable,
+        fontTechnical.variable
+      )}>
         <Providers>
           {children}
         </Providers>

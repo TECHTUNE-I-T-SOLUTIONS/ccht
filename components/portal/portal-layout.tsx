@@ -192,7 +192,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
               >
                 {unreadCount > 0 ? <BellDot className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
                 {unreadCount > 0 && (
-                  <span className="ml-1 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                  <span className="ml-1 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-muted-foreground">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
