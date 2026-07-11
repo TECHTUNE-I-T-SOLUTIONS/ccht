@@ -35,7 +35,7 @@ export class AuthService {
     }
   }
 
-  static async register(input: SignUpInput & { phone?: string; jambRegNo?: string; jamb_reg_no?: string }, origin: string) {
+  static async register(input: any, origin: string) {
     const supabase = await createClient()
     const jambRegNo = input.jambRegNo ?? input.jamb_reg_no ?? ''
 

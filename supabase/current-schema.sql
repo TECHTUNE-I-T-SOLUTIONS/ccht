@@ -19,6 +19,7 @@ CREATE TABLE public.profiles (
   profile_photo_mime_type text,
   profile_photo_uploaded_by uuid,
   profile_photo_uploaded_at timestamp with time zone,
+  media_provider text NOT NULL DEFAULT 'cloudinary'::text,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
   CONSTRAINT profiles_profile_photo_uploaded_by_fkey FOREIGN KEY (profile_photo_uploaded_by) REFERENCES public.profiles(id)
@@ -52,25 +53,6 @@ CREATE TABLE public.student_profiles (
   CONSTRAINT student_profiles_pkey PRIMARY KEY (profile_id),
   CONSTRAINT student_profiles_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
 );
-CREATE TABLE public.teacher_profiles (
-  profile_id uuid NOT NULL,
-  employee_number text UNIQUE,
-  staff_number text UNIQUE,
-  qualification text,
-  specialization text,
-  department text,
-  employment_type text CHECK (employment_type = ANY (ARRAY['full_time'::text, 'part_time'::text, 'adjunct'::text, 'contract'::text])),
-  date_joined date,
-  office_location text,
-  office_hours text,
-  can_publish_results boolean NOT NULL DEFAULT false,
-  can_enter_scores boolean NOT NULL DEFAULT true,
-  employment_status text DEFAULT 'active'::text CHECK (employment_status = ANY (ARRAY['active'::text, 'inactive'::text, 'suspended'::text])),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT teacher_profiles_pkey PRIMARY KEY (profile_id),
-  CONSTRAINT teacher_profiles_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
-);
 CREATE TABLE public.admin_profiles (
   profile_id uuid NOT NULL,
   staff_id text UNIQUE,
@@ -96,19 +78,6 @@ CREATE TABLE public.academic_sessions (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT academic_sessions_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.academic_terms (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  session_id uuid NOT NULL,
-  term_name text NOT NULL CHECK (term_name = ANY (ARRAY['First Term'::text, 'Second Term'::text, 'Third Term'::text])),
-  starts_on date,
-  ends_on date,
-  is_current boolean NOT NULL DEFAULT false,
-  is_active boolean NOT NULL DEFAULT true,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT academic_terms_pkey PRIMARY KEY (id),
-  CONSTRAINT academic_terms_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.academic_sessions(id)
 );
 CREATE TABLE public.departments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -162,14 +131,13 @@ CREATE TABLE public.course_teacher_assignments (
   course_id uuid NOT NULL,
   teacher_id uuid NOT NULL,
   session_id uuid,
-  term_id uuid,
   is_active boolean NOT NULL DEFAULT true,
   assigned_at timestamp with time zone NOT NULL DEFAULT now(),
+  semester_id uuid,
   CONSTRAINT course_teacher_assignments_pkey PRIMARY KEY (id),
   CONSTRAINT course_teacher_assignments_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.courses(id),
-  CONSTRAINT course_teacher_assignments_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher_profiles(profile_id),
   CONSTRAINT course_teacher_assignments_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.academic_sessions(id),
-  CONSTRAINT course_teacher_assignments_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.academic_terms(id)
+  CONSTRAINT course_teacher_assignments_semester_id_fkey FOREIGN KEY (semester_id) REFERENCES public.academic_semesters(id)
 );
 CREATE TABLE public.enrollments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -194,10 +162,7 @@ CREATE TABLE public.assessments (
   course_id uuid,
   teacher_id uuid,
   session_id uuid,
-  term_id uuid,
-  continuous_assessment numeric DEFAULT 0 CHECK (continuous_assessment >= 0::numeric AND continuous_assessment <= 40::numeric),
   exam_score numeric DEFAULT 0 CHECK (exam_score >= 0::numeric AND exam_score <= 60::numeric),
-  total_score numeric DEFAULT (COALESCE(continuous_assessment, (0)::numeric) + COALESCE(exam_score, (0)::numeric)),
   grade text CHECK (grade = ANY (ARRAY['A'::text, 'B'::text, 'C'::text, 'D'::text, 'E'::text, 'F'::text])),
   score_status text NOT NULL DEFAULT 'draft'::text CHECK (score_status = ANY (ARRAY['draft'::text, 'submitted'::text, 'approved'::text, 'published'::text])),
   score_entered_at timestamp with time zone,
@@ -205,14 +170,19 @@ CREATE TABLE public.assessments (
   approved_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  semester_id uuid,
+  ca_1 numeric DEFAULT 0 CHECK (ca_1 >= 0::numeric AND ca_1 <= 15::numeric),
+  ca_2 numeric DEFAULT 0 CHECK (ca_2 >= 0::numeric AND ca_2 <= 15::numeric),
+  assignments numeric DEFAULT 0 CHECK (assignments >= 0::numeric AND assignments <= 10::numeric),
+  continuous_assessment numeric DEFAULT ((COALESCE(ca_1, (0)::numeric) + COALESCE(ca_2, (0)::numeric)) + COALESCE(assignments, (0)::numeric)),
+  total_score numeric DEFAULT (((COALESCE(ca_1, (0)::numeric) + COALESCE(ca_2, (0)::numeric)) + COALESCE(assignments, (0)::numeric)) + COALESCE(exam_score, (0)::numeric)),
   CONSTRAINT assessments_pkey PRIMARY KEY (id),
   CONSTRAINT assessments_enrollment_id_fkey FOREIGN KEY (enrollment_id) REFERENCES public.enrollments(id),
   CONSTRAINT assessments_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id),
   CONSTRAINT assessments_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.courses(id),
-  CONSTRAINT assessments_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher_profiles(profile_id),
   CONSTRAINT assessments_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.academic_sessions(id),
-  CONSTRAINT assessments_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.academic_terms(id),
-  CONSTRAINT assessments_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.admin_profiles(profile_id)
+  CONSTRAINT assessments_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.admin_profiles(profile_id),
+  CONSTRAINT assessments_semester_id_fkey FOREIGN KEY (semester_id) REFERENCES public.academic_semesters(id)
 );
 CREATE TABLE public.results (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -239,16 +209,16 @@ CREATE TABLE public.result_publications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   enrollment_id uuid NOT NULL,
   session_id uuid,
-  term_id uuid,
   published_by uuid,
   publication_status text NOT NULL DEFAULT 'published'::text CHECK (publication_status = ANY (ARRAY['published'::text, 'unpublished'::text])),
   published_at timestamp with time zone NOT NULL DEFAULT now(),
   notes text,
+  semester_id uuid,
   CONSTRAINT result_publications_pkey PRIMARY KEY (id),
   CONSTRAINT result_publications_enrollment_id_fkey FOREIGN KEY (enrollment_id) REFERENCES public.enrollments(id),
   CONSTRAINT result_publications_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.academic_sessions(id),
-  CONSTRAINT result_publications_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.academic_terms(id),
-  CONSTRAINT result_publications_published_by_fkey FOREIGN KEY (published_by) REFERENCES public.admin_profiles(profile_id)
+  CONSTRAINT result_publications_published_by_fkey FOREIGN KEY (published_by) REFERENCES public.admin_profiles(profile_id),
+  CONSTRAINT result_publications_semester_id_fkey FOREIGN KEY (semester_id) REFERENCES public.academic_semesters(id)
 );
 CREATE TABLE public.blog_posts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -343,7 +313,6 @@ CREATE TABLE public.invoices (
   student_id uuid NOT NULL,
   enrollment_id uuid,
   session_id uuid,
-  term_id uuid,
   invoice_number text UNIQUE,
   description text,
   amount_due numeric NOT NULL,
@@ -353,11 +322,12 @@ CREATE TABLE public.invoices (
   status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'partially_paid'::text, 'paid'::text, 'failed'::text, 'cancelled'::text])),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  semester_id uuid,
   CONSTRAINT invoices_pkey PRIMARY KEY (id),
   CONSTRAINT invoices_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.academic_sessions(id),
-  CONSTRAINT invoices_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.academic_terms(id),
   CONSTRAINT invoices_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id),
-  CONSTRAINT invoices_enrollment_id_fkey FOREIGN KEY (enrollment_id) REFERENCES public.enrollments(id)
+  CONSTRAINT invoices_enrollment_id_fkey FOREIGN KEY (enrollment_id) REFERENCES public.enrollments(id),
+  CONSTRAINT invoices_semester_id_fkey FOREIGN KEY (semester_id) REFERENCES public.academic_semesters(id)
 );
 CREATE TABLE public.payments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -413,23 +383,6 @@ CREATE TABLE public.student_notifications (
   CONSTRAINT student_notifications_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.student_profiles(profile_id),
   CONSTRAINT student_notifications_sent_by_fkey FOREIGN KEY (sent_by) REFERENCES public.profiles(id)
 );
-CREATE TABLE public.teacher_notifications (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  teacher_id uuid NOT NULL,
-  title text NOT NULL,
-  message text NOT NULL,
-  notification_type text NOT NULL DEFAULT 'general'::text,
-  category text,
-  deep_link text,
-  is_read boolean NOT NULL DEFAULT false,
-  read_at timestamp with time zone,
-  sent_by uuid,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT teacher_notifications_pkey PRIMARY KEY (id),
-  CONSTRAINT teacher_notifications_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher_profiles(profile_id),
-  CONSTRAINT teacher_notifications_sent_by_fkey FOREIGN KEY (sent_by) REFERENCES public.profiles(id)
-);
 CREATE TABLE public.admin_notifications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   admin_id uuid NOT NULL,
@@ -474,7 +427,7 @@ CREATE TABLE public.audit_logs (
 CREATE TABLE public.aspirant_profiles (
   profile_id uuid NOT NULL,
   admission_number text UNIQUE,
-  jamb_reg_no text NOT NULL UNIQUE,
+  jamb_reg_no text UNIQUE,
   preferred_program_id uuid,
   application_type text NOT NULL DEFAULT 'Fresh admission'::text CHECK (application_type = ANY (ARRAY['Fresh admission'::text, 'Transfer candidate'::text, 'Returning applicant'::text, 'Special consideration'::text])),
   application_status text NOT NULL DEFAULT 'draft'::text CHECK (application_status = ANY (ARRAY['draft'::text, 'incomplete'::text, 'submitted'::text, 'under_review'::text, 'correction_required'::text, 'approved'::text, 'rejected'::text])),
@@ -510,6 +463,7 @@ CREATE TABLE public.admission_documents (
   verified_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  media_provider text NOT NULL DEFAULT 'cloudinary'::text,
   CONSTRAINT admission_documents_pkey PRIMARY KEY (id),
   CONSTRAINT admission_documents_application_id_fkey FOREIGN KEY (application_id) REFERENCES public.aspirant_profiles(profile_id),
   CONSTRAINT admission_documents_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.profiles(id),
@@ -527,6 +481,7 @@ CREATE TABLE public.aspirant_profile_photos (
   is_primary boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  media_provider text NOT NULL DEFAULT 'cloudinary'::text,
   CONSTRAINT aspirant_profile_photos_pkey PRIMARY KEY (id),
   CONSTRAINT aspirant_profile_photos_application_id_fkey FOREIGN KEY (application_id) REFERENCES public.aspirant_profiles(profile_id),
   CONSTRAINT aspirant_profile_photos_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.profiles(id)
@@ -542,4 +497,129 @@ CREATE TABLE public.admission_status_history (
   CONSTRAINT admission_status_history_pkey PRIMARY KEY (id),
   CONSTRAINT admission_status_history_application_id_fkey FOREIGN KEY (application_id) REFERENCES public.aspirant_profiles(profile_id),
   CONSTRAINT admission_status_history_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.aspirant_notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  aspirant_id uuid NOT NULL,
+  title text NOT NULL,
+  message text NOT NULL,
+  notification_type text NOT NULL DEFAULT 'general'::text,
+  category text NOT NULL DEFAULT 'general'::text,
+  deep_link text,
+  is_read boolean NOT NULL DEFAULT false,
+  priority text NOT NULL DEFAULT 'normal'::text CHECK (priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'urgent'::text])),
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT aspirant_notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT aspirant_notifications_aspirant_id_fkey FOREIGN KEY (aspirant_id) REFERENCES public.profiles(id),
+  CONSTRAINT aspirant_notifications_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.aspirant_academic_results (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  aspirant_id uuid NOT NULL,
+  result_type text NOT NULL DEFAULT 'secondary'::text CHECK (result_type = ANY (ARRAY['secondary'::text, 'diploma'::text, 'nce'::text, 'hnd'::text, 'degree'::text, 'professional'::text])),
+  exam_body text NOT NULL CHECK (exam_body = ANY (ARRAY['WAEC'::text, 'NECO'::text, 'NABTEB'::text, 'IJMB'::text, 'JUPEB'::text, 'Diploma'::text, 'Other'::text])),
+  exam_year integer,
+  sitting_number integer NOT NULL DEFAULT 1 CHECK (sitting_number = ANY (ARRAY[1, 2])),
+  is_combined boolean NOT NULL DEFAULT false,
+  qualification_title text,
+  institution_name text,
+  result_summary jsonb NOT NULL DEFAULT '{}'::jsonb,
+  file_bucket text DEFAULT 'admission-documents'::text,
+  file_path text,
+  file_name text,
+  file_mime_type text,
+  verification_status text NOT NULL DEFAULT 'pending'::text CHECK (verification_status = ANY (ARRAY['pending'::text, 'verified'::text, 'rejected'::text, 'needs_correction'::text])),
+  verification_note text,
+  verified_by uuid,
+  verified_at timestamp with time zone,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT aspirant_academic_results_pkey PRIMARY KEY (id),
+  CONSTRAINT aspirant_academic_results_aspirant_id_fkey FOREIGN KEY (aspirant_id) REFERENCES public.profiles(id),
+  CONSTRAINT aspirant_academic_results_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES public.admin_profiles(profile_id),
+  CONSTRAINT aspirant_academic_results_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.academic_semesters (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  semester_name text NOT NULL CHECK (semester_name = ANY (ARRAY['First Semester'::text, 'Second Semester'::text])),
+  starts_on date,
+  ends_on date,
+  is_current boolean NOT NULL DEFAULT false,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT academic_semesters_pkey PRIMARY KEY (id),
+  CONSTRAINT academic_semesters_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.academic_sessions(id)
+);
+CREATE TABLE public.teacher_profiles (
+  profile_id uuid NOT NULL,
+  employee_number text UNIQUE,
+  staff_number text UNIQUE,
+  qualification text,
+  specialization text,
+  department text,
+  employment_type text CHECK (employment_type = ANY (ARRAY['full_time'::text, 'part_time'::text, 'adjunct'::text, 'contract'::text])),
+  date_joined date,
+  office_location text,
+  office_hours text,
+  can_publish_results boolean NOT NULL DEFAULT false,
+  can_enter_scores boolean NOT NULL DEFAULT true,
+  employment_status text DEFAULT 'active'::text CHECK (employment_status = ANY (ARRAY['active'::text, 'inactive'::text, 'suspended'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT teacher_profiles_pkey PRIMARY KEY (profile_id),
+  CONSTRAINT teacher_profiles_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.teacher_notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  teacher_id uuid NOT NULL,
+  title text NOT NULL,
+  message text NOT NULL,
+  notification_type text NOT NULL DEFAULT 'general'::text,
+  category text,
+  deep_link text,
+  is_read boolean NOT NULL DEFAULT false,
+  read_at timestamp with time zone,
+  sent_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT teacher_notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT teacher_notifications_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.teacher_profiles(profile_id),
+  CONSTRAINT teacher_notifications_sent_by_fkey FOREIGN KEY (sent_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.proctoring_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  aspirant_id uuid NOT NULL,
+  event_type text NOT NULL,
+  violation_details text,
+  screenshot_url text,
+  device_fingerprint text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT proctoring_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT proctoring_logs_aspirant_id_fkey FOREIGN KEY (aspirant_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.entrance_exam_results (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  aspirant_id uuid NOT NULL,
+  exam_type text NOT NULL DEFAULT 'entrance'::text,
+  score numeric NOT NULL CHECK (score >= 0::numeric AND score <= 100::numeric),
+  total_questions integer NOT NULL CHECK (total_questions > 0),
+  percentage numeric NOT NULL CHECK (percentage >= 0::numeric AND percentage <= 100::numeric),
+  grade text NOT NULL CHECK (grade = ANY (ARRAY['A'::text, 'B'::text, 'C'::text, 'D'::text, 'E'::text, 'F'::text])),
+  answers jsonb NOT NULL DEFAULT '{}'::jsonb,
+  proctoring_snapshot jsonb,
+  status text NOT NULL DEFAULT 'submitted'::text CHECK (status = ANY (ARRAY['submitted'::text, 'reviewed'::text, 'approved'::text, 'rejected'::text])),
+  submitted_at timestamp with time zone NOT NULL DEFAULT now(),
+  reviewed_at timestamp with time zone,
+  reviewed_by uuid,
+  review_note text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT entrance_exam_results_pkey PRIMARY KEY (id),
+  CONSTRAINT entrance_exam_results_aspirant_id_fkey FOREIGN KEY (aspirant_id) REFERENCES public.profiles(id),
+  CONSTRAINT entrance_exam_results_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.admin_profiles(profile_id)
 );

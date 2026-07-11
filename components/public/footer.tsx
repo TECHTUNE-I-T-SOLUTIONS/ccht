@@ -4,6 +4,7 @@ import { Mail, Phone, MapPin, ArrowRight } from 'lucide-react'
 import { TypographyTechnical, TypographyH3, TypographyP } from '@/components/ui/typography'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
+import Image from 'next/image'
 
 export function Footer() {
   return (
@@ -14,7 +15,7 @@ export function Footer() {
           <div className="lg:col-span-4 space-y-10">
             <Link href={ROUTES.home} className="inline-flex items-center gap-4 group">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-base font-technical font-bold text-muted-foreground shadow-xl shadow-primary/20">
-                CCHT
+                <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={44} height={44} />                
               </div>
               <span className="font-display font-bold text-2xl tracking-tighter text-muted-foreground">
                 {SCHOOL_INFO.shortName}

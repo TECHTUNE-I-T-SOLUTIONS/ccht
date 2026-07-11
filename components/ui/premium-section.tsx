@@ -1,7 +1,7 @@
 import React from 'react'
 import { cn } from '@/lib/utils'
 
-interface PremiumSectionProps extends React.HTMLAttributes<HTMLSection> {
+interface PremiumSectionProps extends React.HTMLAttributes<HTMLElement> {
   children: React.ReactNode
   title?: string
   subtitle?: string

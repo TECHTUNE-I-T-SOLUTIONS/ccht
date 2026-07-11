@@ -22,6 +22,7 @@ export const ROUTES = {
   privacy: '/privacy',
   terms: '/terms',
   admissions: '/admissions',
+  apply: '/admissions/apply',
   login: '/login',
   register: '/register',
   forgotPassword: '/forgot-password',

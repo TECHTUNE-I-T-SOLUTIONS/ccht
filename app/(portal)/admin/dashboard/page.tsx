@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BookOpen, CreditCard, FileText, GraduationCap, Settings, ArrowRight, UserRound } from 'lucide-react'
+import { Users, BookOpen, CreditCard, FileText, GraduationCap, Settings, UserRound, ArrowRight, ClipboardCheck } from 'lucide-react'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ users: 0, programs: 0, payments: 0, posts: 0 })
@@ -38,7 +38,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="rounded-[2rem] border border-border bg-[linear-gradient(160deg,hsl(var(--primary)/0.12),hsl(var(--secondary)/0.08),hsl(var(--card)))] p-6 md:p-8">
+      <div className="rounded-[2rem] border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))] p-6 md:p-8">
         <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Admin dashboard</p>
         <h1 className="mt-3 text-3xl font-extrabold md:text-5xl">Manage the school operation hub</h1>
         <p className="mt-3 max-w-3xl text-sm leading-7 text-foreground/70">
@@ -55,7 +55,7 @@ export default function AdminDashboard() {
         ].map((item) => {
           const Icon = item.icon
           return (
-            <Card key={item.label} className="rounded-3xl p-6">
+            <Card key={item.label} className="rounded-3xl border bg-white p-6 shadow-sm dark:bg-blue-800/20">
               <Icon className="h-5 w-5 text-primary" />
               <p className="mt-4 text-sm text-muted-foreground">{item.label}</p>
               <p className="mt-1 text-2xl font-bold">{item.value}</p>
@@ -65,7 +65,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <Card className="rounded-[2rem] p-6">
+        <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
           <h2 className="text-2xl font-bold">Management modules</h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {[
@@ -76,43 +76,38 @@ export default function AdminDashboard() {
               'Results uploads and transcript data',
               'Fee structure, sessions, and receipts',
             ].map((item) => (
-              <div key={item} className="rounded-2xl border border-border bg-background p-4 text-sm">{item}</div>
+              <div key={item} className="rounded-2xl border border-border bg-slate-50 p-4 text-sm dark:bg-blue-800/20">{item}</div>
             ))}
           </div>
         </Card>
 
         <div className="space-y-6">
-          <Card className="rounded-[2rem] p-6">
+          <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
             <h2 className="text-2xl font-bold">Quick actions</h2>
             <div className="mt-4 space-y-3">
               <Button asChild className="w-full justify-start rounded-2xl">
-                <Link href="/admin/admissions">
-                  <GraduationCap className="mr-2 h-4 w-4" />
-                  Review admissions
-                </Link>
+                <Link href="/admin/admissions"><GraduationCap className="mr-2 h-4 w-4" />Review admissions</Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start rounded-2xl">
-                <Link href="/admin/users">
-                  <Users className="mr-2 h-4 w-4" />
-                  Manage users
-                </Link>
+                <Link href="/admin/users"><Users className="mr-2 h-4 w-4" />Manage users</Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start rounded-2xl">
-                <Link href="/admin/settings">
-                  <Settings className="mr-2 h-4 w-4" />
-                  System settings
-                </Link>
+                <Link href="/admin/admissions"><ClipboardCheck className="mr-2 h-4 w-4" />Bulk migrate aspirants</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full justify-start rounded-2xl">
+                <Link href="/admin/settings"><Settings className="mr-2 h-4 w-4" />System settings</Link>
               </Button>
             </div>
           </Card>
-          <Card className="rounded-[2rem] p-6">
+
+          <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
             <h2 className="text-2xl font-bold">Recent users</h2>
             <div className="mt-4 space-y-3">
               {recentUsers.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No recent users found.</p>
               ) : (
                 recentUsers.map((member) => (
-                  <div key={member.id} className="rounded-2xl border border-border bg-background p-4">
+                  <div key={member.id} className="rounded-2xl border border-border bg-slate-50 p-4 dark:bg-blue-800/20">
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
                         <UserRound className="h-4 w-4" />

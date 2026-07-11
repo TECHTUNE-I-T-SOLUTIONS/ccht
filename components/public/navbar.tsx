@@ -19,6 +19,7 @@ import * as NavigationMenu from '@radix-ui/react-navigation-menu'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { motion, AnimatePresence } from 'motion/react'
 import { Button } from '@/components/ui/button'
+import Image from 'next/image'
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -68,7 +69,7 @@ export function Navbar() {
         >
           <Link href={ROUTES.home} className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-sm font-technical font-bold text-muted-foreground shadow-lg shadow-primary/20">
-              CCHT
+                <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={44} height={44} />
             </div>
             <span className={cn(
               "font-display font-bold text-xl tracking-tight hidden sm:block",

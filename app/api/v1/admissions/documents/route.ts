@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { AdmissionService } from '@/lib/services/admission.service'
+import { UploadAdmissionDocumentSchema } from '@/lib/validation'
 
 const allowedTypes = new Set([
   'passport_photo',
   'signature',
   'birth_certificate',
+  'medical_fitness',
   'age_declaration',
   'primary_certificate',
   'secondary_certificate',
@@ -35,8 +37,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Document file is required' }, { status: 400 })
     }
 
-    if (!allowedTypes.has(documentType)) {
+    const parsed = UploadAdmissionDocumentSchema.safeParse({ documentType })
+    if (!parsed.success || !allowedTypes.has(documentType)) {
       return NextResponse.json({ error: 'Invalid document type' }, { status: 400 })
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: 'Document must be 10MB or smaller' }, { status: 400 })
     }
 
     const { data: profile } = await supabase

@@ -21,17 +21,17 @@ const faculty = [
   { 
     name: 'Dr. Samuel A. Ojo', 
     role: 'Rector / Head of Institution', 
-    image: 'https://images.pexels.com/photos/5452293/pexels-photo-5452293.jpeg' 
+    image: '/images/Doctor2.jpeg' 
   },
   { 
     name: 'Prof. Elizabeth Williams', 
     role: 'Director of Academic Planning', 
-    image: 'https://images.pexels.com/photos/5327656/pexels-photo-5327656.jpeg' 
+    image: '/images/WhatsApp Image 2026-07-10 at 6.08.44 AM (1).jpeg' 
   },
   { 
     name: 'Mr. David Okonkwo', 
     role: 'Dean, School of Health Technology', 
-    image: 'https://images.pexels.com/photos/5215024/pexels-photo-5215024.jpeg' 
+    image: '/images/WhatsApp Image 2026-07-10 at 6.08.44 AM.jpeg' 
   },
 ]
 
@@ -162,8 +162,8 @@ export function AboutContent() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                     <div className="absolute bottom-10 left-10 right-10">
-                       <p className="text-muted-foreground font-bold text-xl font-display">{member.name}</p>
-                       <p className="text-muted-foreground/70 text-[10px] font-technical mt-1 uppercase tracking-widest font-bold">{member.role}</p>
+                       <p className="text-white font-bold text-xl font-display">{member.name}</p>
+                       <p className="text-white/70 text-[10px] font-technical mt-1 uppercase tracking-widest font-bold">{member.role}</p>
                     </div>
                  </div>
               ))}

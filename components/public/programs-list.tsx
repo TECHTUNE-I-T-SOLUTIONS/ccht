@@ -135,7 +135,7 @@ export function ProgramsList({ programs }: { programs: any[] }) {
               
               <div className="relative aspect-square rounded-[3rem] overflow-hidden">
                  <Image 
-                   src="https://images.pexels.com/photos/35645517/pexels-photo-35645517.jpeg" 
+                   src="/images/WhatsApp Image 2026-07-10 at 6.08.36 AM.jpeg" 
                    alt="Accreditation" 
                    fill 
                    className="object-cover"

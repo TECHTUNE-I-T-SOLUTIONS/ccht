@@ -32,7 +32,7 @@ export function NewsAndEvents({ blogPosts, events }: { blogPosts: any[], events:
                 <article className="group relative">
                    <div className="relative aspect-video overflow-hidden rounded-[2.5rem] mb-8">
                      <Image 
-                       src="https://images.pexels.com/photos/35645517/pexels-photo-35645517.jpeg" 
+                       src="/images/CONVENT3.jpg.jpeg" 
                        alt={blogPosts[0].title} 
                        fill 
                        sizes="(max-width: 1024px) 100vw, 60vw"

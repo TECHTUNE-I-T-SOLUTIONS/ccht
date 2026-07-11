@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { AdmissionService } from '@/lib/services/admission.service'
+import { UploadPassportPhotoSchema } from '@/lib/validation'
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +19,19 @@ export async function POST(request: NextRequest) {
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'Passport photo is required' }, { status: 400 })
+    }
+
+    const parsed = UploadPassportPhotoSchema.safeParse({ fileName: file.name })
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid passport photo file name' }, { status: 400 })
+    }
+
+    if (!file.type.startsWith('image/')) {
+      return NextResponse.json({ error: 'Passport photo must be an image file' }, { status: 400 })
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: 'Passport photo must be 5MB or smaller' }, { status: 400 })
     }
 
     const { data: profile } = await supabase

@@ -1,9 +1,10 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { AlertCircle, ArrowRight, Lock, Mail, ShieldCheck, BadgeCheck } from 'lucide-react'
+import { AlertCircle, ArrowRight, Lock, Mail } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { toast } from 'sonner'
 
@@ -16,26 +17,40 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('Form submitted', { email, password: password ? '***' : '' })
     setLoading(true)
     setError('')
     try {
+      console.log('Making API request to /api/v1/auth/login')
       const response = await fetch('/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       })
+      
+      console.log('Response status:', response.status, response.statusText)
+      
       if (!response.ok) {
         const data = await response.json().catch(() => null)
+        console.error('Login failed:', data)
         const message = data?.error || 'Invalid credentials or account status.'
         setError(message)
         toast.error(message)
         return
       }
-      const { user, redirectTo } = await response.json()
+      
+      const data = await response.json()
+      console.log('Login success:', data)
+      const { user, redirectTo } = data
       toast.success('Login successful.')
-      router.replace(redirectTo || (user.role === 'admin' ? ROUTES.adminDashboard : user.role === 'lecturer' ? ROUTES.lecturerDashboard : ROUTES.studentDashboard))
+      
+      const targetRoute = redirectTo || (user.role === 'admin' ? ROUTES.adminDashboard : user.role === 'lecturer' ? ROUTES.lecturerDashboard : user.role === 'aspirant' ? ROUTES.aspirantDashboard : ROUTES.studentDashboard)
+      console.log('Redirecting to:', targetRoute)
+      
+      router.replace(targetRoute)
       router.refresh()
-    } catch {
+    } catch (error) {
+      console.error('Login error:', error)
       const message = 'Unable to sign in right now. Please try again.'
       setError(message)
       toast.error(message)
@@ -45,125 +60,114 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.14),transparent_25%),radial-gradient(circle_at_80%_20%,hsl(var(--secondary)/0.12),transparent_22%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--card)))]">
-      <div className="mx-auto grid min-h-screen w-full max-w-none lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="flex items-center px-4 py-10 sm:px-6 md:px-8 lg:px-12 xl:px-16">
-          <div className="w-full max-w-xl">
-            <Link href={ROUTES.home} className="inline-flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
-                CCHT
-              </div>
-              <div>
-                <p className="text-sm font-semibold">{SCHOOL_INFO.shortName}</p>
-                <p className="text-xs text-foreground/60">{SCHOOL_INFO.tagline}</p>
-              </div>
+    <main className="flex min-h-screen">
+      {/* Left Side - School Image */}
+      <div className="relative hidden w-1/2 lg:block">
+          <Image
+            src="/images/hero-bg1.jpg"
+            alt="CCHT Campus"
+            fill
+            priority
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 50vw"
+            loading="eager"
+          />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/50 to-blue-950/50" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-white">
+          <div className="max-w-lg space-y-6">
+            <Link href={ROUTES.home} className="inset-0">
+              <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={180} height={180} className="mx-auto" />
             </Link>
 
-            <div className="mt-10 max-w-lg">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Portal access</p>
-              <h1 className="mt-4 text-4xl font-extrabold leading-tight md:text-5xl">Login to the right portal for your role</h1>
-              <p className="mt-4 text-base leading-8 text-foreground/70">
-                Applicants, students, lecturers, and admins all enter through a secure portal entry. New aspirants should start with admissions,
-                not the student dashboard.
-              </p>
-            </div>
-
-            <div className="mt-8 rounded-[2rem] border border-border bg-card p-6">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-primary/10 p-3 text-primary">
-                  <BadgeCheck className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold">Who should sign in here?</h2>
-                  <p className="text-sm text-foreground/65">Applicants, students, and staff with existing accounts.</p>
-                </div>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {[
-                  { title: 'Applicants', text: 'Continue your admission journey.' },
-                  { title: 'Students', text: 'Access your academic records.' },
-                  { title: 'Lecturers', text: 'Open your teaching workspace.' },
-                  { title: 'Staff', text: 'Enter your assigned dashboard.' },
-                ].map((item) => (
-                  <div key={item.title} className="rounded-2xl border border-border bg-background p-4">
-                    <p className="text-sm font-semibold">{item.title}</p>
-                    <p className="mt-1 text-sm leading-6 text-foreground/70">{item.text}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <h1 className="text-4xl font-bold text-center">Welcome to {SCHOOL_INFO.shortName}</h1>
+            <p className="text-lg text-center text-white/90">{SCHOOL_INFO.tagline}</p>
           </div>
-        </section>
+        </div>
+      </div>
 
-        <section className="flex items-center px-4 py-10 sm:px-6 md:px-8 lg:px-12 xl:px-16">
-          <div className="w-full max-w-xl rounded-[2rem] border border-border bg-card p-6 shadow-2xl sm:p-8">
-            <div className="mb-8 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Welcome back</p>
-                <h2 className="mt-2 text-3xl font-bold">Sign in securely</h2>
-                <p className="mt-2 text-sm leading-7 text-foreground/65">Use your assigned email and password to continue.</p>
-              </div>
-              <div className="hidden rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary md:block">
-                <ShieldCheck className="h-6 w-6" />
-              </div>
+      {/* Right Side - Login Form */}
+      <div className="flex w-full items-center justify-center bg-gray-50 px-4 py-12 lg:w-1/2 dark:bg-slate-950">
+        <div className="w-full max-w-md space-y-8">
+          {/* Mobile Logo */}
+          <div className="flex justify-center lg:hidden">
+            <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={80} height={80} />
+          </div>
+
+          <div className="text-center">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome back</h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Sign in to your portal
+            </p>
+          </div>
+
+          {error && (
+            <div className="flex gap-3 rounded-lg border border-red-400/30 bg-red-500/10 p-4 text-red-100">
+              <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+              <p className="text-sm">{error}</p>
             </div>
+          )}
 
-            {error && (
-              <div className="mb-5 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/40 dark:bg-red-950/30">
-                <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium">Email address</span>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3.5 h-4 w-4 text-foreground/40" />
+          <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Email address
+                </label>
+                <div className="relative mt-1">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <input
+                    id="email"
+                    name="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-2xl border border-border bg-background py-3 pl-10 pr-4 text-sm outline-none transition focus:border-primary"
+                    className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 pl-10 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-slate-900 dark:text-white dark:focus:border-blue-400"
                     placeholder="you@example.com"
                     required
                   />
                 </div>
-              </label>
+              </div>
 
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium">Password</span>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3.5 h-4 w-4 text-foreground/40" />
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Password
+                </label>
+                <div className="relative mt-1">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <input
+                    id="password"
+                    name="password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-2xl border border-border bg-background py-3 pl-10 pr-4 text-sm outline-none transition focus:border-primary"
+                    className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-slate-900 dark:text-white dark:focus:border-blue-400"
                     placeholder="Enter your password"
                     required
                   />
                 </div>
-              </label>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
-              >
-                {loading ? 'Signing in...' : 'Sign in'}
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </form>
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-1">
-              <Link href={ROUTES.admissions} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary">
-                <ArrowRight className="h-4 w-4" />
-                Start Admission
-              </Link>
+              </div>
             </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+            >
+              {loading ? 'Signing in...' : 'Sign in'}
+              <ArrowRight className="h-4 w-4" />
+            </button>
+
+            <div className="text-center gap-2">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Seeking Admission? Start your journey <Link href={ROUTES.admissions} className="ml-1 font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">here</Link>.
+              </p>
+            </div>
+          </form>
+
+          <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+            <p>Single Sign-in entry for all users</p>
           </div>
-        </section>
+        </div>
       </div>
     </main>
   )

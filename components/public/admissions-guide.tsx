@@ -69,16 +69,16 @@ export function AdmissionsGuide() {
         <div className="sticky top-32 hidden lg:block">
            <div className="relative aspect-[4/5] overflow-hidden rounded-[3rem] border-8 border-white/5">
              <Image
-               src="https://images.pexels.com/photos/7942517/pexels-photo-7942517.jpeg"
+               src="/images/flyer1.jpeg"
                alt="Student at CCHT"
                fill
-               sizes="40vw"
+               sizes="30vw"
                className="object-cover"
              />
              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
              <div className="absolute bottom-10 left-10 right-10">
-                <TypographyTechnical className="text-primary text-xs font-bold">Direct Admission</TypographyTechnical>
-                <TypographyH3 className="text-muted-foreground mt-2">Simplifying the journey from interest to enrollment.</TypographyH3>
+                <TypographyTechnical className="text-white text-xs font-bold">Direct Admission</TypographyTechnical>
+                <TypographyH3 className="text-white mt-2">Simplifying the journey from interest to enrollment.</TypographyH3>
              </div>
            </div>
         </div>

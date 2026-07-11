@@ -8,7 +8,7 @@ export const SignUpSchema = z.object({
   confirmPassword: z.string(),
   firstName: z.string().min(2, 'First name is required'),
   lastName: z.string().min(2, 'Last name is required'),
-  role: z.enum([USER_ROLES.STUDENT, USER_ROLES.LECTURER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, 'aspirant']),
+  role: z.enum([USER_ROLES.STUDENT, USER_ROLES.LECTURER, USER_ROLES.ADMIN, 'super_admin', 'aspirant']),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -104,6 +104,28 @@ export const UpdateProfileSchema = z.object({
   phone: z.string().optional(),
   avatarUrl: z.string().url('Invalid image URL').optional(),
 });
+
+export const AdmissionDocumentTypeSchema = z.enum([
+  'passport_photo',
+  'signature',
+  'birth_certificate',
+  'age_declaration',
+  'primary_certificate',
+  'secondary_certificate',
+  'indigene_certificate',
+  'nin_slip',
+  'jamb_result',
+  'jamb_registration_form',
+  'other',
+])
+
+export const UploadAdmissionDocumentSchema = z.object({
+  documentType: AdmissionDocumentTypeSchema,
+})
+
+export const UploadPassportPhotoSchema = z.object({
+  fileName: z.string().min(1),
+})
 
 // Admin User Management Schema
 export const CreateAdminUserSchema = z.object({

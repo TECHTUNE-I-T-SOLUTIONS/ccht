@@ -15,11 +15,7 @@ export default function PaymentsPage() {
     const getPayments = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data } = await supabase
-          .from('payments')
-          .select('*')
-          .eq('student_id', user.id)
-          .order('created_at', { ascending: false })
+        const { data } = await supabase.from('payments').select('*').eq('student_id', user.id).order('created_at', { ascending: false })
         setPayments(data || [])
       }
       setLoading(false)
@@ -45,27 +41,27 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Fee Payments</h1>
+          <h1 className="text-3xl font-bold">Fee payments</h1>
           <p className="text-muted-foreground">View and manage your payment records</p>
         </div>
         <Button className="gap-2">
-          <CreditCard className="w-4 h-4" />
-          Make Payment
+          <CreditCard className="h-4 w-4" />
+          Make payment
         </Button>
       </div>
 
       {payments.length === 0 ? (
-        <Card className="p-12 text-center">
-          <CreditCard className="w-16 h-16 mx-auto text-muted-foreground mb-4 opacity-50" />
+        <Card className="rounded-[2rem] border p-12 text-center">
+          <CreditCard className="mx-auto mb-4 h-16 w-16 text-muted-foreground opacity-50" />
           <p className="text-lg text-muted-foreground">No payment records</p>
-          <p className="text-sm text-muted-foreground mt-2">Start by making your first payment</p>
+          <p className="mt-2 text-sm text-muted-foreground">Start by making your first payment</p>
         </Card>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-[2rem] border bg-white shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-muted border-b">
+            <thead className="border-b bg-slate-50">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold">Date</th>
                 <th className="px-4 py-3 text-left font-semibold">Amount</th>
@@ -76,18 +72,18 @@ export default function PaymentsPage() {
             </thead>
             <tbody className="divide-y">
               {payments.map((payment) => (
-                <tr key={payment.id} className="hover:bg-muted/50">
+                <tr key={payment.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">{new Date(payment.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3 font-bold">₦{payment.amount.toLocaleString()}</td>
                   <td className="px-4 py-3">{payment.description || 'Program Fee'}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(payment.status)}`}>
+                    <span className={`rounded px-2 py-1 text-xs font-medium ${getStatusColor(payment.status)}`}>
                       {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <Button variant="ghost" size="sm" className="gap-1">
-                      <Download className="w-4 h-4" />
+                      <Download className="h-4 w-4" />
                       Receipt
                     </Button>
                   </td>

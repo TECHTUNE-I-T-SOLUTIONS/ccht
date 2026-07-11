@@ -1,10 +1,12 @@
+import crypto from 'crypto'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createPublicClient } from '@/lib/supabase/public'
+import { buildCloudinaryPublicUrl, getCloudinaryConfig, uploadFileToCloudinary } from '@/lib/cloudinary'
 
 export type AspirantProfile = {
   profile_id: string
   admission_number: string | null
-  jamb_reg_no: string
+  jamb_reg_no: string | null
   preferred_program_id: string | null
   application_type: string
   application_status: string
@@ -37,6 +39,7 @@ export type AdmissionDocument = {
   verified_at: string | null
   created_at: string
   updated_at: string
+  file_url?: string | null
 }
 
 export type ProfilePhoto = {
@@ -54,16 +57,25 @@ export type ProfilePhoto = {
   image_url?: string | null
 }
 
-export type AdmissionDocumentWithUrl = AdmissionDocument & {
-  file_url?: string | null
+export type AdmissionCandidate = {
+  profile_id: string
+  admission_number: string | null
+  application_status: string
+  current_stage: string
+  profile_completion: number
+  preferred_program_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+function buildCloudinaryUrl(publicIdOrUrl?: string | null) {
+  const { cloudName } = getCloudinaryConfig()
+  return buildCloudinaryPublicUrl(cloudName, publicIdOrUrl)
 }
 
 export class AdmissionService {
-  static async createSignedUrl(bucket: string, path: string, expiresIn = 60 * 60) {
-    const supabase = await createServerClient()
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn)
-    if (error) throw new Error(error.message)
-    return data?.signedUrl || null
+  static async createSignedUrl(_: string, path: string) {
+    return buildCloudinaryUrl(path)
   }
 
   static async getAspirantProfile(profileId: string): Promise<AspirantProfile | null> {
@@ -88,13 +100,10 @@ export class AdmissionService {
 
     if (error) throw new Error('Failed to load admission documents')
 
-    const documents = data || []
-    return Promise.all(
-      documents.map(async (doc) => ({
-        ...doc,
-        file_url: await this.createSignedUrl(doc.storage_bucket, doc.storage_path).catch(() => null),
-      })),
-    ) as Promise<AdmissionDocumentWithUrl[]>
+    return (data || []).map((doc) => ({
+      ...doc,
+      file_url: buildCloudinaryUrl(doc.storage_path),
+    }))
   }
 
   static async getProfilePhotos(profileId: string): Promise<ProfilePhoto[]> {
@@ -107,13 +116,109 @@ export class AdmissionService {
 
     if (error) throw new Error('Failed to load profile photos')
 
-    const photos = data || []
-    return Promise.all(
-      photos.map(async (photo) => ({
-        ...photo,
-        image_url: await this.createSignedUrl(photo.storage_bucket, photo.storage_path).catch(() => null),
-      })),
-    )
+    return (data || []).map((photo) => ({
+      ...photo,
+      image_url: buildCloudinaryUrl(photo.storage_path),
+    }))
+  }
+
+  static async listAspirantCandidates(status = 'approved'): Promise<AdmissionCandidate[]> {
+    const supabase = createPublicClient()
+    const { data, error } = await supabase
+      .from('aspirant_profiles')
+      .select('profile_id, admission_number, application_status, current_stage, profile_completion, preferred_program_id, created_at, updated_at')
+      .eq('application_status', status)
+      .order('updated_at', { ascending: false })
+
+    if (error) throw new Error('Failed to load aspirant candidates')
+    return data || []
+  }
+
+  static async bulkMigrateAspirantsToStudents(profileIds: string[]) {
+    const supabase = await createServerClient()
+    const migrated: string[] = []
+    const errors: Array<{ profileId: string; error: string }> = []
+
+    for (const profileId of profileIds) {
+      try {
+        const { data: aspirant, error: aspirantError } = await supabase
+          .from('aspirant_profiles')
+          .select('profile_id, preferred_program_id, application_status')
+          .eq('profile_id', profileId)
+          .maybeSingle()
+
+        if (aspirantError || !aspirant) {
+          errors.push({ profileId, error: 'Aspirant profile not found' })
+          continue
+        }
+
+        const currentYear = new Date().getFullYear().toString()
+        let deptCode = 'CHT'
+        if (typeof aspirant.preferred_program_id === 'string') {
+          const { data: program } = await supabase
+            .from('programs')
+            .select('title')
+            .eq('id', aspirant.preferred_program_id)
+            .maybeSingle()
+          const title = program?.title?.toLowerCase() || ''
+          if (title.includes('laboratory') || title.includes('mlt')) deptCode = 'MLT'
+          else if (title.includes('public') || title.includes('pbh')) deptCode = 'PBH'
+          else if (title.includes('pharmacy') || title.includes('pht')) deptCode = 'PHT'
+        }
+
+        const pattern = `CCHT/${deptCode}/${currentYear}/%`
+        const { data: students } = await supabase
+          .from('student_profiles')
+          .select('matric_number')
+          .like('matric_number', pattern)
+
+        let nextId = 1
+        const numbers = (students || [])
+          .map((s) => {
+            const parts = s.matric_number?.split('/') || []
+            return parseInt(parts[parts.length - 1], 10)
+          })
+          .filter((value) => !Number.isNaN(value))
+        if (numbers.length > 0) nextId = Math.max(...numbers) + 1
+
+        const matricNumber = `CCHT/${deptCode}/${currentYear}/${String(nextId).padStart(3, '0')}`
+
+        const { error: profileUpdateError } = await supabase
+          .from('profiles')
+          .update({ role: 'student' })
+          .eq('id', profileId)
+        if (profileUpdateError) throw profileUpdateError
+
+        const { error: studentError } = await supabase
+          .from('student_profiles')
+          .upsert({
+            profile_id: profileId,
+            student_number: matricNumber,
+            matric_number: matricNumber,
+            admission_session: `${currentYear}/${parseInt(currentYear) + 1}`,
+            admission_date: new Date().toISOString().split('T')[0],
+            current_level: '100',
+            admission_status: 'active',
+          })
+        if (studentError) throw studentError
+
+        const { error: aspirantUpdateError } = await supabase
+          .from('aspirant_profiles')
+          .update({
+            application_status: 'approved',
+            current_stage: 'admitted',
+            admission_number: matricNumber,
+          })
+          .eq('profile_id', profileId)
+        if (aspirantUpdateError) throw aspirantUpdateError
+
+        migrated.push(profileId)
+      } catch (error: any) {
+        errors.push({ profileId, error: error?.message || 'Migration failed' })
+      }
+    }
+
+    return { migrated, errors }
   }
 
   static async uploadProfilePhoto(profileId: string, file: File, userId: string) {
@@ -122,28 +227,22 @@ export class AdmissionService {
 
   static async uploadProfilePhotoForUser(profileId: string, uploadedBy: string, file: File) {
     const supabase = await createServerClient()
-    const fileExt = file.name.split('.').pop() || 'jpg'
-    const filePath = `${uploadedBy}/${crypto.randomUUID()}-passport.${fileExt}`
-
-    const { error: uploadError } = await supabase.storage
-      .from('profile-photos')
-      .upload(filePath, file, {
-        contentType: file.type || 'image/jpeg',
-        upsert: false,
-      })
-
-    if (uploadError) throw new Error(uploadError.message)
+    const result = await uploadFileToCloudinary(file, {
+      folder: `profile-photos/${uploadedBy}`,
+      publicId: `passport_${crypto.randomUUID()}`,
+    })
 
     const { data: inserted, error: insertError } = await supabase
       .from('aspirant_profile_photos')
       .insert({
         application_id: profileId,
         uploaded_by: uploadedBy,
-        storage_bucket: 'profile-photos',
-        storage_path: filePath,
+        storage_bucket: 'cloudinary',
+        storage_path: result.public_id,
         file_name: file.name,
         mime_type: file.type || null,
         file_size: file.size,
+        media_provider: 'cloudinary',
       })
       .select()
       .single()
@@ -153,12 +252,13 @@ export class AdmissionService {
     await supabase
       .from('profiles')
       .update({
-        profile_photo_bucket: 'profile-photos',
-        profile_photo_path: filePath,
+        profile_photo_bucket: 'cloudinary',
+        profile_photo_path: result.public_id,
         profile_photo_mime_type: file.type || null,
         profile_photo_uploaded_by: uploadedBy,
         profile_photo_uploaded_at: new Date().toISOString(),
-        avatar_url: filePath,
+        avatar_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id),
+        media_provider: 'cloudinary',
         updated_at: new Date().toISOString(),
       })
       .eq('id', profileId)
@@ -173,17 +273,10 @@ export class AdmissionService {
     documentType: string,
   ) {
     const supabase = await createServerClient()
-    const fileExt = file.name.split('.').pop() || 'pdf'
-    const filePath = `${userId}/${documentType}/${crypto.randomUUID()}.${fileExt}`
-
-    const { error: uploadError } = await supabase.storage
-      .from('admission-documents')
-      .upload(filePath, file, {
-        contentType: file.type || 'application/octet-stream',
-        upsert: false,
-      })
-
-    if (uploadError) throw new Error(uploadError.message)
+    const result = await uploadFileToCloudinary(file, {
+      folder: `admission-documents/${userId}/${documentType}`,
+      publicId: `${documentType}_${crypto.randomUUID()}`,
+    })
 
     const { data, error } = await supabase
       .from('admission_documents')
@@ -191,11 +284,12 @@ export class AdmissionService {
         application_id: profileId,
         uploaded_by: userId,
         document_type: documentType,
-        storage_bucket: 'admission-documents',
-        storage_path: filePath,
+        storage_bucket: 'cloudinary',
+        storage_path: result.public_id,
         file_name: file.name,
         mime_type: file.type || null,
         file_size: file.size,
+        media_provider: 'cloudinary',
       })
       .select()
       .single()

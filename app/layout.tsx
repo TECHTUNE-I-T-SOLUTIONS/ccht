@@ -54,7 +54,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={cn(
+      <body suppressHydrationWarning className={cn(
         "min-h-screen bg-background font-sans antialiased selection:bg-primary/10 selection:text-primary",
         fontSans.variable,
         fontDisplay.variable,
