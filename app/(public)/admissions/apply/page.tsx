@@ -124,7 +124,7 @@ export default function ApplyPage() {
         <section className="border-b border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))]">
           <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-12 lg:py-24">
             <div className="max-w-2xl">
-              <Badge className="bg-white text-primary shadow-sm">ADMISSION 2026/2027</Badge>
+              <Badge className="bg-background text-primary shadow-sm border border-primary">ADMISSION 2026/2027</Badge>
               <TypographyH1 className="mt-5 text-4xl leading-tight md:text-6xl">
                 Begin your admission journey
               </TypographyH1>
@@ -132,23 +132,23 @@ export default function ApplyPage() {
                 Create your aspirant profile, pay the application fee, complete your documents, and move through the admission steps in sequence.
               </TypographyLead>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="#application-form" className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground">
+                <Link href="#application-form" className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground border border-gray-200 shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background">
                   Start now <ArrowRight className="h-4 w-4" />
                 </Link>
-                <Link href={ROUTES.programs} className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-6 py-3 text-sm font-semibold">
+                <Link href={ROUTES.programs} className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-6 py-3 text-sm font-semibold">
                   View programs
                 </Link>
               </div>
             </div>
-            <div className="rounded-[2rem] border border-border bg-white p-3 shadow-xl">
+            <div className="rounded-[2rem] border border-border bg-background p-3 shadow-xl">
               <div className="relative min-h-[380px] overflow-hidden rounded-[1.5rem]">
                 <Image src="/images/CONVENT2.jpg.jpeg" alt="Admissions" fill className="object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-900/15 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-6 text-white">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">Admission process</p>
-                  <h2 className="mt-2 text-2xl font-bold">White and blue, simple and clear</h2>
+                  <h2 className="mt-2 text-2xl font-bold">Easy, simple and clear</h2>
                   <p className="mt-2 text-sm leading-7 text-white/80">
-                    The process is built around your school workflow, not JAMB. JAMB details remain optional for later use.
+                    The process is seamless and designed to guide you through each step, from application to acceptance.
                   </p>
                 </div>
               </div>
@@ -166,7 +166,7 @@ export default function ApplyPage() {
             ].map((item) => {
               const Icon = item.icon
               return (
-                <article key={item.title} className="rounded-3xl border border-border bg-white p-6 shadow-sm">
+                <article key={item.title} className="rounded-3xl border border-border bg-background p-6 shadow-sm">
                   <Icon className="h-6 w-6 text-primary" />
                   <h3 className="mt-4 text-lg font-semibold">{item.title}</h3>
                   <p className="mt-2 text-sm leading-7 text-foreground/70">{item.text}</p>
@@ -176,14 +176,14 @@ export default function ApplyPage() {
           </div>
         </Section>
 
-        <Section className="border-y border-border bg-white/70">
+        <Section className="border-y border-border bg-background/70">
           <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-            <div className="rounded-[2rem] border border-border bg-white p-8 shadow-sm">
+            <div className="rounded-[2rem] border border-border bg-background p-8 shadow-sm">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Steps</p>
               <TypographyH3 className="mt-3 text-3xl">Admission steps</TypographyH3>
               <div className="mt-6 space-y-4">
                 {steps.map((item, index) => (
-                  <div key={item} className="flex gap-4 rounded-2xl border border-border bg-slate-50 p-4">
+                  <div key={item} className="flex gap-4 rounded-2xl border border-border bg-background p-4">
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
                       {index + 1}
                     </div>
@@ -194,7 +194,7 @@ export default function ApplyPage() {
             </div>
 
             <div className="space-y-6">
-              <div className="rounded-[2rem] border border-border bg-white p-8 shadow-sm">
+              <div className="rounded-[2rem] border border-border bg-background p-8 shadow-sm">
                 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Documents</p>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {[
@@ -207,7 +207,7 @@ export default function ApplyPage() {
                     'Medical fitness report/certificate',
                     'Passport photo',
                   ].map((item) => (
-                    <div key={item} className="flex items-center gap-3 rounded-2xl border border-border bg-slate-50 p-4 text-sm font-medium">
+                    <div key={item} className="flex items-center gap-3 rounded-2xl border border-border bg-background p-4 text-sm font-medium">
                       <Check className="h-4 w-4 text-primary" />
                       {item}
                     </div>
@@ -229,7 +229,7 @@ export default function ApplyPage() {
 
         <Section className="bg-background" id="application-form">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="rounded-[2rem] border border-border bg-white p-8 shadow-sm">
+            <div className="rounded-[2rem] border border-border bg-background p-8 shadow-sm">
               <div className="mb-10">
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                   <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="h-full rounded-full bg-primary" />
@@ -252,7 +252,7 @@ export default function ApplyPage() {
                         <span className="text-xs font-semibold uppercase tracking-[0.18em] text-foreground/55">{label}</span>
                         <Input
                           type={field.includes('password') ? 'password' : field === 'email' ? 'email' : 'text'}
-                          className="h-14 rounded-2xl border-border bg-white"
+                          className="h-14 rounded-2xl border-border bg-background"
                           value={(form as any)[field]}
                           onChange={(e) => setForm({ ...form, [field]: e.target.value })}
                         />
@@ -265,13 +265,13 @@ export default function ApplyPage() {
                 {step === 2 && (
                   <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                     <div className="relative">
-                      <button onClick={() => setCourseOpen(!courseOpen)} className="flex w-full items-center justify-between rounded-2xl border border-border bg-white p-5 text-left">
+                      <button onClick={() => setCourseOpen(!courseOpen)} className="flex w-full items-center justify-between rounded-2xl border border-border bg-background p-5 text-left">
                         <span className={cn('font-semibold', !course && 'text-muted-foreground')}>{course || 'Select a course of study'}</span>
                         <ChevronDown className={cn('h-5 w-5 transition-transform', courseOpen && 'rotate-180')} />
                       </button>
                       <AnimatePresence>
                         {courseOpen && (
-                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-border bg-white shadow-2xl">
+                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
                             {courses.map((item) => (
                               <button key={item} onClick={() => { setCourse(item); setCourseOpen(false) }} className="flex w-full items-center justify-between p-4 text-left hover:bg-primary/5">
                                 <span>{item}</span>
@@ -327,7 +327,7 @@ export default function ApplyPage() {
             </div>
 
             <div className="space-y-6">
-              <div className="rounded-[2rem] border border-border bg-white p-8 shadow-sm">
+              <div className="rounded-[2rem] border border-border bg-background p-8 shadow-sm">
                 <TypographyTechnical className="text-primary font-bold">Support</TypographyTechnical>
                 <TypographyH3 className="mt-3 text-2xl">Need help with your application?</TypographyH3>
                 <TypographyP className="mt-4 text-sm text-muted-foreground">
@@ -348,7 +348,7 @@ export default function ApplyPage() {
                 </ul>
               </div>
 
-              <div className="rounded-[2rem] border border-border bg-white p-8 shadow-sm">
+              <div className="rounded-[2rem] border border-border bg-background p-8 shadow-sm">
                 <BadgeCheck className="h-10 w-10 text-primary" />
                 <TypographyH3 className="mt-5 text-xl">What successful applicants receive</TypographyH3>
                 <TypographyP className="mt-4 text-sm text-muted-foreground">

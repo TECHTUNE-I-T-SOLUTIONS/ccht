@@ -11,27 +11,27 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
 const values = [
-  { icon: Target, title: 'Purpose', text: 'We train for real healthcare service, not just classroom theory.' },
-  { icon: Award, title: 'Excellence', text: 'Quality teaching, practical standards, and continuous improvement.' },
-  { icon: ShieldCheck, title: 'Integrity', text: 'Transparent, secure, and accountable academic workflows.' },
-  { icon: Users, title: 'Community', text: 'A college culture that supports learners, lecturers, and staff.' },
+  { icon: Target, title: 'Integrity', text: 'We are committed to fostering a vibrant learning community where students, faculty, and staff can thrive.' },
+  { icon: Award, title: 'Excellence', text: 'To be a globally recognized institution of excellence in health technology education, research, and innovation.' },
+  { icon: ShieldCheck, title: 'Innovation', text: 'Our culture is built on the principles of innovation, inclusivity, and lifelong learning.' },
+  { icon: Users, title: 'Collaboration', text: 'We foster a dynamic and collaborative environment that encourages creativity, critical thinking, and personal growth.' },
 ]
 
 const faculty = [
   { 
-    name: 'Dr. Samuel A. Ojo', 
-    role: 'Rector / Head of Institution', 
-    image: '/images/Doctor2.jpeg' 
+    name: 'Dr. Adebayo Ilufoye', 
+    role: 'Director of the School', 
+    image: '/images/Doctor.jpeg' 
   },
   { 
-    name: 'Prof. Elizabeth Williams', 
-    role: 'Director of Academic Planning', 
-    image: '/images/WhatsApp Image 2026-07-10 at 6.08.44 AM (1).jpeg' 
+    name: 'Elder Gideon B Oladele', 
+    role: 'Provost (Acting Capacity)', 
+    image: '/images/logo.png' 
   },
   { 
-    name: 'Mr. David Okonkwo', 
-    role: 'Dean, School of Health Technology', 
-    image: '/images/WhatsApp Image 2026-07-10 at 6.08.44 AM.jpeg' 
+    name: 'Mr. A. K. Imam', 
+    role: 'Head of Community Health Department', 
+    image: '/images/logo.png' 
   },
 ]
 
@@ -85,7 +85,7 @@ export function AboutContent() {
                  </div>
                  <TypographyH2 className="text-3xl font-bold">Mission</TypographyH2>
                  <TypographyP className="mt-6 text-muted-foreground text-lg leading-relaxed">
-                    To deliver quality, accessible, and professionally relevant health technology education that shapes competent graduates and supports ethical service in society.
+                    To foster a dynamic and inclusive learning environment that promotes critical thinking, collaboration, and innovation, equipping students with the knowledge and skills needed to advance healthcare delivery, improve public health outcomes, and drive sustainable community development.
                  </TypographyP>
               </motion.div>
 
@@ -100,7 +100,7 @@ export function AboutContent() {
                  </div>
                  <TypographyH2 className="text-3xl font-bold">Vision</TypographyH2>
                  <TypographyP className="mt-6 text-muted-foreground text-lg leading-relaxed">
-                    To become a leading private tertiary institution in Nigeria for modern health training, digital administration, and student-centered innovation.
+                    To be a globally recognized institution of excellence in health technology education, research, and innovation, producing skilled professionals dedicated to delivering transformative healthcare solutions and improving the quality of life for all.
                  </TypographyP>
               </motion.div>
            </div>

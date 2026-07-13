@@ -53,7 +53,7 @@ export default function AdmissionsPage() {
                 A simple, guided process from application to matriculation
               </h1>
               <p className="mt-5 max-w-xl text-base leading-8 text-foreground/75 md:text-lg">
-                The admissions process is fully ready to help foster an enhance experience for prospective students. From application to matriculation, every step is mapped to the school process, including payment checkpoints, document uploads, entrance exams, and student activation after acceptance.
+                Follow the steps to start your admission journey. Make sure all required documents are available and ready. Good luck!
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link href="/admissions/apply" className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90">
@@ -88,7 +88,7 @@ export default function AdmissionsPage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-900/20 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-6 text-white">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">Admission preview</p>
-                  <h2 className="mt-2 text-2xl font-bold">From application to matric number</h2>
+                  <h2 className="mt-2 text-2xl font-bold">From application to matriculation</h2>
                   <p className="mt-2 max-w-lg text-sm leading-7 text-white/80">
                     Every step is mapped to the school process, including payment checkpoints, document uploads, entrance exams, and student migration after acceptance.
                   </p>
@@ -163,7 +163,7 @@ export default function AdmissionsPage() {
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Ready?</p>
               <h2 className="mt-2 text-3xl font-bold">Let’s start the admission process</h2>
               <p className="mt-2 text-sm leading-7 text-foreground/70">
-                The application flow is now aligned to your fee checkpoints, entrance exam, and student migration path.
+                Get started with your application today and take the first step towards joining our vibrant academic community.
               </p>
             </div>
             <Link href="/admissions/apply" className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground border border-primary shadow-sm transition hover:opacity-90">

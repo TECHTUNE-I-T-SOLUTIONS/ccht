@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server';
 import { createPublicClient } from '@/lib/supabase/public';
 import { CreateProgramSchema, UpdateProgramSchema } from '@/lib/validation';
 import { z } from 'zod';
@@ -8,9 +7,12 @@ export type Program = {
   title: string;
   slug: string;
   description: string;
+  overview?: string;
+  entry_requirements?: string;
+  career_prospects?: string;
   duration_months: number;
   duration_unit: string;
-  tuition_fee: number;
+  tuition_fee?: number;
   curriculum?: string;
   level: string;
   max_students?: number;
@@ -62,7 +64,7 @@ export class ProgramService {
   }
 
   static async getProgramById(id: string): Promise<Program | null> {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
 
     const { data, error } = await supabase
       .from('programs')
@@ -79,7 +81,7 @@ export class ProgramService {
   }
 
   static async createProgram(input: z.infer<typeof CreateProgramSchema>): Promise<Program> {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
 
     const { data, error } = await supabase
       .from('programs')
@@ -107,7 +109,7 @@ export class ProgramService {
   }
 
   static async updateProgram(id: string, input: z.infer<typeof UpdateProgramSchema>): Promise<Program> {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
 
     const updateData: Record<string, any> = {};
     if (input.title) updateData.title = input.title;
@@ -137,7 +139,7 @@ export class ProgramService {
   }
 
   static async deleteProgram(id: string): Promise<void> {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
 
     const { error } = await supabase
       .from('programs')
@@ -151,7 +153,7 @@ export class ProgramService {
   }
 
   static async searchPrograms(query: string): Promise<Program[]> {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
 
     const { data, error } = await supabase
       .from('programs')

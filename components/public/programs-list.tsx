@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from "motion/react"
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
-import { BookOpen, Clock3, DollarSign, ArrowRight, Microscope, Stethoscope, Check } from 'lucide-react'
+import { BookOpen, Clock3, Award, ArrowRight, Microscope, Stethoscope, Check } from 'lucide-react'
 import { Section } from '@/components/ui/section'
 import { TypographyH1, TypographyH2, TypographyH3, TypographyP, TypographyTechnical, TypographyLead } from '@/components/ui/typography'
 import { Button } from '@/components/ui/button'
@@ -84,22 +84,22 @@ export function ProgramsList({ programs }: { programs: any[] }) {
                       
                       <Separator className="my-8 opacity-50" />
                       
-                      <div className="grid grid-cols-2 gap-8">
-                        <div>
-                          <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                             <Clock3 className="h-3.5 w-3.5" />
-                             <span className="text-[10px] font-technical font-bold uppercase tracking-widest">Duration</span>
-                          </div>
-                          <p className="font-bold text-sm text-foreground">{program.duration_months} {program.duration_unit}</p>
-                        </div>
-                        <div>
+                       <div className="grid grid-cols-2 gap-8">
+                         <div>
                            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                             <DollarSign className="h-3.5 w-3.5" />
-                             <span className="text-[10px] font-technical font-bold uppercase tracking-widest">Tuition</span>
-                          </div>
-                          <p className="font-bold text-sm text-foreground">₦{program.tuition_fee.toLocaleString()}</p>
-                        </div>
-                      </div>
+                              <Clock3 className="h-3.5 w-3.5" />
+                              <span className="text-[10px] font-technical font-bold uppercase tracking-widest">Duration</span>
+                           </div>
+                           <p className="font-bold text-sm text-foreground">{program.duration_months} {program.duration_unit}</p>
+                         </div>
+                         <div>
+                            <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                              <Award className="h-3.5 w-3.5" />
+                              <span className="text-[10px] font-technical font-bold uppercase tracking-widest">Level</span>
+                           </div>
+                           <p className="font-bold text-sm text-foreground capitalize">{program.level}</p>
+                         </div>
+                       </div>
 
                       <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-5 transition-opacity">
                          <BookOpen className="h-24 w-24" />
@@ -134,12 +134,13 @@ export function ProgramsList({ programs }: { programs: any[] }) {
               </div>
               
               <div className="relative aspect-square rounded-[3rem] overflow-hidden">
-                 <Image 
-                   src="/images/WhatsApp Image 2026-07-10 at 6.08.36 AM.jpeg" 
-                   alt="Accreditation" 
-                   fill 
-                   className="object-cover"
-                 />
+                  <Image 
+                    src="/images/WhatsApp Image 2026-07-10 at 6.08.36 AM.jpeg" 
+                    alt="Accreditation" 
+                    fill 
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    className="object-cover"
+                  />
                  <div className="absolute inset-0 bg-primary/10 mix-blend-multiply" />
               </div>
            </div>

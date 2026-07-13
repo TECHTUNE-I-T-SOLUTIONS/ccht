@@ -91,7 +91,7 @@ export function Navbar() {
                   About
                   <ChevronDown className="h-4 w-4 transition group-data-[state=open]:rotate-180" />
                 </NavigationMenu.Trigger>
-                <NavigationMenu.Content className="absolute top-full mt-4 w-[280px] rounded-3xl border border-border bg-background p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                <NavigationMenu.Content className="absolute top-full mt-4 w-[280px] rounded-3xl border border-border bg-white dark:bg-black p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
                   {aboutItems.map((item) => (
                     <NavigationMenu.Link asChild key={item.href}>
                       <Link href={item.href} className="block rounded-2xl px-5 py-3 text-sm font-bold text-foreground/70 transition hover:bg-primary/5 hover:text-primary">
@@ -110,7 +110,7 @@ export function Navbar() {
                   Academics
                   <ChevronDown className="h-4 w-4 transition group-data-[state=open]:rotate-180" />
                 </NavigationMenu.Trigger>
-                <NavigationMenu.Content className="absolute top-full mt-4 w-[300px] rounded-3xl border border-border bg-background p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                <NavigationMenu.Content className="absolute top-full mt-4 w-[300px] rounded-3xl border border-border bg-white dark:bg-black p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
                   {academicItems.map((item) => {
                     const Icon = item.icon
                     return (
@@ -135,7 +135,7 @@ export function Navbar() {
                   Portals
                   <ChevronDown className="h-4 w-4 transition group-data-[state=open]:rotate-180" />
                 </NavigationMenu.Trigger>
-                <NavigationMenu.Content className="absolute top-full mt-4 w-[300px] rounded-3xl border border-border bg-background p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                <NavigationMenu.Content className="absolute top-full mt-4 w-[300px] rounded-3xl border border-border bg-white dark:bg-black p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
                   {portalItems.map((item) => {
                     const Icon = item.icon
                     return (
