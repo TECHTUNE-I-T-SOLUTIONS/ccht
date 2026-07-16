@@ -21,10 +21,10 @@ export function CTASection() {
           Join a community dedicated to excellence, discipline, and practical health service. Your journey to becoming a health professional starts here.
         </TypographyP>
         <div className="mt-10 flex flex-wrap justify-center gap-4">
-          <Button size="lg" variant="secondary" className="rounded-full" asChild>
+          <Button size="lg" variant="secondary" className="rounded-full border border-black dark:border-white shadow-lg hover:bg-blue-300" asChild>
             <Link href={ROUTES.admissions}>Apply Now</Link>
           </Button>
-          <Button size="lg" variant="outline" className="rounded-full border-white text-muted-foreground hover:bg-white/10" asChild>
+          <Button size="lg" variant="outline" className="rounded-full border-gray-300 dark:border-white text-muted-foreground hover:bg-white/10" asChild>
             <Link href={ROUTES.contact}>Contact Support</Link>
           </Button>
         </div>

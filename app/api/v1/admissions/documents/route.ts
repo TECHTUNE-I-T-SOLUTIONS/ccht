@@ -18,12 +18,72 @@ const allowedTypes = new Set([
   'other',
 ])
 
+async function getAuthenticatedUser() {
+  const supabase = await createClient()
+  let retries = 3
+  let lastError: any = null
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      return user
+    } catch (err: any) {
+      lastError = err
+      // Only retry on network/DNS errors
+      if (
+        err?.code === 'EAI_AGAIN' ||
+        err?.code === 'ENOTFOUND' ||
+        err?.cause?.code === 'EAI_AGAIN'
+      ) {
+        console.error(`[auth] getUser attempt ${i + 1} failed (network error):`, err.message)
+        if (i < retries - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000 * (i + 1)))
+          continue
+        }
+      }
+      throw err
+    }
+  }
+  throw lastError
+}
+
+async function getAspirantProfile(userId: string) {
+  const supabase = await createClient()
+  let retries = 3
+  let lastError: any = null
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data } = await supabase
+        .from('aspirant_profiles')
+        .select('profile_id')
+        .eq('profile_id', userId)
+        .maybeSingle()
+      return data
+    } catch (err: any) {
+      lastError = err
+      if (
+        err?.code === 'EAI_AGAIN' ||
+        err?.code === 'ENOTFOUND' ||
+        err?.cause?.code === 'EAI_AGAIN'
+      ) {
+        console.error(`[db] profile lookup attempt ${i + 1} failed (network error):`, err.message)
+        if (i < retries - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000 * (i + 1)))
+          continue
+        }
+      }
+      throw err
+    }
+  }
+  throw lastError
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const user = await getAuthenticatedUser()
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -46,11 +106,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Document must be 10MB or smaller' }, { status: 400 })
     }
 
-    const { data: profile } = await supabase
-      .from('aspirant_profiles')
-      .select('profile_id')
-      .eq('profile_id', user.id)
-      .maybeSingle()
+    const profile = await getAspirantProfile(user.id)
 
     if (!profile) {
       return NextResponse.json({ error: 'Aspirant profile not found' }, { status: 404 })
@@ -67,10 +123,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const user = await getAuthenticatedUser()
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

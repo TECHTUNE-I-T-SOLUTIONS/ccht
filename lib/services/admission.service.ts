@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createPublicClient } from '@/lib/supabase/public'
 import { buildCloudinaryPublicUrl, getCloudinaryConfig, uploadFileToCloudinary } from '@/lib/cloudinary'
 
@@ -91,35 +92,81 @@ export class AdmissionService {
   }
 
   static async getAdmissionDocuments(profileId: string): Promise<AdmissionDocument[]> {
-    const supabase = createPublicClient()
-    const { data, error } = await supabase
-      .from('admission_documents')
-      .select('*')
-      .eq('uploaded_by', profileId)
-      .order('uploaded_at', { ascending: false })
+    // Use admin client to bypass RLS for reads as well
+    const supabase = createAdminClient()
+    let retries = 3
+    let lastError: any = null
 
-    if (error) throw new Error('Failed to load admission documents')
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const { data, error } = await supabase
+          .from('admission_documents')
+          .select('*')
+          .eq('uploaded_by', profileId)
+          .order('uploaded_at', { ascending: false })
 
-    return (data || []).map((doc) => ({
-      ...doc,
-      file_url: buildCloudinaryUrl(doc.storage_path),
-    }))
+        if (error) throw new Error(error.message)
+
+        return (data || []).map((doc) => ({
+          ...doc,
+          file_url: buildCloudinaryUrl(doc.storage_path),
+        }))
+      } catch (err: any) {
+        lastError = err
+        const isNetworkError =
+          err?.code === 'EAI_AGAIN' ||
+          err?.code === 'ENOTFOUND' ||
+          err?.cause?.code === 'EAI_AGAIN' ||
+          err?.message?.includes('fetch failed')
+        
+        if (isNetworkError && attempt < retries - 1) {
+          console.error(`[getAdmissionDocuments] attempt ${attempt + 1} failed:`, err.message)
+          await new Promise((resolve) => setTimeout(resolve, 2000 * (attempt + 1)))
+          continue
+        }
+        throw err
+      }
+    }
+    throw new Error(lastError?.message || 'Failed to load admission documents')
   }
 
   static async getProfilePhotos(profileId: string): Promise<ProfilePhoto[]> {
-    const supabase = createPublicClient()
-    const { data, error } = await supabase
-      .from('aspirant_profile_photos')
-      .select('*')
-      .eq('uploaded_by', profileId)
-      .order('created_at', { ascending: false })
+    // Use admin client to bypass RLS for reads as well
+    const supabase = createAdminClient()
+    let retries = 3
+    let lastError: any = null
 
-    if (error) throw new Error('Failed to load profile photos')
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const { data, error } = await supabase
+          .from('aspirant_profile_photos')
+          .select('*')
+          .eq('uploaded_by', profileId)
+          .order('created_at', { ascending: false })
 
-    return (data || []).map((photo) => ({
-      ...photo,
-      image_url: buildCloudinaryUrl(photo.storage_path),
-    }))
+        if (error) throw new Error(error.message)
+
+        return (data || []).map((photo) => ({
+          ...photo,
+          image_url: buildCloudinaryUrl(photo.storage_path),
+        }))
+      } catch (err: any) {
+        lastError = err
+        const isNetworkError =
+          err?.code === 'EAI_AGAIN' ||
+          err?.code === 'ENOTFOUND' ||
+          err?.cause?.code === 'EAI_AGAIN' ||
+          err?.message?.includes('fetch failed')
+        
+        if (isNetworkError && attempt < retries - 1) {
+          console.error(`[getProfilePhotos] attempt ${attempt + 1} failed:`, err.message)
+          await new Promise((resolve) => setTimeout(resolve, 2000 * (attempt + 1)))
+          continue
+        }
+        throw err
+      }
+    }
+    throw new Error(lastError?.message || 'Failed to load profile photos')
   }
 
   static async listAspirantCandidates(status = 'approved'): Promise<AdmissionCandidate[]> {
@@ -226,7 +273,8 @@ export class AdmissionService {
   }
 
   static async uploadProfilePhotoForUser(profileId: string, uploadedBy: string, file: File) {
-    const supabase = await createServerClient()
+    // Use admin client to bypass RLS for all DB operations
+    const supabase = createAdminClient()
     const result = await uploadFileToCloudinary(file, {
       folder: `profile-photos/${uploadedBy}`,
       publicId: `passport_${crypto.randomUUID()}`,
@@ -249,7 +297,8 @@ export class AdmissionService {
 
     if (insertError) throw new Error(insertError.message)
 
-    await supabase
+    // Update profiles table with photo info
+    const { error: profileUpdateError } = await supabase
       .from('profiles')
       .update({
         profile_photo_bucket: 'cloudinary',
@@ -263,7 +312,77 @@ export class AdmissionService {
       })
       .eq('id', profileId)
 
-    return inserted
+    if (profileUpdateError) {
+      console.error('Failed to update profile photo fields:', profileUpdateError.message)
+      // Don't throw - the photo was saved successfully, this is secondary
+    }
+
+    // Also save to admission_documents table for proper tracking
+    let documentRecord: Record<string, any> | null = null
+    let documentError: { message: string } | null = null
+    
+    try {
+      const docResult = await supabase
+        .from('admission_documents')
+        .insert({
+          application_id: profileId,
+          uploaded_by: uploadedBy,
+          document_type: 'passport_photo',
+          storage_bucket: 'cloudinary',
+          storage_path: result.public_id,
+          file_name: file.name,
+          mime_type: file.type || null,
+          file_size: file.size,
+          media_provider: 'cloudinary',
+        })
+        .select()
+        .single()
+      
+      documentRecord = docResult.data
+      documentError = docResult.error
+    } catch (docInsertErr) {
+      documentError = { message: String(docInsertErr) }
+    }
+    
+    if (documentError) {
+      console.error('Failed to save passport to admission_documents:', documentError.message)
+      // Attempt one more time with a different storage_path to avoid unique constraint violation
+      try {
+        const retryResult = await supabase
+          .from('admission_documents')
+          .insert({
+            application_id: profileId,
+            uploaded_by: uploadedBy,
+            document_type: 'passport_photo',
+            storage_bucket: 'cloudinary',
+            storage_path: `${result.public_id}_${Date.now()}`,
+            file_name: file.name,
+            mime_type: file.type || null,
+            file_size: file.size,
+            media_provider: 'cloudinary',
+          })
+          .select()
+          .single()
+        documentRecord = retryResult.data
+        if (!retryResult.error) {
+          console.log('Document insert succeeded on retry with modified path')
+        }
+      } catch (retryErr) {
+        console.error('Retry also failed for admission_documents insert:', String(retryErr))
+      }
+    }
+
+    // Return the inserted records with URLs
+    return {
+      ...inserted,
+      image_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id),
+      document: documentRecord
+        ? {
+            ...documentRecord,
+            file_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id),
+          }
+        : null,
+    }
   }
 
   static async uploadAdmissionDocument(
@@ -272,7 +391,8 @@ export class AdmissionService {
     file: File,
     documentType: string,
   ) {
-    const supabase = await createServerClient()
+    // Use admin client to bypass RLS
+    const supabase = createAdminClient()
     const result = await uploadFileToCloudinary(file, {
       folder: `admission-documents/${userId}/${documentType}`,
       publicId: `${documentType}_${crypto.randomUUID()}`,
@@ -295,6 +415,11 @@ export class AdmissionService {
       .single()
 
     if (error) throw new Error(error.message)
-    return data
+    
+    // Return the inserted record with file_url
+    return {
+      ...data,
+      file_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id),
+    }
   }
 }

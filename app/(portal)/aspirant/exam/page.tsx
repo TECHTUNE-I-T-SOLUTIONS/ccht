@@ -7,8 +7,11 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ShieldAlert, AlertTriangle, Monitor, Camera, Timer, ShieldCheck, CheckCircle2, ChevronRight, Volume2, Mic } from 'lucide-react'
+import { ShieldAlert, AlertTriangle, Monitor, Camera, Timer, ShieldCheck, CheckCircle2, ChevronRight, Volume2, Mic, Lock } from 'lucide-react'
 import { toast } from 'sonner'
+import { StageGateCard } from '@/components/aspirant/stage-gate'
+import Link from 'next/link'
+import { FileUp, CreditCard } from 'lucide-react'
 
 const MOCK_QUESTIONS = [
   { id: 1, question: 'Which of the following is the primary unit of life in human biology?', options: ['Tissue', 'Cell', 'Organ', 'System'], answer: 'Cell' },
@@ -33,14 +36,87 @@ export default function AspirantEntranceExam() {
   const [violations, setViolations] = useState<any[]>([])
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [appFeePaid, setAppFeePaid] = useState(false)
+  const [documentsUploaded, setDocumentsUploaded] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/v1/auth/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.user?.id) setUserId(data.user.id)
-      })
+    const loadData = async () => {
+      try {
+        const [meRes, statusRes, docsRes] = await Promise.all([
+          fetch('/api/v1/auth/me'),
+          fetch('/api/v1/aspirant/payments/status'),
+          fetch('/api/v1/admissions/documents'),
+        ])
+        const me = await meRes.json()
+        const status = await statusRes.json()
+        const docs = await docsRes.json()
+        
+        if (me?.user?.id) setUserId(me.user.id)
+        setAppFeePaid(status?.data?.profile?.application_fee_paid || false)
+        setDocumentsUploaded((docs?.data || []).length > 0)
+      } catch (error) {
+        console.error('Failed to load data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
   }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-sm text-muted-foreground">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!appFeePaid) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-[2rem] border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))] p-6 md:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Entrance Exam</p>
+          <h1 className="mt-3 text-3xl font-extrabold">Online Screening Examination</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-foreground/70">
+            Take the secure online entrance exam to complete your admission process.
+          </p>
+        </div>
+        <StageGateCard
+          currentStage="signup"
+          requiredStage="payment"
+          requiredActionLabel="Pay Application Fee"
+          requiredActionLink="/aspirant/dashboard"
+          featureName="Entrance Exam"
+          description="You need to pay the application fee before you can take the entrance exam."
+          icon={ShieldCheck}
+        />
+      </div>
+    )
+  }
+
+  if (!documentsUploaded) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-[2rem] border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))] p-6 md:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Entrance Exam</p>
+          <h1 className="mt-3 text-3xl font-extrabold">Online Screening Examination</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-foreground/70">
+            Take the secure online entrance exam to complete your admission process.
+          </p>
+        </div>
+        <StageGateCard
+          currentStage="payment"
+          requiredStage="documents"
+          requiredActionLabel="Upload Documents"
+          requiredActionLink="/aspirant/dashboard"
+          featureName="Entrance Exam"
+          description="You need to upload your documents before you can take the entrance exam."
+          icon={ShieldCheck}
+        />
+      </div>
+    )
+  }
 
   // Timer countdown
   useEffect(() => {

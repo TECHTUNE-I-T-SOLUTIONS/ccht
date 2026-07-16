@@ -34,9 +34,10 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('[ccht] Login error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Invalid email or password';
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: errorMessage },
+      { status: 400 }
     );
   }
 }

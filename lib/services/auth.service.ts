@@ -81,7 +81,28 @@ export class AuthService {
       password: input.password,
     })
 
-    if (error) throw new Error('Invalid email or password')
+    if (error) {
+      // Check if the error is due to invalid credentials (email not found or wrong password)
+      if (error.message === 'Invalid login credentials') {
+        // Check if email exists in the system
+        const admin = createAdminClient()
+        const normalized = input.email.trim().toLowerCase()
+        
+        const [{ data: authUsers }, { data: profileMatch }] = await Promise.all([
+          admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+          admin.from('profiles').select('id').ilike('email', normalized).limit(1),
+        ])
+
+        const authExists = Boolean(authUsers?.users?.some((user) => (user.email || '').toLowerCase() === normalized))
+        const profileExists = Array.isArray(profileMatch) && profileMatch.length > 0
+
+        if (!authExists && !profileExists) {
+          throw new Error('Account does not exist')
+        }
+      }
+      throw new Error('Invalid email or password')
+    }
+    
     if (!data.user) throw new Error('Failed to log in')
 
     const { data: profile, error: profileError } = await supabase

@@ -32,10 +32,10 @@ export function ProgramsList({ programs }: { programs: any[] }) {
                     Explore our diverse range of health technology programs designed to equip you with the skills needed for a successful career in the health sector.
                  </TypographyLead>
                  <div className="mt-12 flex flex-wrap items-center gap-4">
-                    <Button size="lg" className="rounded-full px-10 h-14 font-bold" asChild>
+                    <Button size="lg" className="rounded-full px-10 h-14 font-bold border border-black dark:border-white shadow-lg hover:bg-blue-300" asChild>
                        <Link href={ROUTES.admissions}>Start Admission <ArrowRight className="ml-2 h-4 w-4" /></Link>
                     </Button>
-                    <Button size="lg" variant="outline" className="rounded-full px-10 h-14 font-bold border-white/20 text-muted-foreground hover:bg-white/10" asChild>
+                    <Button size="lg" variant="outline" className="rounded-full px-10 h-14 font-bold border-gray-300 dark:border-white text-muted-foreground hover:bg-white/10" asChild>
                        <Link href={ROUTES.login}>Portal Login</Link>
                     </Button>
                  </div>

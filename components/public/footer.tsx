@@ -32,7 +32,7 @@ export function Footer() {
                  <input 
                    type="email" 
                    placeholder="Enter your email" 
-                   className="bg-white/5 border border-white/10 rounded-full px-4 py-3 text-sm flex-1 outline-none focus:border-primary/50 transition-colors" 
+                   className="bg-white/5 border border-black dark:border-white/10 rounded-full px-4 py-3 text-sm flex-1 outline-none focus:border-primary/50 transition-colors shadow-lg" 
                  />
                  <Button size="icon" className="rounded-full h-12 w-12 shrink-0">
                     <ArrowRight className="h-4 w-4" />

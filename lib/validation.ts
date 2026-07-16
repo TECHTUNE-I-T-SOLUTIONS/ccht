@@ -109,6 +109,7 @@ export const AdmissionDocumentTypeSchema = z.enum([
   'passport_photo',
   'signature',
   'birth_certificate',
+  'medical_fitness',
   'age_declaration',
   'primary_certificate',
   'secondary_certificate',

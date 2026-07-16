@@ -66,24 +66,63 @@ export async function uploadFileToCloudinary(file: File, options: { folder: stri
   if (options.publicId) formData.append('public_id', options.publicId)
   if (config.uploadPreset) formData.append('upload_preset', config.uploadPreset)
 
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${config.cloudName}/${options.resourceType || 'image'}/upload`,
-    {
-      method: 'POST',
-      body: formData,
-    },
-  )
+  const maxRetries = 5
+  let lastError: Error | null = null
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      // Create a new AbortController for each attempt with timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout per attempt
+      
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${config.cloudName}/${options.resourceType || 'image'}/upload`,
+        {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal,
+        },
+      )
+      
+      clearTimeout(timeoutId)
 
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null)
-    throw new Error(payload?.error?.message || 'Cloudinary upload failed')
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error?.message || 'Cloudinary upload failed')
+      }
+
+      return response.json() as Promise<{
+        secure_url: string
+        public_id: string
+        bytes?: number
+        format?: string
+        original_filename?: string
+      }>
+    } catch (error: any) {
+      lastError = error
+      
+      // Check for network/DNS errors (EAI_AGAIN, ENOTFOUND, or AbortError for timeouts)
+      const isNetworkError =
+        error?.code === 'EAI_AGAIN' ||
+        error?.code === 'ENOTFOUND' ||
+        error?.name === 'AbortError' ||
+        error?.cause?.code === 'EAI_AGAIN' ||
+        error?.cause?.code === 'ENOTFOUND' ||
+        error?.message?.includes('fetch failed') ||
+        error?.message?.includes('network')
+      
+      if (isNetworkError) {
+        const delay = Math.min(2000 * Math.pow(2, i), 15000) // Exponential backoff: 2s, 4s, 8s, 15s, 15s
+        console.error(`Cloudinary upload attempt ${i + 1}/${maxRetries} failed (network error): ${error.message}. Retrying in ${delay}ms...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+      
+      // For non-network errors, throw immediately
+      console.error(`Cloudinary upload failed (non-network error):`, error.message)
+      throw error
+    }
   }
-
-  return response.json() as Promise<{
-    secure_url: string
-    public_id: string
-    bytes?: number
-    format?: string
-    original_filename?: string
-  }>
+  
+  throw new Error(lastError?.message || 'Cloudinary upload failed after all retries')
 }

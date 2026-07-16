@@ -1,9 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { z } from 'zod'
 import { motion, AnimatePresence } from 'motion/react'
 import { Navbar } from '@/components/public/navbar'
@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { TypographyH1, TypographyH3, TypographyLead, TypographyP, TypographyTechnical } from '@/components/ui/typography'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
+import { ProgramsService, Program } from '@/lib/services/programs.service'
 
 const initial = {
   firstName: '',
@@ -44,8 +45,6 @@ const signupSchema = z
     path: ['confirmPassword'],
   })
 
-const courses = ['Medical Laboratory Technology', 'Community Health', 'Public Health', 'Pharmacy Technician']
-
 const steps = [
   'Create your account and confirm your email.',
   'Pay the ₦6,500 application fee.',
@@ -57,12 +56,40 @@ const steps = [
 
 export default function ApplyPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [step, setStep] = useState(1)
   const [form, setForm] = useState(initial)
   const [course, setCourse] = useState('')
+  const [courseId, setCourseId] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [courseOpen, setCourseOpen] = useState(false)
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [loadingPrograms, setLoadingPrograms] = useState(true)
+
+  // Load programs from database
+  useEffect(() => {
+    const loadPrograms = async () => {
+      try {
+        const data = await ProgramsService.getActivePrograms()
+        setPrograms(data)
+      } catch (error) {
+        console.error('Failed to load programs:', error)
+        toast.error('Failed to load available programs')
+      } finally {
+        setLoadingPrograms(false)
+      }
+    }
+    loadPrograms()
+  }, [])
+
+  // Prefill email from URL query parameter
+  useEffect(() => {
+    const emailParam = searchParams.get('email')
+    if (emailParam) {
+      setForm((prev) => ({ ...prev, email: emailParam }))
+    }
+  }, [searchParams])
 
   const progress = useMemo(() => Math.round((step / 3) * 100), [step])
 
@@ -99,6 +126,7 @@ export default function ApplyPage() {
           ...form,
           role: 'aspirant',
           jamb_reg_no: form.jambRegNo || null,
+          preferred_program_id: courseId || null,
         }),
       })
 
@@ -142,7 +170,8 @@ export default function ApplyPage() {
             </div>
             <div className="rounded-[2rem] border border-border bg-background p-3 shadow-xl">
               <div className="relative min-h-[380px] overflow-hidden rounded-[1.5rem]">
-                <Image src="/images/CONVENT2.jpg.jpeg" alt="Admissions" fill className="object-cover" />
+                <Image src="/images/CONVENT2.jpg.jpeg" alt="Admissions" fill className="object-cover" loading="eager" 
+                sizes="(max-width: 768px) 100vw, 50vw" />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-900/15 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-6 text-white">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">Admission process</p>
@@ -231,8 +260,8 @@ export default function ApplyPage() {
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="rounded-[2rem] border border-border bg-background p-8 shadow-sm">
               <div className="mb-10">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="h-full rounded-full bg-primary" />
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-300 dark:bg-blue-950">
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="h-full rounded-full bg-black dark:bg-blue-300" />
                 </div>
               </div>
 
@@ -271,19 +300,25 @@ export default function ApplyPage() {
                       </button>
                       <AnimatePresence>
                         {courseOpen && (
-                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
-                            {courses.map((item) => (
-                              <button key={item} onClick={() => { setCourse(item); setCourseOpen(false) }} className="flex w-full items-center justify-between p-4 text-left hover:bg-primary/5">
-                                <span>{item}</span>
-                                {course === item && <Check className="h-4 w-4 text-primary" />}
-                              </button>
-                            ))}
+                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-border bg-white dark:bg-black shadow-2xl">
+                            {loadingPrograms ? (
+                              <div className="p-4 text-center text-sm text-muted-foreground">Loading programs...</div>
+                            ) : programs.length === 0 ? (
+                              <div className="p-4 text-center text-sm text-muted-foreground">No programs available for admission</div>
+                            ) : (
+                              programs.map((program: Program) => (
+                                <button key={program.id} onClick={() => { setCourse(program.title); setCourseId(program.id); setCourseOpen(false) }} className="flex w-full items-center justify-between p-4 text-left hover:bg-primary/5">
+                                  <span>{program.title}</span>
+                                  {courseId === program.id && <Check className="h-4 w-4 text-primary" />}
+                                </button>
+                              ))
+                            )}
                           </motion.div>
                         )}
                       </AnimatePresence>
                     </div>
                     {errors.course && <p className="text-xs font-semibold text-red-500">{errors.course}</p>}
-                    <div className="rounded-2xl border border-border bg-slate-50 p-5">
+                    <div className="rounded-2xl border border-border bg-background p-5">
                       <p className="text-sm font-semibold">What happens next?</p>
                       <p className="mt-2 text-sm leading-7 text-foreground/70">
                         After signup, the application fee unlocks the full form and document upload steps.
@@ -366,7 +401,7 @@ export default function ApplyPage() {
 
 function ReviewCard({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
-    <div className={cn('rounded-3xl border border-border bg-slate-50 p-5', className)}>
+    <div className={cn('rounded-3xl border border-border bg-white dark:bg-black p-5', className)}>
       <TypographyTechnical className="mb-2 block text-[10px] font-bold text-muted-foreground">{label}</TypographyTechnical>
       <p className="font-semibold text-foreground">{value || '---'}</p>
     </div>

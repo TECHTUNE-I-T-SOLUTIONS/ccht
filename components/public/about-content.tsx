@@ -56,8 +56,8 @@ export function AboutContent() {
                     {SCHOOL_INFO.fullname} exists to prepare students for meaningful service in community health, medical laboratory technology, and public health services.
                  </TypographyLead>
                  <div className="mt-12 flex items-center gap-6">
-                    <Button size="lg" className="rounded-full px-10 h-14 font-bold" asChild>
-                       <Link href={ROUTES.admissions}>Apply for Admission <Sparkles className="ml-2 h-4 w-4" /></Link>
+                    <Button size="lg" className="rounded-full px-10 h-14 font-bold border border-black dark:border-white shadow-lg hover:bg-blue-300" asChild>
+                       <Link href={ROUTES.admissions}>Apply for Admission <Award className="ml-2 h-4 w-4" /></Link>
                     </Button>
                  </div>
               </motion.div>
