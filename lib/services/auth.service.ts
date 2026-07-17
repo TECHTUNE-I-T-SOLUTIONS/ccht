@@ -92,33 +92,53 @@ export class AuthService {
       // Check if admin profile already exists
       const { data: existingProfile } = await admin
         .from('admin_profiles')
-        .select('profile_id')
+        .select('profile_id, staff_id')
         .eq('profile_id', data.user.id)
         .single()
 
+      const staffId = existingProfile?.staff_id || await this.generateStaffId()
+      
+      const profileData = {
+        profile_id: data.user.id,
+        staff_id: staffId,
+        department: input.department || null,
+        designation: input.designation || null,
+        admin_scope: input.adminScope || 'operations',
+        can_manage_users: input.canManageUsers || false,
+        can_manage_content: input.canManageContent || false,
+        can_manage_academics: input.canManageAcademics || false,
+        can_manage_finance: input.canManageFinance || false,
+      }
+
       if (!existingProfile) {
-        const staffId = await this.generateStaffId()
-        
+        // Create new profile
         const { error: profileError } = await admin
           .from('admin_profiles')
-          .insert({
-            profile_id: data.user.id,
-            staff_id: staffId,
-            department: input.department || null,
-            designation: input.designation || null,
-            admin_scope: input.adminScope || 'operations',
-            can_manage_users: input.canManageUsers || false,
-            can_manage_content: input.canManageContent || false,
-            can_manage_academics: input.canManageAcademics || false,
-            can_manage_finance: input.canManageFinance || false,
-          })
+          .insert(profileData)
 
         if (profileError) {
           console.error('[AuthService] Failed to create admin profile:', profileError)
-          // Don't throw error, allow registration to proceed
         }
       } else {
-        console.log('[AuthService] Admin profile already exists, skipping creation')
+        // Update existing profile with new data
+        const { error: updateError } = await admin
+          .from('admin_profiles')
+          .update({
+            department: profileData.department,
+            designation: profileData.designation,
+            admin_scope: profileData.admin_scope,
+            can_manage_users: profileData.can_manage_users,
+            can_manage_content: profileData.can_manage_content,
+            can_manage_academics: profileData.can_manage_academics,
+            can_manage_finance: profileData.can_manage_finance,
+          })
+          .eq('profile_id', data.user.id)
+
+        if (updateError) {
+          console.error('[AuthService] Failed to update admin profile:', updateError)
+        } else {
+          console.log('[AuthService] Admin profile updated successfully')
+        }
       }
     }
 

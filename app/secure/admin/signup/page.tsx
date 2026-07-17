@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { ShieldPlus, Lock, Mail, UserRound, ArrowRight, AlertCircle, ShieldCheck, Check, X, CheckCircle, LogOut, User, Phone, Building, Briefcase, ChevronLeft, ChevronRight, Shield } from 'lucide-react'
+import { ShieldPlus, Lock, Mail, UserRound, ArrowRight, AlertCircle, ShieldCheck, Check, X, CheckCircle, LogOut, User, Phone, Building, Briefcase, ChevronLeft, ChevronRight, Shield, AlertTriangle } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
@@ -58,6 +58,7 @@ export default function AdminSignupPage() {
   const [currentStep, setCurrentStep] = useState(0)
   const [currentUser, setCurrentUser] = useState<PortalUser | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
   
   const [formData, setFormData] = useState<FormData>({
     fullName: '',
@@ -143,8 +144,7 @@ export default function AdminSignupPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
     setLoading(true)
     setError('')
     try {
@@ -175,26 +175,27 @@ export default function AdminSignupPage() {
         const message = data?.error || 'Unable to create admin account.'
         setError(message)
         toast.error(message)
+        setShowConfirmModal(false)
         return
       }
 
       toast.success('Admin account created successfully.')
+      setShowConfirmModal(false)
       router.push('/secure/admin/login?signup=success')
     } catch {
       const message = 'Unable to create admin account right now.'
       setError(message)
       toast.error(message)
+      setShowConfirmModal(false)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && currentStep < steps.length - 1) {
-      e.preventDefault()
-      handleNext()
-    }
+  const handleCreateAccount = () => {
+    setShowConfirmModal(true)
   }
+
 
   const handleContinueSession = () => {
     if (!currentUser) return
@@ -314,7 +315,7 @@ export default function AdminSignupPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="mt-8 space-y-6">
+          <div className="mt-8 space-y-6">
             {/* Step 1: Personal Info */}
             {currentStep === 0 && (
               <div className="space-y-4">
@@ -588,7 +589,7 @@ export default function AdminSignupPage() {
                 </Button>
               ) : (
                 <Button
-                  type="submit"
+                  onClick={handleCreateAccount}
                   disabled={loading}
                   className="flex-1 bg-blue-600 hover:bg-blue-700"
                 >
@@ -606,7 +607,7 @@ export default function AdminSignupPage() {
                 Or go back to <Link href={ROUTES.login} className="ml-1 font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">main portal login</Link>.
               </p>
             </div>
-          </form>
+          </div>
 
           {/* Active Session Card */}
           {!checkingSession && currentUser && (
@@ -674,6 +675,55 @@ export default function AdminSignupPage() {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md p-6 shadow-xl">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+                <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Confirm Admin Account Creation
+                </h3>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                  You are about to create an admin account with the following details:
+                </p>
+                <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm dark:bg-slate-900">
+                  <p><strong>Name:</strong> {formData.fullName}</p>
+                  <p><strong>Email:</strong> {formData.email}</p>
+                  <p><strong>Phone:</strong> {formData.phone}</p>
+                  <p><strong>Department:</strong> {getDepartmentLabel(formData.department)}</p>
+                  <p><strong>Designation:</strong> {getDesignationLabel(formData.designation)}</p>
+                  <p><strong>Scope:</strong> {getScopeLabel(formData.adminScope)}</p>
+                </div>
+                <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+                  This action cannot be undone. Are you sure you want to proceed?
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <Button
+                onClick={() => setShowConfirmModal(false)}
+                variant="outline"
+                className="flex-1 border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-slate-800"
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+                disabled={loading}
+              >
+                {loading ? 'Creating...' : 'Confirm & Create'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </main>
   )
 }
