@@ -22,6 +22,7 @@ export async function proxy(request: NextRequest) {
     '/forgot-password',
     '/secure/admin/login',
     '/secure/admin/signup',
+    '/secure/signup',
     '/sw.js',
   ]
 

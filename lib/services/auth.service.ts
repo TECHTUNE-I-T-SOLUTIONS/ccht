@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { LoginInput, SignUpInput } from '@/lib/validation'
 import { z } from 'zod'
+import { STAFF_ID_PREFIX } from '@/lib/admin-constants'
 
 export type AuthUserRole = 'student' | 'lecturer' | 'admin' | 'super_admin' | 'aspirant'
 
@@ -35,8 +36,30 @@ export class AuthService {
     }
   }
 
+  static async generateStaffId(): Promise<string> {
+    const admin = createAdminClient()
+    const { data: lastAdmin } = await admin
+      .from('admin_profiles')
+      .select('staff_id')
+      .not('staff_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    let nextNumber = 1
+    if (lastAdmin?.staff_id) {
+      const lastNumber = parseInt(lastAdmin.staff_id.replace(STAFF_ID_PREFIX, ''))
+      if (!isNaN(lastNumber)) {
+        nextNumber = lastNumber + 1
+      }
+    }
+
+    return `${STAFF_ID_PREFIX}${String(nextNumber).padStart(4, '0')}`
+  }
+
   static async register(input: any, origin: string) {
     const supabase = await createClient()
+    const admin = createAdminClient()
     const jambRegNo = input.jambRegNo ?? input.jamb_reg_no ?? ''
 
     const passwordCheck = this.validatePassword(input.password)
@@ -63,6 +86,41 @@ export class AuthService {
 
     if (error) throw new Error(error.message || 'Failed to register')
     if (!data.user) throw new Error('Failed to create user')
+
+    // Create admin profile if role is admin
+    if (input.role === 'admin') {
+      // Check if admin profile already exists
+      const { data: existingProfile } = await admin
+        .from('admin_profiles')
+        .select('profile_id')
+        .eq('profile_id', data.user.id)
+        .single()
+
+      if (!existingProfile) {
+        const staffId = await this.generateStaffId()
+        
+        const { error: profileError } = await admin
+          .from('admin_profiles')
+          .insert({
+            profile_id: data.user.id,
+            staff_id: staffId,
+            department: input.department || null,
+            designation: input.designation || null,
+            admin_scope: input.adminScope || 'operations',
+            can_manage_users: input.canManageUsers || false,
+            can_manage_content: input.canManageContent || false,
+            can_manage_academics: input.canManageAcademics || false,
+            can_manage_finance: input.canManageFinance || false,
+          })
+
+        if (profileError) {
+          console.error('[AuthService] Failed to create admin profile:', profileError)
+          // Don't throw error, allow registration to proceed
+        }
+      } else {
+        console.log('[AuthService] Admin profile already exists, skipping creation')
+      }
+    }
 
     return {
       user: {
