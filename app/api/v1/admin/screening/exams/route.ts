@@ -10,19 +10,14 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      return NextResponse.json(
-        { error: 'Failed to fetch screening exams' },
-        { status: 500 }
-      )
+      console.error('[Screening Exams GET]', error)
+      return NextResponse.json({ data: [] }, { status: 200 })
     }
 
     return NextResponse.json({ data: data || [] })
   } catch (error) {
     console.error('[Screening Exams GET]', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ data: [] }, { status: 200 })
   }
 }
 

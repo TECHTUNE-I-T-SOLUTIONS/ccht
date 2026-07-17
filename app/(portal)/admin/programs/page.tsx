@@ -6,8 +6,18 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, Edit2, Trash2 } from 'lucide-react'
 
+type Program = {
+  id: string
+  title: string
+  level: string
+  duration_months: number | null
+  duration_unit: string | null
+  tuition_fee: number | string | null
+  is_active: boolean | null
+}
+
 export default function AdminPrograms() {
-  const [programs, setPrograms] = useState<any[]>([])
+  const [programs, setPrograms] = useState<Program[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
@@ -59,8 +69,8 @@ export default function AdminPrograms() {
                 <tr key={program.id} className="hover:bg-muted/50">
                   <td className="px-4 py-3 font-medium">{program.title}</td>
                   <td className="px-4 py-3 capitalize">{program.level}</td>
-                  <td className="px-4 py-3">{program.duration_months} {program.duration_unit}</td>
-                  <td className="px-4 py-3">₦{program.tuition_fee.toLocaleString()}</td>
+                  <td className="px-4 py-3">{program.duration_months ?? 'N/A'} {program.duration_unit ?? ''}</td>
+                  <td className="px-4 py-3">₦{Number(program.tuition_fee ?? 0).toLocaleString()}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 rounded text-xs font-medium ${program.is_active ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
                       {program.is_active ? 'Active' : 'Inactive'}
