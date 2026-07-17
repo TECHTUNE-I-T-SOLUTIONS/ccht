@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, CheckCircle, LogOut, User } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { toast } from 'sonner'
@@ -20,7 +20,7 @@ type PortalUser = {
   avatarUrl?: string
 }
 
-export default function AdminLoginPage() {
+function AdminLoginPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
@@ -300,5 +300,13 @@ export default function AdminLoginPage() {
         </div>
       </div>
     </main>
+  )
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="text-sm text-muted-foreground">Loading...</div></div>}>
+      <AdminLoginPageInner />
+    </Suspense>
   )
 }
