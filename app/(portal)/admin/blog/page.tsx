@@ -9,10 +9,10 @@ import { Plus, Edit2, Trash2 } from 'lucide-react'
 export default function AdminBlog() {
   const [posts, setPosts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
     const getPosts = async () => {
+      const supabase = createClient()
       const { data } = await supabase
         .from('blog_posts')
         .select('*')
