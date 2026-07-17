@@ -149,6 +149,11 @@ BEGIN
       v_admin, p_title, p_message, 'admissions', p_category, p_deep_link, p_priority, p_created_by
     );
   END LOOP;
+  
+  -- If no admins exist, log a warning but don't fail
+  IF NOT FOUND THEN
+    RAISE WARNING 'No admin profiles found to notify about aspirant action: %', p_title;
+  END IF;
 END;
 $$;
 

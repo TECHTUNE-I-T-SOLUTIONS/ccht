@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { AdmissionService } from '@/lib/services/admission.service'
 
-// All required document types
+// Required document types (JAMB is optional)
 const REQUIRED_DOCUMENT_TYPES = [
   'secondary_certificate',
   'birth_certificate',
@@ -11,6 +12,10 @@ const REQUIRED_DOCUMENT_TYPES = [
   'medical_fitness',
   'passport_photo',
   'signature',
+]
+
+// Optional document types
+const OPTIONAL_DOCUMENT_TYPES = [
   'jamb_registration_form',
 ]
 
@@ -90,26 +95,30 @@ export async function POST() {
       throw lastError
     }
 
-    // Check if all required document types are uploaded
+    // Check if all required document types are uploaded (JAMB is optional)
     const uploadedTypes = new Set(uploadedDocs.map((doc: any) => doc.document_type))
-    const missingTypes = REQUIRED_DOCUMENT_TYPES.filter((type) => !uploadedTypes.has(type))
+    const missingRequired = REQUIRED_DOCUMENT_TYPES.filter((type) => !uploadedTypes.has(type))
+    
+    // Check if JAMB is uploaded (optional but noted)
+    const hasJamb = uploadedTypes.has('jamb_registration_form')
 
-    if (missingTypes.length > 0) {
+    if (missingRequired.length > 0) {
       return NextResponse.json(
         {
           success: false,
           error: 'Not all required documents have been uploaded yet',
-          missingTypes,
+          missingTypes: missingRequired,
         },
         { status: 400 },
       )
     }
 
     // Update aspirant profile: set stage to 'exam', documents_uploaded = true
+    let profileUpdateSuccess = false
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         const now = new Date().toISOString()
-        const { error: updateError } = await supabase
+        const { data: profileData, error: updateError } = await supabase
           .from('aspirant_profiles')
           .update({
             current_stage: 'exam',
@@ -118,8 +127,16 @@ export async function POST() {
             updated_at: now,
           })
           .eq('profile_id', user.id)
+          .select()
+          .single()
 
-        if (updateError) throw new Error(updateError.message)
+        if (updateError) {
+          console.error('[complete-documents] profile update error:', updateError)
+          throw new Error(updateError.message)
+        }
+        
+        console.log('[complete-documents] profile updated successfully:', profileData)
+        profileUpdateSuccess = true
         break
       } catch (err: any) {
         lastError = err
@@ -137,6 +154,14 @@ export async function POST() {
         throw err
       }
     }
+
+    if (!profileUpdateSuccess) {
+      console.error('[complete-documents] failed to update profile stage after all retries')
+      throw lastError || new Error('Failed to update profile stage')
+    }
+
+    // Skip profile progress update since we already set the stage to 'exam'
+    // await AdmissionService.updateProfileProgress(user.id, user.id)
 
     // Create a notification for the aspirant
     for (let attempt = 0; attempt < retries; attempt++) {
@@ -165,10 +190,15 @@ export async function POST() {
       }
     }
 
+    const message = hasJamb 
+      ? 'Documents stage completed. Entrance exam is now unlocked.'
+      : 'Documents stage completed. Note: JAMB registration form was not provided, but you can still proceed to the entrance exam.'
+
     return NextResponse.json({
       success: true,
-      message: 'Documents stage completed. Entrance exam is now unlocked.',
+      message,
       stage: 'exam',
+      hasJamb,
     })
   } catch (error) {
     console.error('[admissions/complete-documents] error:', error)

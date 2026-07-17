@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { BadgeCheck, CreditCard, FileDown, FileUp, HelpCircle, Sparkles, UploadCloud, UserRound, Award, Clock3, CheckCircle2, Lock, ChevronRight } from 'lucide-react'
+import { BadgeCheck, CreditCard, FileDown, FileUp, HelpCircle, Sparkles, UploadCloud, UserRound, Award, Clock3, CheckCircle2, Lock, ChevronRight, X, AlertTriangle, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 const documentTypes = [
@@ -19,31 +19,17 @@ const documentTypes = [
   { label: 'JAMB Registration details (if any)', value: 'jamb_registration_form' },
 ]
 
-// Accepted file types for document upload
-const ACCEPTED_DOC_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/jpg',
-  'application/pdf',
-]
+const ACCEPTED_DOC_MIME_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
 const ACCEPTED_DOC_EXTENSIONS = '.jpg,.jpeg,.png,.pdf'
-const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
+const MAX_FILE_SIZE = 2 * 1024 * 1024
 
-// Accepted file types for passport photo
-const ACCEPTED_PHOTO_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/jpg',
-]
+const ACCEPTED_PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/jpg']
 const ACCEPTED_PHOTO_EXTENSIONS = '.jpg,.jpeg,.png'
-const MAX_PHOTO_SIZE = 2 * 1024 * 1024 // 2MB
+const MAX_PHOTO_SIZE = 2 * 1024 * 1024
 
 function validateFile(file: File, allowedTypes: string[], maxSize: number, label: string): string | null {
   if (!allowedTypes.includes(file.type)) {
-    const allowedExts = allowedTypes
-      .map((t) => t.replace('image/', '.').replace('application/', '.'))
-      .join(', ')
-    return `${label} must be a ${allowedExts} file. Got: ${file.type || 'unknown type'}`
+    return `${label} must be JPG, PNG, or PDF. Got: ${file.type || 'unknown type'}`
   }
   if (file.size > maxSize) {
     const maxMB = maxSize / (1024 * 1024)
@@ -59,6 +45,8 @@ type UploadedDocument = {
   file_name: string
   verification_status: string
   file_url?: string | null
+  uploaded_at?: string | null
+  mime_type?: string | null
 }
 
 type UploadedPhoto = {
@@ -77,6 +65,31 @@ type ExamResult = {
   submitted_at?: string | null
 }
 
+type AspirantProfile = {
+  profile_id: string
+  admission_number: string | null
+  jamb_reg_no: string | null
+  preferred_program_id: string | null
+  application_type: string
+  application_status: string
+  current_stage: string
+  profile_completion: number
+  admission_session: string | null
+  submission_notes: string | null
+  submitted_at: string | null
+  reviewed_at: string | null
+  reviewed_by: string | null
+  review_feedback: string | null
+  created_at: string
+  updated_at: string
+  application_fee_paid?: boolean
+  admission_fee_paid?: boolean
+  exam_completed?: boolean
+  exam_score?: number
+  exam_grade?: string
+  matric_number?: string | null
+}
+
 export default function AspirantDashboard() {
   const router = useRouter()
   const [passportFile, setPassportFile] = useState<File | null>(null)
@@ -89,7 +102,7 @@ export default function AspirantDashboard() {
   const [latestExamResult, setLatestExamResult] = useState<ExamResult | null>(null)
   const [appFeePaid, setAppFeePaid] = useState(false)
   const [adminFeePaid, setAdminFeePaid] = useState(false)
-  const [matricNumber, setMatricNumber] = useState<string | null>(null)
+  const [profile, setProfile] = useState<AspirantProfile | null>(null)
   const [stage, setStage] = useState('signup')
   const [passportStatus, setPassportStatus] = useState('')
   const [docStatus, setDocStatus] = useState('')
@@ -97,12 +110,17 @@ export default function AspirantDashboard() {
   const [submittingDoc, setSubmittingDoc] = useState(false)
   const [initiatingPayment, setInitiatingPayment] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Modal states
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [previewDocument, setPreviewDocument] = useState<UploadedDocument | null>(null)
+  const [completingDocuments, setCompletingDocuments] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<{ id: string; type: string; name: string } | null>(null)
 
   const loadData = async () => {
-    // Use a ref-style pattern to avoid blocking re-calls
     setIsLoading(true)
-    
-    // Helper to fetch with retry
     const fetchWithRetry = async (url: string, options?: RequestInit, retries = 3): Promise<Response> => {
       for (let i = 0; i < retries; i++) {
         try {
@@ -147,10 +165,8 @@ export default function AspirantDashboard() {
       avatarUrl: user?.avatarUrl || '',
     })
     
-    // Always update even if empty - this ensures UI refreshes properly
     setDocuments(docs?.data || [])
     
-    // Reset docType to the first available option if current selection is no longer valid
     if (docs?.data) {
       const uploaded = new Set(docs.data.map((d: any) => d.document_type))
       const available = documentTypes.filter((item) => !uploaded.has(item.value))
@@ -162,25 +178,22 @@ export default function AspirantDashboard() {
     setExamResults(resPayload?.data || [])
     setLatestExamResult(resPayload?.data?.[0] || null)
     
-    // Check payment status from both profile and payment records
     const appPaymentSuccess = profile?.application_fee_paid || appPayment?.status === 'success' || false
     const admissionPaymentSuccess = profile?.admission_fee_paid || admissionPayment?.status === 'success' || false
     
     setAppFeePaid(appPaymentSuccess)
     setAdminFeePaid(admissionPaymentSuccess)
     setStage(profile?.current_stage || 'signup')
-    setMatricNumber(profile?.matric_number || null)
+    setProfile(profile)
     
     setIsLoading(false)
     
-    // If payment is successful but profile isn't updated, trigger profile update
     if (appPaymentSuccess && !profile?.application_fee_paid) {
       await fetch('/api/v1/aspirant/payments/sync-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentType: 'application' })
       }).catch(() => {})
-      // Reload data after sync to get updated profile
       await loadData()
       return
     }
@@ -191,7 +204,6 @@ export default function AspirantDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentType: 'admission' })
       }).catch(() => {})
-      // Reload data after sync to get updated profile
       await loadData()
       return
     }
@@ -208,7 +220,7 @@ export default function AspirantDashboard() {
       if (error) {
         setPassportStatus('')
         toast.error(error)
-        e.target.value = '' // Clear the input
+        e.target.value = ''
         return
       }
     }
@@ -223,7 +235,7 @@ export default function AspirantDashboard() {
       if (error) {
         setDocStatus('')
         toast.error(error)
-        e.target.value = '' // Clear the input
+        e.target.value = ''
         return
       }
     }
@@ -233,15 +245,12 @@ export default function AspirantDashboard() {
 
   const uploadPassport = async () => {
     if (!passportFile) return setPassportStatus('Choose a passport photo first.')
-    
-    // Double-check validation before upload
     const validationError = validateFile(passportFile, ACCEPTED_PHOTO_MIME_TYPES, MAX_PHOTO_SIZE, 'Passport photo')
     if (validationError) {
       setPassportStatus(validationError)
       toast.error(validationError)
       return
     }
-    
     setSubmittingPassport(true)
     setPassportStatus('')
     try {
@@ -251,20 +260,17 @@ export default function AspirantDashboard() {
       const payload = await response.json()
       if (!response.ok) throw new Error(payload?.error || 'Unable to upload passport photo')
       
-      // Add the uploaded photo to the photos array with image_url
       const uploadedPhoto = { ...payload.data, image_url: payload.data.image_url || payload.data.storage_path }
       setPhotos((prev) => [uploadedPhoto, ...prev])
       
       const docTypeUploaded = 'passport_photo'
       let documentRecord = payload.data.document
       
-      // Compute if all docs uploaded USING CURRENT STATE + this upload (not waiting for setDocuments)
       const oldDocTypes = new Set(documents.map((d) => d.document_type))
       oldDocTypes.add(docTypeUploaded)
       const allTypes = documentTypes.map((d) => d.value)
       const nowAllUploaded = allTypes.every((type) => oldDocTypes.has(type))
       
-      // Update documents state with the new upload
       if (documentRecord) {
         setDocuments((prev) => [
           {
@@ -278,7 +284,6 @@ export default function AspirantDashboard() {
           ...prev,
         ])
       } else {
-        // Fallback: create a local document entry
         setDocuments((prev) => [
           {
             id: uploadedPhoto.id,
@@ -293,7 +298,6 @@ export default function AspirantDashboard() {
       }
       
       if (nowAllUploaded) {
-        // Call the API to update profile stage to 'exam' and create notification
         fetch('/api/v1/admissions/complete-documents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -317,7 +321,6 @@ export default function AspirantDashboard() {
             }, 1000)
           })
       } else if (!documentRecord) {
-        // Only reload if we didn't get a document record back from API
         setTimeout(() => {
           setIsLoading(false)
           loadData()
@@ -338,15 +341,12 @@ export default function AspirantDashboard() {
 
   const uploadDocument = async () => {
     if (!docFile) return setDocStatus('Choose a document first.')
-    
-    // Double-check validation before upload
     const validationError = validateFile(docFile, ACCEPTED_DOC_MIME_TYPES, MAX_FILE_SIZE, 'Document')
     if (validationError) {
       setDocStatus(validationError)
       toast.error(validationError)
       return
     }
-    
     setSubmittingDoc(true)
     setDocStatus('')
     
@@ -362,8 +362,6 @@ export default function AspirantDashboard() {
       setDocStatus('Document uploaded successfully.')
       setDocFile(null)
       
-      // Always reload data from API to ensure everything is in sync
-      // This will update documents, uploadedDocumentTypes, and docType dropdown
       await loadData()
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Upload failed.'
@@ -385,7 +383,6 @@ export default function AspirantDashboard() {
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Failed to initiate payment')
       
-      // Load Paystack inline script
       const script = document.createElement('script')
       script.src = 'https://js.paystack.co/v1/inline.js'
       script.async = true
@@ -394,14 +391,13 @@ export default function AspirantDashboard() {
         paystack.setup({
           key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
           email: summary.email,
-          amount: 6500 * 100, // in kobo
+          amount: 6500 * 100,
           ref: payload.data.reference,
           onClose: function() {
             toast.info('Payment closed')
             setInitiatingPayment(false)
           },
           callback: function(response: any) {
-            // Verify payment with backend
             fetch('/api/v1/aspirant/payments/verify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -444,7 +440,6 @@ export default function AspirantDashboard() {
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Failed to initiate payment')
       
-      // Load Paystack inline script
       const script = document.createElement('script')
       script.src = 'https://js.paystack.co/v1/inline.js'
       script.async = true
@@ -453,14 +448,13 @@ export default function AspirantDashboard() {
         paystack.setup({
           key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
           email: summary.email,
-          amount: 30000 * 100, // in kobo
+          amount: 30000 * 100,
           ref: payload.data.reference,
           onClose: function() {
             toast.info('Payment closed')
             setInitiatingPayment(false)
           },
           callback: function(response: any) {
-            // Verify payment with backend
             fetch('/api/v1/aspirant/payments/verify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -498,7 +492,6 @@ export default function AspirantDashboard() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to accept admission')
       toast.success(data.message)
-      setMatricNumber(data.matricNumber)
       await loadData()
       router.push('/student/dashboard')
     } catch (err: any) {
@@ -506,15 +499,91 @@ export default function AspirantDashboard() {
     }
   }
 
+  const handleCompleteDocuments = async () => {
+    setCompletingDocuments(true)
+    try {
+      const response = await fetch('/api/v1/admissions/complete-documents', {
+        method: 'POST',
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload?.error || 'Unable to complete documents')
+      
+      toast.success(payload.message || 'Documents completed successfully!')
+      setShowConfirmModal(false)
+      
+      await loadData()
+      
+      setTimeout(() => {
+        window.location.href = '/aspirant/exam'
+      }, 1500)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to complete documents'
+      toast.error(msg)
+    } finally {
+      setCompletingDocuments(false)
+    }
+  }
+  
+  const canAccessExam = stage === 'exam' || stage === 'admission_fee' || stage === 'migration'
+
+  const openPreview = (doc: UploadedDocument) => {
+    setPreviewDocument(doc)
+    setShowPreviewModal(true)
+  }
+
+  const getPreviewUrl = (doc: UploadedDocument): string => {
+    if (!doc.file_url) return ''
+    return doc.file_url
+  }
+
+  const deleteDocument = async (docId: string, docType: string, docName: string) => {
+    setDocumentToDelete({ id: docId, type: docType, name: docName })
+    setShowDeleteModal(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!documentToDelete) return
+
+    try {
+      const response = await fetch(`/api/v1/admissions/documents/${documentToDelete.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete document')
+      }
+
+      toast.success('Document deleted successfully. You can reupload it now.')
+      setShowDeleteModal(false)
+      setDocumentToDelete(null)
+      
+      await loadData()
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to delete document'
+      toast.error(msg)
+    }
+  }
+
   const uploadedDocumentTypes = useMemo(() => new Set(documents.map((doc) => doc.document_type)), [documents])
   const currentPassport = photos[0] || documents.find((doc) => doc.document_type === 'passport_photo') || null
   
-  // All document types that must be uploaded before exam can be taken
-  const allRequiredDocTypes = documentTypes.map((d) => d.value)
-  const allDocumentsUploaded = allRequiredDocTypes.every((type) => uploadedDocumentTypes.has(type))
+  // Required documents (excluding optional JAMB registration form)
+  const requiredDocumentTypes = documentTypes.filter((d) => d.value !== 'jamb_registration_form')
+  const allRequiredDocTypes = requiredDocumentTypes.map((d) => d.value)
+  const allRequiredDocumentsUploaded = allRequiredDocTypes.every((type) => uploadedDocumentTypes.has(type))
+  const allDocumentsUploaded = documentTypes.map((d) => d.value).every((type) => uploadedDocumentTypes.has(type))
   const hasUploadedDocuments = documents.length > 0
+  const hasJamb = uploadedDocumentTypes.has('jamb_registration_form')
+  
+  // Check if stage is documents or later for proceed button
+  // Check if stage is exam or later for read-only documents (hide upload forms)
+  const stageOrder = ['signup', 'payment', 'documents', 'exam', 'admission_fee', 'migration']
+  const currentStageIndex = stageOrder.indexOf(stage)
+  const isDocumentsOrLater = currentStageIndex >= stageOrder.indexOf('documents')
+  const isExamOrLater = currentStageIndex >= stageOrder.indexOf('exam')
+  const isAdmissionFeeOrLater = currentStageIndex >= stageOrder.indexOf('admission_fee')
 
-  // Progressive steps configuration
   const steps = [
     {
       id: 'payment',
@@ -530,53 +599,57 @@ export default function AspirantDashboard() {
     {
       id: 'documents',
       title: 'Upload Documents',
-      description: 'Upload all 8 required documents for review',
+      description: 'Upload all required documents for review',
       icon: FileUp,
-      completed: allDocumentsUploaded,
+      completed: allRequiredDocumentsUploaded,
       locked: !appFeePaid,
       action: null,
       actionLabel: null,
-      detail: allDocumentsUploaded
-        ? 'All documents uploaded ✓'
+      detail: allRequiredDocumentsUploaded
+        ? 'All required documents uploaded ✓'
         : `Uploaded: ${uploadedDocumentTypes.size} of ${allRequiredDocTypes.length}`,
     },
-    {
+    ...(isAdmissionFeeOrLater ? [] : [{
       id: 'exam',
       title: 'Entrance Exam',
       description: 'Take the secure online screening exam',
       icon: Award,
       completed: examResults.length > 0,
-      locked: !appFeePaid || !allDocumentsUploaded,
+      locked: !appFeePaid || !allRequiredDocumentsUploaded,
       action: null,
-      actionLabel: 'Start Exam',
-      link: '/aspirant/exam',
+      actionLabel: examResults.length > 0 ? null : 'Start Exam',
+      link: examResults.length > 0 ? null : '/aspirant/exam',
       detail: examResults.length > 0
-        ? 'Exam completed'
-        : allDocumentsUploaded
+        ? 'Exam completed ✓'
+        : allRequiredDocumentsUploaded
         ? 'Ready to start!'
-        : 'Upload all documents first',
-    },
+        : 'Complete required documents first',
+    }]),
     {
       id: 'admission_fee',
       title: 'Admission Charges',
       description: 'Pay ₦30,000 admission and administrative charges',
       icon: CreditCard,
       completed: adminFeePaid,
-      locked: !appFeePaid || !hasUploadedDocuments || examResults.length === 0,
+      locked: !appFeePaid || !hasUploadedDocuments || examResults.length === 0 || profile?.application_status !== 'admitted',
       action: initiateAdmissionPayment,
       actionLabel: 'Pay ₦30,000',
-      detail: adminFeePaid ? 'Payment completed' : 'Requires exam completion',
+      detail: adminFeePaid 
+        ? 'Payment completed' 
+        : profile?.application_status === 'admitted'
+        ? 'Pay to accept admission'
+        : 'Awaiting admission decision',
     },
     {
       id: 'migration',
       title: 'Student Migration',
       description: 'Receive your matric number and move to the student portal',
       icon: UserRound,
-      completed: !!matricNumber,
+      completed: !!profile?.matric_number,
       locked: !adminFeePaid,
       action: acceptAdmissionAndMigrate,
       actionLabel: 'Accept & Move',
-      detail: matricNumber ? `Active - ${matricNumber}` : 'Requires admission fee payment',
+      detail: profile?.matric_number ? `Active - ${profile.matric_number}` : 'Requires admission fee payment',
     },
   ]
 
@@ -591,7 +664,6 @@ export default function AspirantDashboard() {
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-border bg-white dark:bg-slate-900">
               {summary.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={summary.avatarUrl} alt={summary.name} className="h-full w-full object-cover" />
               ) : (
                 <UserRound className="h-8 w-8 text-primary" />
@@ -608,7 +680,7 @@ export default function AspirantDashboard() {
               <span className="font-bold text-foreground">Current stage:</span>
               <span className="rounded-full bg-primary/10 px-3 py-1 font-extrabold uppercase tracking-wider text-primary">{stage}</span>
             </div>
-            {matricNumber && <div className="font-bold text-emerald-600">Matric Number: {matricNumber}</div>}
+            <div className="font-bold text-emerald-600">Matric Number: {profile?.matric_number || 'Not assigned'}</div>
           </div>
         </div>
       </div>
@@ -723,8 +795,51 @@ export default function AspirantDashboard() {
         </div>
       </Card>
 
-      {/* Exam Result Card */}
-      {appFeePaid ? (
+      {/* Admission Review Card - Show when stage is admission_fee */}
+      {stage === 'admission_fee' && (
+        <Card className="rounded-[2rem] border border-blue-500/20 bg-blue-500/5 dark:bg-blue-500/10 p-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-blue-500/10 p-3">
+              <Clock3 className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Admission Review</p>
+              <h2 className="text-xl font-bold">Under Review</h2>
+            </div>
+          </div>
+          <div className="mt-6 space-y-4">
+            <div className="rounded-2xl border border-blue-500/20 bg-white dark:bg-slate-800/50 p-5">
+              <div className="flex items-start gap-3">
+                <HelpCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                <div className="text-sm text-muted-foreground">
+                  <p className="font-semibold text-foreground">Your application is being reviewed</p>
+                  <p className="mt-1">The admissions committee is reviewing your application, documents, and entrance exam results. You will be notified once a decision has been made.</p>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 dark:bg-amber-500/10">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                <div className="text-sm text-muted-foreground">
+                  <p className="font-semibold text-foreground">Next Steps</p>
+                  <p className="mt-1">Once your admission is approved, you will be able to pay the admission fee to secure your place and proceed to student registration.</p>
+                </div>
+              </div>
+            </div>
+            {profile?.application_status && (
+              <div className="flex items-center justify-between rounded-2xl border border-border bg-slate-50 dark:bg-slate-800/50 p-4">
+                <span className="text-sm text-muted-foreground">Application Status</span>
+                <span className="rounded-full bg-blue-500/10 px-3 py-1 text-sm font-semibold text-blue-600 capitalize">
+                  {profile.application_status.replace('_', ' ')}
+                </span>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Exam Result Card - Show only when stage is before admission_fee */}
+      {appFeePaid && stage !== 'admission_fee' && stage !== 'migration' ? (
         <Card className="rounded-[2rem] border bg-white dark:bg-slate-900 p-6 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-primary/10 p-3 text-primary">
@@ -778,7 +893,7 @@ export default function AspirantDashboard() {
       {/* Two Column Layout */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Passport Photo Upload */}
-        {appFeePaid ? (
+        {appFeePaid && !isAdmissionFeeOrLater ? (
           <Card className="rounded-[2rem] border bg-white dark:bg-slate-900 p-6 shadow-sm">
             <h2 className="text-2xl font-bold">Passport photo</h2>
             <p className="mt-1 text-sm text-muted-foreground">Upload a clean passport photo for your record and ID card.</p>
@@ -789,7 +904,6 @@ export default function AspirantDashboard() {
                   <p className="text-sm font-semibold text-emerald-600">Passport photo uploaded</p>
                 </div>
                 <div className="overflow-hidden rounded-2xl border border-border">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={currentPassport.image_url} alt="Uploaded passport" className="h-48 w-full object-cover" />
                 </div>
                 <a href={currentPassport.image_url} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs font-semibold text-primary underline-offset-4 hover:underline">
@@ -820,7 +934,24 @@ export default function AspirantDashboard() {
               </div>
             )}
           </Card>
-        ) : (
+        ) : isExamOrLater && !isAdmissionFeeOrLater && currentPassport ? (
+          <Card className="rounded-[2rem] border bg-white dark:bg-slate-900 p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">Passport photo</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Your passport photo has been submitted for review.</p>
+            <div className="mt-5 rounded-2xl border border-border bg-slate-50 dark:bg-slate-800/50 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                <p className="text-sm font-semibold text-emerald-600">Passport photo uploaded</p>
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-border">
+                <img src={currentPassport.image_url || ''} alt="Uploaded passport" className="h-48 w-full object-cover" />
+              </div>
+              <a href={currentPassport.image_url || ''} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs font-semibold text-primary underline-offset-4 hover:underline">
+                View / Download File
+              </a>
+            </div>
+          </Card>
+        ) : !isAdmissionFeeOrLater ? (
           <Card className="rounded-[2rem] border border-dashed border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50 p-6 shadow-sm opacity-60">
             <div className="flex items-center gap-3 mb-4">
               <div className="rounded-2xl bg-gray-200 p-3 text-gray-400 dark:bg-gray-800">
@@ -835,10 +966,10 @@ export default function AspirantDashboard() {
               Complete the application fee payment to unlock this section.
             </div>
           </Card>
-        )}
+        ) : null}
 
         {/* Document Upload */}
-        {appFeePaid ? (
+        {appFeePaid && !isAdmissionFeeOrLater ? (
           <Card className="rounded-[2rem] border bg-white dark:bg-slate-900 p-6 shadow-sm">
             <h2 className="text-2xl font-bold">Admission documents</h2>
             <p className="mt-1 text-sm text-muted-foreground">Upload the required records for admission review and verification.</p>
@@ -876,7 +1007,19 @@ export default function AspirantDashboard() {
               )}
             </div>
           </Card>
-        ) : (
+        ) : isExamOrLater && !isAdmissionFeeOrLater ? (
+          <Card className="rounded-[2rem] border bg-white dark:bg-slate-900 p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">Admission documents</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Your documents have been submitted for review.</p>
+            <div className="mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 dark:bg-emerald-500/10">
+              <div className="flex items-center gap-2">
+                <BadgeCheck className="h-5 w-5 text-emerald-600" />
+                <p className="text-sm font-semibold text-emerald-600">Documents submitted for review</p>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">Your documents are now being reviewed by the admissions team. You cannot modify them at this stage.</p>
+            </div>
+          </Card>
+        ) : !isAdmissionFeeOrLater ? (
           <Card className="rounded-[2rem] border border-dashed border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50 p-6 shadow-sm opacity-60">
             <div className="flex items-center gap-3 mb-4">
               <div className="rounded-2xl bg-gray-200 p-3 text-gray-400 dark:bg-gray-800">
@@ -891,13 +1034,32 @@ export default function AspirantDashboard() {
               Complete the application fee payment to unlock this section.
             </div>
           </Card>
-        )}
+        ) : null}
       </div>
 
       {/* Uploaded Documents List */}
-      {appFeePaid ? (
-        <Card className="rounded-[2rem] border bg-white dark:bg-slate-900 p-6 shadow-sm">
-          <h2 className="text-2xl font-bold">Uploaded documents</h2>
+      {appFeePaid && !isAdmissionFeeOrLater ? (
+        <Card className="rounded-[2.5rem] border bg-white dark:bg-slate-900 p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Uploaded documents</h2>
+            {isExamOrLater ? (
+              <BadgeCheck className="h-6 w-6 text-emerald-600" />
+            ) : isDocumentsOrLater && allRequiredDocumentsUploaded && (
+              <Button
+                onClick={() => setShowConfirmModal(true)}
+                className="rounded-2xl bg-emerald-600 hover:bg-emerald-700"
+              >
+                <ChevronRight className="mr-2 h-4 w-4" />
+                Proceed to Entrance Exam
+              </Button>
+            )}
+          </div>
+          {isExamOrLater && (
+            <div className="mt-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-muted-foreground dark:bg-emerald-500/10">
+              <p className="font-semibold text-foreground">Documents submitted for review</p>
+              <p>Your documents have been submitted and are now being reviewed. You cannot modify them at this stage.</p>
+            </div>
+          )}
           <div className="mt-5 space-y-3">
             {documents.length === 0 && !currentPassport ? (
               <div className="rounded-2xl border border-dashed border-border bg-slate-50 dark:bg-slate-800/50 p-4 text-center text-sm text-muted-foreground">No documents uploaded yet.</div>
@@ -916,18 +1078,32 @@ export default function AspirantDashboard() {
                     </div>
                     <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{doc.verification_status}</span>
                   </div>
-                  {doc.file_url && (
-                    <a href={doc.file_url} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs font-semibold text-primary underline-offset-4 hover:underline">
-                      View / Download File
-                    </a>
-                  )}
+                  <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
+                    {doc.file_url && (
+                      <button
+                        onClick={() => openPreview(doc)}
+                        className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+                      >
+                        <FileDown className="h-3 w-3" /> View Document
+                      </button>
+                    )}
+                    {!isExamOrLater && (
+                      <button
+                        onClick={() => deleteDocument(doc.id, doc.document_type, doc.file_name)}
+                        className="inline-flex items-center gap-1 text-red-600 underline-offset-4 hover:underline"
+                      >
+                        <Trash2 className="h-3 w-3" /> Delete
+                      </button>
+                    )}
+                    {doc.uploaded_at && <span>Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}</span>}
+                  </div>
                 </div>
               ))
             )}
           </div>
         </Card>
       ) : (
-        <Card className="rounded-[2rem] border border-dashed border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50 p-6 shadow-sm opacity-60">
+        <Card className="rounded-[2.5rem] border border-dashed border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50 p-6 shadow-sm opacity-60">
           <div className="flex items-center gap-3 mb-4">
             <div className="rounded-2xl bg-gray-200 p-3 text-gray-400 dark:bg-gray-800">
               <Lock className="h-5 w-5" />
@@ -943,10 +1119,144 @@ export default function AspirantDashboard() {
         </Card>
       )}
 
+      {/* Confirmation Modal - Responsive */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-6">
+          <Card className="w-full max-w-md rounded-[2rem] border bg-white p-6 sm:p-8 shadow-xl dark:bg-slate-900">
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/10">
+                <AlertTriangle className="h-8 w-8 text-amber-600" />
+              </div>
+              <h3 className="text-xl sm:text-2xl font-bold text-foreground">Proceed to Entrance Exam?</h3>
+              <p className="mt-3 text-xs sm:text-sm text-muted-foreground">
+                Are you ready to proceed? Once you confirm, your documents will be submitted for review and you will be redirected to the entrance exam.
+              </p>
+              {!hasJamb && (
+                <div className="mt-3 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-3 text-left text-xs text-muted-foreground dark:bg-blue-500/10">
+                  <p className="font-semibold text-foreground">Note:</p>
+                  <p>You have not uploaded your JAMB registration form. This is optional, and you can still proceed to the exam.</p>
+                </div>
+              )}
+              <div className="mt-3 rounded-2xl border border-red-500/20 bg-red-500/5 p-3 text-left text-xs text-muted-foreground dark:bg-red-500/10">
+                <p className="font-semibold text-foreground">Important:</p>
+                <p>Once you confirm, you won't be able to alter or delete your uploaded documents. Please review all documents carefully before proceeding.</p>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowConfirmModal(false)}
+                disabled={completingDocuments}
+                className="h-12 rounded-2xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCompleteDocuments}
+                disabled={completingDocuments}
+                className="h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700"
+              >
+                {completingDocuments ? 'Processing...' : 'Yes, Proceed to Exam'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Document Preview Modal - Responsive */}
+      {showPreviewModal && previewDocument && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6" onClick={() => setShowPreviewModal(false)}>
+          <Card className="w-full max-w-5xl max-h-[95vh] sm:max-h-[90vh] rounded-[2.5rem] border bg-white p-4 sm:p-6 shadow-xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg sm:text-xl font-bold text-foreground truncate">Document Preview</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">{previewDocument.file_name}</p>
+              </div>
+              <Button
+                variant="ghost"
+                onClick={() => setShowPreviewModal(false)}
+                className="h-8 w-8 sm:h-10 sm:w-10 rounded-full p-0 flex-shrink-0 ml-2"
+              >
+                <X className="h-4 w-4 sm:h-5 sm:w-5" />
+              </Button>
+            </div>
+            <div className="mt-3 sm:mt-4 flex max-h-[60vh] sm:max-h-[70vh] items-center justify-center overflow-auto rounded-2xl border border-border bg-slate-50 dark:bg-slate-800/50">
+              {previewDocument.file_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) || previewDocument.mime_type?.startsWith('image/') ? (
+                <img src={getPreviewUrl(previewDocument)} alt={previewDocument.file_name} className="max-w-full max-h-[60vh] sm:max-h-[70vh] object-contain" />
+              ) : previewDocument.file_url?.match(/\.pdf$/i) || previewDocument.mime_type === 'application/pdf' ? (
+                <div className="flex flex-col items-center justify-center gap-4 p-8">
+                  <FileDown className="h-16 w-16 text-muted-foreground" />
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-foreground mb-2">PDF Document</p>
+                    <p className="text-xs text-muted-foreground mb-4">Click the button below to view or download</p>
+                    <a 
+                      href={getPreviewUrl(previewDocument)} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-white hover:bg-primary/90"
+                    >
+                      <FileDown className="h-4 w-4" />
+                      Open PDF Document
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 sm:p-8 text-center text-muted-foreground">
+                  <FileDown className="mx-auto mb-4 h-10 w-10 sm:h-12 sm:w-12" />
+                  <p className="text-sm sm:text-base">Preview not available for this file type</p>
+                  <a href={getPreviewUrl(previewDocument)} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 text-primary underline">
+                    Download to view
+                  </a>
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal - Responsive */}
+      {showDeleteModal && documentToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-6" onClick={() => setShowDeleteModal(false)}>
+          <Card className="w-full max-w-md rounded-[2rem] border bg-white p-6 sm:p-8 shadow-xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10">
+                <AlertTriangle className="h-8 w-8 text-red-600" />
+              </div>
+              <h3 className="text-xl sm:text-2xl font-bold text-foreground">Delete Document?</h3>
+              <p className="mt-3 text-xs sm:text-sm text-muted-foreground">
+                Are you sure you want to delete <strong>{documentToDelete.name}</strong>? You can reupload this document later if needed.
+              </p>
+              <div className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-3 text-left text-xs text-muted-foreground dark:bg-amber-500/10">
+                <p className="font-semibold text-foreground">Note:</p>
+                <p>This action can be undone by reuploading the document. The document will be removed from your uploaded list and will appear in the document type dropdown again.</p>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setDocumentToDelete(null)
+                }}
+                className="h-12 rounded-2xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDelete}
+                className="h-12 rounded-2xl bg-red-600 hover:bg-red-700"
+              >
+                Yes, Delete
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Admission Status */}
       <Card className="rounded-[2rem] border bg-white dark:bg-slate-900 p-6 shadow-sm">
         <h2 className="text-2xl font-bold">Admission status</h2>
-        {matricNumber ? (
+        {profile?.matric_number ? (
           <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 p-5">
             <div className="flex items-center gap-3">
               <BadgeCheck className="h-8 w-8 text-emerald-600" />
@@ -956,7 +1266,7 @@ export default function AspirantDashboard() {
               </div>
             </div>
             <div className="mt-4 rounded-xl border bg-white dark:bg-slate-800 p-4 text-xs font-technical">
-              <div><strong>Student ID:</strong> {matricNumber}</div>
+              <div><strong>Student ID:</strong> {profile.matric_number}</div>
               <div><strong>Portal State:</strong> Migrated to Student Portal</div>
             </div>
             <div className="mt-4 space-y-2">

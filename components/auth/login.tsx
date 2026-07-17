@@ -3,11 +3,23 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { AlertCircle, ArrowRight, Lock, Mail, UserPlus } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { AlertCircle, ArrowRight, Lock, Mail, UserPlus, LogOut, User, CheckCircle } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { toast } from 'sonner'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+
+type PortalUser = {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  phone?: string
+  role: string
+  avatarUrl?: string
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -16,6 +28,26 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
+  const [currentUser, setCurrentUser] = useState<PortalUser | null>(null)
+  const [checkingSession, setCheckingSession] = useState(true)
+
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const response = await fetch('/api/v1/auth/me')
+        const payload = await response.json()
+        if (payload?.user) {
+          setCurrentUser(payload.user)
+        }
+      } catch (error) {
+        console.error('Session check failed:', error)
+      } finally {
+        setCheckingSession(false)
+      }
+    }
+
+    checkSession()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,6 +106,46 @@ export default function LoginPage() {
     router.push(`${ROUTES.apply}?email=${encodeURIComponent(email)}`)
   }
 
+  const handleContinueSession = () => {
+    if (!currentUser) return
+    const targetRoute = currentUser.role === 'admin' ? ROUTES.adminDashboard : currentUser.role === 'lecturer' ? ROUTES.lecturerDashboard : currentUser.role === 'aspirant' ? ROUTES.aspirantDashboard : ROUTES.studentDashboard
+    router.replace(targetRoute)
+    router.refresh()
+  }
+
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/v1/auth/logout', { method: 'POST' })
+      if (response.ok) {
+        setCurrentUser(null)
+        toast.success('Logged out successfully')
+      }
+    } catch (error) {
+      console.error('Logout failed:', error)
+      toast.error('Failed to logout')
+    }
+  }
+
+  const getRoleLabel = (role: string) => {
+    const roleLabels: Record<string, string> = {
+      admin: 'Administrator',
+      lecturer: 'Lecturer',
+      aspirant: 'Aspirant',
+      student: 'Student'
+    }
+    return roleLabels[role] || role
+  }
+
+  const getRoleColor = (role: string) => {
+    const roleColors: Record<string, string> = {
+      admin: 'bg-red-500/10 text-red-600 border-red-500/20',
+      lecturer: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+      aspirant: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+      student: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+    }
+    return roleColors[role] || 'bg-gray-500/10 text-gray-600 border-gray-500/20'
+  }
+
   return (
     <main className="flex min-h-screen">
       {/* Left Side - School Image */}
@@ -91,7 +163,7 @@ export default function LoginPage() {
         <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-white">
           <div className="max-w-lg space-y-6">
             <Link href={ROUTES.home} className="inset-0">
-              <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={180} height={180} className="mx-auto" />
+              <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={180} height={180} className="mx-auto" loading="eager" />
             </Link>
 
             <h1 className="text-4xl font-bold text-center">Welcome to {SCHOOL_INFO.shortName}</h1>
@@ -105,7 +177,7 @@ export default function LoginPage() {
         <div className="w-full max-w-md space-y-8">
           {/* Mobile Logo */}
           <div className="flex justify-center lg:hidden">
-            <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={80} height={80} />
+            <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={80} height={80} loading="eager" />
           </div>
 
           <div className="text-center">
@@ -178,6 +250,67 @@ export default function LoginPage() {
               </p>
             </div>
           </form>
+
+          {/* Active Session Card */}
+          {!checkingSession && currentUser && (
+            <Card className="border-2 border-blue-500/20 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-slate-900 p-6 shadow-lg">
+              <div className="flex items-start gap-4">
+                {/* Profile Picture */}
+                <div className="relative">
+                  {currentUser.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img 
+                      src={currentUser.avatarUrl} 
+                      alt={`${currentUser.firstName} ${currentUser.lastName}`}
+                      className="h-16 w-16 rounded-full border-2 border-blue-500 object-cover shadow-md"
+                    />
+                  ) : (
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-blue-500 bg-blue-500/10 text-blue-600 shadow-md">
+                      <User className="h-8 w-8" />
+                    </div>
+                  )}
+                  <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900">
+                    <CheckCircle className="h-3.5 w-3.5 text-white" />
+                  </div>
+                </div>
+
+                {/* User Info */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                      {currentUser.firstName} {currentUser.lastName}
+                    </h3>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold capitalize ${getRoleColor(currentUser.role)}`}>
+                      {getRoleLabel(currentUser.role)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{currentUser.email}</p>
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-500">
+                    You're already signed in. Continue to your dashboard or logout to switch accounts.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-5 flex gap-3">
+                <Button
+                  onClick={handleContinueSession}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Continue Session
+                </Button>
+                <Button
+                  onClick={handleLogout}
+                  variant="outline"
+                  className="flex-1 border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-slate-800"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
+              </div>
+            </Card>
+          )}
 
           <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
             <p>CCHT Secure Portal</p>

@@ -69,7 +69,7 @@ export function Navbar() {
         >
           <Link href={ROUTES.home} className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-sm font-technical font-bold text-muted-foreground shadow-lg shadow-primary/20">
-                <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={44} height={44} />
+                <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={44} height={44} loading="eager" />
             </div>
             <span className={cn(
               "font-display font-bold text-xl tracking-tight hidden sm:block",

@@ -43,6 +43,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
   const [documentsUploaded, setDocumentsUploaded] = useState(false)
   const [examCompleted, setExamCompleted] = useState(false)
   const [currentStage, setCurrentStage] = useState('signup')
+  const [examUnlocked, setExamUnlocked] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -72,6 +73,10 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
         setDocumentsUploaded((docsData?.data || []).length > 0)
         setExamCompleted((resultsData?.data || []).length > 0)
         setCurrentStage(statusData?.data?.profile?.current_stage || 'signup')
+        // Exam is unlocked when stage is 'exam' or later
+        const stageOrder = ['signup', 'payment', 'documents', 'exam', 'admission_fee', 'migration']
+        const currentStageIndex = stageOrder.indexOf(statusData?.data?.profile?.current_stage || 'signup')
+        setExamUnlocked(currentStageIndex >= stageOrder.indexOf('exam'))
       }
     }
 
@@ -154,6 +159,10 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
   const pageTitle = navItems.find((item) => isActive(item.href))?.label || 'Dashboard'
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'User'
   const userInitial = displayName.charAt(0).toUpperCase()
+  
+  // Hide sidebar during exam for security
+  const isExamPage = pathname === '/aspirant/exam'
+  const showSidebar = !isExamPage
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -165,7 +174,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
             </button>
             <Link href={ROUTES.home} className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-primary text-xs font-bold text-primary-foreground">
-                <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={44} height={44} />
+                <Image src="/images/logo.png" alt={SCHOOL_INFO.shortName} width={44} height={44} loading="eager" />
               </div>
               <div className="hidden sm:block">
                 <p className="text-sm font-semibold">{SCHOOL_INFO.shortName}</p>
@@ -239,10 +248,11 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
       </header>
 
       <div className="flex min-h-[calc(100vh-64px)]">
-        <aside
-          className={`fixed left-0 z-40 border-r border-border bg-white/95 backdrop-blur transition-all duration-300 dark:bg-slate-950/95 h-[calc(100vh-4rem)] xl:h-[calc(100vh-4rem)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'} ${sidebarCollapsed ? 'w-[4.75rem]' : 'w-[18rem]'}`}
-          style={{ top: '64px' }}
-        >
+        {showSidebar && (
+          <aside
+            className={`fixed left-0 z-40 border-r border-border bg-white/95 backdrop-blur transition-all duration-300 dark:bg-slate-950/95 h-[calc(100vh-4rem)] xl:h-[calc(100vh-4rem)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'} ${sidebarCollapsed ? 'w-[4.75rem]' : 'w-[18rem]'}`}
+            style={{ top: '64px' }}
+          >
           <button type="button" onClick={() => setSidebarCollapsed((value) => !value)} className={`absolute -right-3 top-4 z-50 flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-white shadow-md transition-all hover:border-primary hover:text-primary dark:bg-slate-900 xl:flex sm:hidden md:hidden xs:hidden hidden`} aria-label="Collapse sidebar">
             {sidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
           </button>
@@ -274,7 +284,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
                 ['payment', 'documents', 'exam'].includes(item.stage) && 
                 !((item.stage === 'payment' && appFeePaid) || 
                   (item.stage === 'documents' && documentsUploaded) || 
-                  (item.stage === 'exam' && examCompleted))
+                  (item.stage === 'exam' && examUnlocked))
               
               const navLink = isLocked ? (
                 <div className={`flex w-full items-center rounded-2xl px-4 py-2 font-medium transition-colors text-foreground/40 cursor-not-allowed ${sidebarCollapsed ? 'xl:hidden' : ''}`}>
@@ -320,8 +330,9 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
             </div>
           </nav>
         </aside>
-        {sidebarOpen && <div className="fixed inset-0 z-30 bg-white/50 dark:bg-slate-950/60 xl:hidden" onClick={() => setSidebarOpen(false)} />}
-        <main className={`flex-1 overflow-y-auto transition-all duration-300 ${sidebarCollapsed ? 'xl:pl-[4.75rem]' : 'xl:pl-[18rem]'}`}>
+        )}
+        {showSidebar && sidebarOpen && <div className="fixed inset-0 z-30 bg-white/50 dark:bg-slate-950/60 xl:hidden" onClick={() => setSidebarOpen(false)} />}
+        <main className={`flex-1 overflow-y-auto transition-all duration-300 ${showSidebar ? (sidebarCollapsed ? 'xl:pl-[4.75rem]' : 'xl:pl-[18rem]') : ''}`}>
           <div className="p-4 sm:p-6 lg:p-8">{children}</div>
         </main>
       </div>

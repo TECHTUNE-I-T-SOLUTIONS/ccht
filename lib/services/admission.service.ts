@@ -74,6 +74,28 @@ function buildCloudinaryUrl(publicIdOrUrl?: string | null) {
   return buildCloudinaryPublicUrl(cloudName, publicIdOrUrl)
 }
 
+function getFormatFromMimeType(mimeType?: string | null): string | null {
+  if (!mimeType) return null
+  const map: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+  }
+  return map[mimeType] || null
+}
+
+function getFormatFromFileName(fileName?: string | null): string | null {
+  if (!fileName) return null
+  const match = fileName.match(/\.([^.]+)$/)
+  if (!match) return null
+  const ext = match[1].toLowerCase()
+  const validFormats = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp']
+  return validFormats.includes(ext) ? ext : null
+}
+
 export class AdmissionService {
   static async createSignedUrl(_: string, path: string) {
     return buildCloudinaryUrl(path)
@@ -92,7 +114,6 @@ export class AdmissionService {
   }
 
   static async getAdmissionDocuments(profileId: string): Promise<AdmissionDocument[]> {
-    // Use admin client to bypass RLS for reads as well
     const supabase = createAdminClient()
     let retries = 3
     let lastError: any = null
@@ -107,10 +128,13 @@ export class AdmissionService {
 
         if (error) throw new Error(error.message)
 
-        return (data || []).map((doc) => ({
-          ...doc,
-          file_url: buildCloudinaryUrl(doc.storage_path),
-        }))
+        return (data || []).map((doc) => {
+          const format = getFormatFromMimeType(doc.mime_type) || getFormatFromFileName(doc.file_name)
+          return {
+            ...doc,
+            file_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, doc.storage_path, format),
+          }
+        })
       } catch (err: any) {
         lastError = err
         const isNetworkError =
@@ -131,7 +155,6 @@ export class AdmissionService {
   }
 
   static async getProfilePhotos(profileId: string): Promise<ProfilePhoto[]> {
-    // Use admin client to bypass RLS for reads as well
     const supabase = createAdminClient()
     let retries = 3
     let lastError: any = null
@@ -146,10 +169,13 @@ export class AdmissionService {
 
         if (error) throw new Error(error.message)
 
-        return (data || []).map((photo) => ({
-          ...photo,
-          image_url: buildCloudinaryUrl(photo.storage_path),
-        }))
+        return (data || []).map((photo) => {
+          const format = getFormatFromMimeType(photo.mime_type) || getFormatFromFileName(photo.file_name)
+          return {
+            ...photo,
+            image_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, photo.storage_path, format),
+          }
+        })
       } catch (err: any) {
         lastError = err
         const isNetworkError =
@@ -273,7 +299,6 @@ export class AdmissionService {
   }
 
   static async uploadProfilePhotoForUser(profileId: string, uploadedBy: string, file: File) {
-    // Use admin client to bypass RLS for all DB operations
     const supabase = createAdminClient()
     const result = await uploadFileToCloudinary(file, {
       folder: `profile-photos/${uploadedBy}`,
@@ -297,7 +322,6 @@ export class AdmissionService {
 
     if (insertError) throw new Error(insertError.message)
 
-    // Update profiles table with photo info
     const { error: profileUpdateError } = await supabase
       .from('profiles')
       .update({
@@ -306,7 +330,7 @@ export class AdmissionService {
         profile_photo_mime_type: file.type || null,
         profile_photo_uploaded_by: uploadedBy,
         profile_photo_uploaded_at: new Date().toISOString(),
-        avatar_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id),
+        avatar_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id, result.format),
         media_provider: 'cloudinary',
         updated_at: new Date().toISOString(),
       })
@@ -314,10 +338,8 @@ export class AdmissionService {
 
     if (profileUpdateError) {
       console.error('Failed to update profile photo fields:', profileUpdateError.message)
-      // Don't throw - the photo was saved successfully, this is secondary
     }
 
-    // Also save to admission_documents table for proper tracking
     let documentRecord: Record<string, any> | null = null
     let documentError: { message: string } | null = null
     
@@ -346,7 +368,6 @@ export class AdmissionService {
     
     if (documentError) {
       console.error('Failed to save passport to admission_documents:', documentError.message)
-      // Attempt one more time with a different storage_path to avoid unique constraint violation
       try {
         const retryResult = await supabase
           .from('admission_documents')
@@ -372,14 +393,13 @@ export class AdmissionService {
       }
     }
 
-    // Return the inserted records with URLs
     return {
       ...inserted,
-      image_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id),
+      image_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id, result.format),
       document: documentRecord
         ? {
             ...documentRecord,
-            file_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id),
+            file_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id, result.format),
           }
         : null,
     }
@@ -391,7 +411,6 @@ export class AdmissionService {
     file: File,
     documentType: string,
   ) {
-    // Use admin client to bypass RLS
     const supabase = createAdminClient()
     const result = await uploadFileToCloudinary(file, {
       folder: `admission-documents/${userId}/${documentType}`,
@@ -414,12 +433,112 @@ export class AdmissionService {
       .select()
       .single()
 
-    if (error) throw new Error(error.message)
+    if (error) {
+      console.error('Failed to insert admission document:', error)
+      throw new Error(error.message || 'Failed to save document to database')
+    }
+
+    if (!data) {
+      console.error('No data returned from admission_documents insert')
+      throw new Error('Failed to save document - no data returned')
+    }
     
-    // Return the inserted record with file_url
+    await this.updateProfileProgress(profileId, userId)
+    
+    const format = getFormatFromMimeType(file.type) || getFormatFromFileName(file.name)
+    
     return {
       ...data,
-      file_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id),
+      file_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id, format),
+    }
+  }
+
+  static async updateProfileProgress(profileId: string, userId: string) {
+    const supabase = createAdminClient()
+    
+    const { data: profile, error: profileError } = await supabase
+      .from('aspirant_profiles')
+      .select('*')
+      .eq('profile_id', profileId)
+      .single()
+    
+    if (profileError || !profile) {
+      console.error('Failed to fetch profile for progress update:', profileError)
+      return
+    }
+    
+    const { count: docCount } = await supabase
+      .from('admission_documents')
+      .select('*', { count: 'exact', head: true })
+      .eq('uploaded_by', userId)
+    
+    const documentsUploaded = (docCount || 0) > 0
+    
+    const { count: photoCount } = await supabase
+      .from('aspirant_profile_photos')
+      .select('*', { count: 'exact', head: true })
+      .eq('uploaded_by', userId)
+    
+    const passportUploaded = (photoCount || 0) > 0
+    
+    const { data: paymentStatus } = await supabase
+      .from('aspirant_payment_status')
+      .select('application_fee_paid')
+      .eq('profile_id', profileId)
+      .single()
+    
+    const appFeePaid = paymentStatus?.application_fee_paid || false
+    
+    const { count: examCount } = await supabase
+      .from('exam_sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('aspirant_id', userId)
+      .eq('status', 'submitted')
+    
+    const examCompleted = (examCount || 0) > 0
+    
+    let completion = 0
+    if (passportUploaded) completion += 10
+    if (appFeePaid) completion += 20
+    if (documentsUploaded) completion += 40
+    if (examCompleted) completion += 30
+    
+    let currentStage = profile.current_stage || 'signup'
+    if (examCompleted) {
+      currentStage = 'exam'
+    } else if (documentsUploaded && appFeePaid) {
+      currentStage = 'exam'
+    } else if (documentsUploaded) {
+      currentStage = 'documents'
+    } else if (appFeePaid) {
+      currentStage = 'payment'
+    }
+    
+    const updateData: any = {
+      profile_completion: completion,
+      current_stage: currentStage,
+      documents_uploaded: documentsUploaded,
+      updated_at: new Date().toISOString(),
+    }
+    
+    if (documentsUploaded && !profile.documents_uploaded) {
+      updateData.documents_uploaded_at = new Date().toISOString()
+    }
+    
+    if (examCompleted) {
+      updateData.exam_completed = true
+      updateData.exam_completed_at = new Date().toISOString()
+    }
+    
+    const { error: updateError } = await supabase
+      .from('aspirant_profiles')
+      .update(updateData)
+      .eq('profile_id', profileId)
+    
+    if (updateError) {
+      console.error('Failed to update profile progress:', updateError)
+    } else {
+      console.log(`Profile progress updated: stage=${currentStage}, completion=${completion}%`)
     }
   }
 }

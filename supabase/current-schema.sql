@@ -463,7 +463,7 @@ CREATE TABLE public.admission_documents (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   application_id uuid NOT NULL,
   uploaded_by uuid NOT NULL,
-  document_type text NOT NULL CHECK (document_type = ANY (ARRAY['passport_photo'::text, 'signature'::text, 'birth_certificate'::text, 'age_declaration'::text, 'primary_certificate'::text, 'secondary_certificate'::text, 'indigene_certificate'::text, 'nin_slip'::text, 'jamb_result'::text, 'jamb_registration_form'::text, 'other'::text])),
+  document_type text NOT NULL CHECK (document_type = ANY (ARRAY['passport_photo'::text, 'signature'::text, 'birth_certificate'::text, 'medical_fitness'::text, 'age_declaration'::text, 'primary_certificate'::text, 'secondary_certificate'::text, 'indigene_certificate'::text, 'nin_slip'::text, 'jamb_result'::text, 'jamb_registration_form'::text, 'other'::text])),
   storage_bucket text NOT NULL DEFAULT 'admission-documents'::text,
   storage_path text NOT NULL UNIQUE,
   file_name text NOT NULL,
@@ -669,7 +669,7 @@ CREATE TABLE public.exam_questions (
 CREATE TABLE public.exam_sessions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   aspirant_id uuid NOT NULL,
-  exam_config_id uuid NOT NULL,
+  exam_config_id uuid,
   started_at timestamp with time zone NOT NULL DEFAULT now(),
   submitted_at timestamp with time zone,
   time_spent_seconds integer,
@@ -677,6 +677,11 @@ CREATE TABLE public.exam_sessions (
   proctoring_data jsonb DEFAULT '{}'::jsonb,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  academic_year text,
+  exam_type text DEFAULT 'Entrance Examination'::text,
+  score integer,
+  total_questions integer,
+  percentage numeric,
   CONSTRAINT exam_sessions_pkey PRIMARY KEY (id),
   CONSTRAINT exam_sessions_aspirant_id_fkey FOREIGN KEY (aspirant_id) REFERENCES public.profiles(id),
   CONSTRAINT exam_sessions_exam_config_id_fkey FOREIGN KEY (exam_config_id) REFERENCES public.entrance_exam_config(id)
@@ -743,4 +748,48 @@ CREATE TABLE public.aspirant_payment_events (
   processed_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT aspirant_payment_events_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.exam_violations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  violation_type text NOT NULL CHECK (violation_type = ANY (ARRAY['tab_switch'::text, 'fullscreen_exit'::text, 'visibility_change'::text, 'copy_paste_attempt'::text, 'devtools_open'::text, 'devtools_detected'::text, 'devtools_already_open'::text, 'element_inspection'::text, 'window_resize'::text, 'right_click'::text, 'multiple_persons'::text, 'no_face_detected'::text, 'suspicious_activity'::text, 'other'::text])),
+  severity text NOT NULL DEFAULT 'medium'::text CHECK (severity = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'critical'::text])),
+  details text,
+  timestamp timestamp with time zone NOT NULL DEFAULT now(),
+  screenshot_url text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT exam_violations_pkey PRIMARY KEY (id),
+  CONSTRAINT exam_violations_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.exam_sessions(id)
+);
+CREATE TABLE public.exam_recordings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  recording_url text,
+  recording_duration_seconds integer,
+  file_size_bytes bigint,
+  storage_provider text NOT NULL DEFAULT 'cloudinary'::text,
+  status text NOT NULL DEFAULT 'processing'::text CHECK (status = ANY (ARRAY['processing'::text, 'available'::text, 'expired'::text, 'deleted'::text])),
+  expires_at timestamp with time zone NOT NULL DEFAULT (now() + '30 days'::interval),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  deleted_at timestamp with time zone,
+  CONSTRAINT exam_recordings_pkey PRIMARY KEY (id),
+  CONSTRAINT exam_recordings_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.exam_sessions(id)
+);
+CREATE TABLE public.exam_proctoring_config (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  exam_type text NOT NULL DEFAULT 'Entrance Examination'::text,
+  max_violations integer NOT NULL DEFAULT 5,
+  auto_submit_on_max_violations boolean NOT NULL DEFAULT true,
+  record_screen boolean NOT NULL DEFAULT true,
+  require_webcam boolean NOT NULL DEFAULT true,
+  require_microphone boolean NOT NULL DEFAULT false,
+  require_fullscreen boolean NOT NULL DEFAULT true,
+  block_copy_paste boolean NOT NULL DEFAULT true,
+  block_right_click boolean NOT NULL DEFAULT true,
+  block_devtools boolean NOT NULL DEFAULT true,
+  detect_tab_switch boolean NOT NULL DEFAULT true,
+  detect_visibility_change boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT exam_proctoring_config_pkey PRIMARY KEY (id)
 );

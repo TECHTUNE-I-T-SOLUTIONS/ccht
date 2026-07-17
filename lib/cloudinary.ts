@@ -38,10 +38,13 @@ export function signCloudinaryParams(params: Record<string, string | number | bo
   return crypto.createHash('sha1').update(`${filtered}${apiSecret}`).digest('hex')
 }
 
-export function buildCloudinaryPublicUrl(cloudName: string, publicIdOrUrl?: string | null) {
+export function buildCloudinaryPublicUrl(cloudName: string, publicIdOrUrl?: string | null, format?: string | null) {
   if (!publicIdOrUrl) return null
   if (/res\.cloudinary\.com|cloudinary\.com/i.test(publicIdOrUrl)) return publicIdOrUrl
-  return `https://res.cloudinary.com/${cloudName}/image/upload/${publicIdOrUrl}`
+  
+  // Append format/extension if provided (e.g., 'pdf' for PDF files)
+  const publicIdWithFormat = format ? `${publicIdOrUrl}.${format}` : publicIdOrUrl
+  return `https://res.cloudinary.com/${cloudName}/image/upload/${publicIdWithFormat}`
 }
 
 export async function uploadFileToCloudinary(file: File, options: { folder: string; publicId?: string; resourceType?: 'image' | 'auto' } ) {

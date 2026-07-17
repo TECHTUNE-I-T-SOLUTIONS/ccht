@@ -92,7 +92,7 @@ export default function TeacherExamsPage() {
         setSelectedExam(data.data[0])
       }
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to load exams' })
+      toast.error('Failed to load exams')
       console.error(error)
     }
   }

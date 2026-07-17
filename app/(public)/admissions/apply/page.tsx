@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, Suspense } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -54,7 +54,7 @@ const steps = [
   'Pay at least 50% tuition to prepare for resumption.',
 ]
 
-export default function ApplyPage() {
+function ApplyPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [step, setStep] = useState(1)
@@ -67,7 +67,6 @@ export default function ApplyPage() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [loadingPrograms, setLoadingPrograms] = useState(true)
 
-  // Load programs from database
   useEffect(() => {
     const loadPrograms = async () => {
       try {
@@ -83,7 +82,6 @@ export default function ApplyPage() {
     loadPrograms()
   }, [])
 
-  // Prefill email from URL query parameter
   useEffect(() => {
     const emailParam = searchParams.get('email')
     if (emailParam) {
@@ -170,8 +168,7 @@ export default function ApplyPage() {
             </div>
             <div className="rounded-[2rem] border border-border bg-background p-3 shadow-xl">
               <div className="relative min-h-[380px] overflow-hidden rounded-[1.5rem]">
-                <Image src="/images/CONVENT2.jpg.jpeg" alt="Admissions" fill className="object-cover" loading="eager" 
-                sizes="(max-width: 768px) 100vw, 50vw" />
+                <Image src="/images/CONVENT2.jpg.jpeg" alt="Admissions" fill className="object-cover" loading="eager" sizes="(max-width: 768px) 100vw, 50vw" />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-900/15 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-6 text-white">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">Admission process</p>
@@ -396,6 +393,14 @@ export default function ApplyPage() {
       </main>
       <Footer />
     </div>
+  )
+}
+
+export default function ApplyPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center p-8"><div className="text-sm text-muted-foreground">Loading...</div></div>}>
+      <ApplyPageInner />
+    </Suspense>
   )
 }
 
