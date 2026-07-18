@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { Menu, X, LogOut, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText, ChevronsLeft, ChevronsRight, BellDot, Award, CreditCard, Lock as LockIcon } from 'lucide-react'
+import { Menu, X, LogOut, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText, ChevronsLeft, ChevronsRight, BellDot, Award, CreditCard, Lock as LockIcon, UserCheck, Briefcase, Shield } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { ThemeToggle } from '@/components/public/theme-toggle'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -118,12 +118,12 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
       ],
       admin: [
         { label: 'Dashboard', href: ROUTES.adminDashboard, icon: LayoutDashboard },
-        { label: 'Users', href: '/admin/users', icon: Users },
+        { label: 'Aspirants', href: '/admin/management/aspirants', icon: GraduationCap },
+        { label: 'Students', href: '/admin/management/students', icon: Users },
+        { label: 'Lecturers', href: '/admin/management/lecturers', icon: UserCheck },
+        { label: 'Admins', href: '/admin/management/admins', icon: Shield },
         { label: 'Programs', href: '/admin/programs', icon: BookOpen },
-        { label: 'Admissions', href: '/admin/admissions', icon: GraduationCap },
-        { label: 'Assessments', href: '/admin/assessments', icon: ClipboardList },
-        { label: 'Fees', href: '/admin/finance/fees', icon: CreditCard },
-        { label: 'Payments', href: '/admin/finance/payments', icon: ReceiptText },
+        { label: 'Finance', href: '/admin/finance/fees', icon: CreditCard },
         { label: 'Content', href: '/admin/content', icon: FileText },
         { label: 'Messages', href: '/admin/messages', icon: Bell },
         { label: 'Settings', href: '/admin/settings', icon: Settings },
@@ -221,7 +221,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild><Link href={ROUTES.home}>Home</Link></DropdownMenuItem>
-                <DropdownMenuItem asChild><Link href={role === 'student' ? '/student/profile' : role === 'teacher' ? '/teacher/courses' : role === 'admin' ? '/admin/dashboard' : '/aspirant/profile'}>Profile</Link></DropdownMenuItem>
+                <DropdownMenuItem asChild><Link href={role === 'student' ? '/student/profile' : role === 'teacher' ? '/teacher/courses' : role === 'admin' ? '/admin/settings' : '/aspirant/profile'}>Profile</Link></DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={handleLogout} className="text-red-600 focus:text-red-600">Logout</DropdownMenuItem>
               </DropdownMenuContent>

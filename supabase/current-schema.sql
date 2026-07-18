@@ -56,8 +56,8 @@ CREATE TABLE public.student_profiles (
 CREATE TABLE public.admin_profiles (
   profile_id uuid NOT NULL,
   staff_id text UNIQUE,
-  department text,
-  designation text,
+  department USER-DEFINED,
+  designation USER-DEFINED,
   admin_scope text DEFAULT 'operations'::text CHECK (admin_scope = ANY (ARRAY['operations'::text, 'academics'::text, 'finance'::text, 'super'::text])),
   can_manage_users boolean NOT NULL DEFAULT false,
   can_manage_content boolean NOT NULL DEFAULT false,

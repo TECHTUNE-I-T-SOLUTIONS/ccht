@@ -1,84 +1,84 @@
 import { createClient } from '@/lib/supabase/server';
 
 export class AdminFinanceService {
-  // --- Fee Schedules ---
-  static async getFeeSchedules() {
+  // --- Fees ---
+  static async getFees() {
     const supabase = await createClient();
     const { data, error } = await supabase
-      .from('fee_schedules')
-      .select('*, program:programs(title), session:academic_sessions(name)')
+      .from('fees')
+      .select('*, program:programs(title, slug)')
       .order('created_at', { ascending: false });
 
-    if (error) throw new Error('Failed to fetch fee schedules: ' + error.message);
+    if (error) throw new Error('Failed to fetch fees: ' + error.message);
     return data;
   }
 
-  static async createFeeSchedule(payload: any) {
+  static async createFee(payload: any) {
     const supabase = await createClient();
-    
-    // Auto-fetch current session if not provided
-    let sessionId = payload.sessionId;
-    if (!sessionId) {
-      const { data: currentSession } = await supabase.from('academic_sessions').select('id').eq('is_current', true).single();
-      sessionId = currentSession?.id;
-    }
 
     const { data, error } = await supabase
-      .from('fee_schedules')
+      .from('fees')
       .insert({
         program_id: payload.programId,
-        session_id: sessionId,
         fee_type: payload.feeType,
         amount: payload.amount,
-        currency: payload.currency || 'NGN',
-        due_date: payload.dueDate,
-        is_mandatory: payload.isMandatory ?? true,
+        description: payload.description,
+        due_in_days: payload.dueInDays,
+        is_active: payload.isActive ?? true,
       })
       .select()
       .single();
 
-    if (error) throw new Error('Failed to create fee schedule: ' + error.message);
+    if (error) throw new Error('Failed to create fee: ' + error.message);
     return data;
   }
 
-  static async deleteFeeSchedule(id: string) {
+  static async deleteFee(id: string) {
     const supabase = await createClient();
     const { error } = await supabase
-      .from('fee_schedules')
+      .from('fees')
       .delete()
       .eq('id', id);
 
-    if (error) throw new Error('Failed to delete fee schedule: ' + error.message);
+    if (error) throw new Error('Failed to delete fee: ' + error.message);
     return true;
+  }
+
+  static async updateFee(id: string, payload: any) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('fees')
+      .update({
+        fee_type: payload.feeType,
+        amount: payload.amount,
+        description: payload.description,
+        due_in_days: payload.dueInDays,
+        is_active: payload.isActive,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error('Failed to update fee: ' + error.message);
+    return data;
   }
 
   static async getPayments(statusFilter?: string) {
     const supabase = await createClient();
     
-    const { data: pData } = await supabase.from('payments').select('*, profile:profiles(first_name, last_name, email, role), fee_schedule:fee_schedules(fee_type, amount)');
+    const { data: pData } = await supabase.from('payments').select('*, profile:profiles(first_name, last_name, email, role), invoice:invoices(invoice_number, amount_due, amount_paid)');
     const { data: appData } = await supabase.from('aspirant_application_payments').select('*, profile:profiles(first_name, last_name, email, role)');
     const { data: admData } = await supabase.from('aspirant_admission_payments').select('*, profile:profiles(first_name, last_name, email, role)');
 
     let combined: any[] = [];
     if (pData) {
-      combined = [...combined, ...pData.map((p: any) => ({
-        ...p,
-        payment_source: 'student_fee'
-      }))];
+      combined = [...combined, ...pData.map((p: any) => ({ ...p, payment_source: 'student_fee' }))];
     }
     if (appData) {
-      combined = [...combined, ...appData.map((p: any) => ({
-        ...p,
-        fee_schedule: { fee_type: 'Application Fee', amount: p.amount },
-        payment_source: 'application_fee'
-      }))];
+      combined = [...combined, ...appData.map((p: any) => ({ ...p, fee_schedule: { fee_type: 'Application Fee', amount: p.amount }, payment_source: 'application_fee' }))];
     }
     if (admData) {
-      combined = [...combined, ...admData.map((p: any) => ({
-        ...p,
-        fee_schedule: { fee_type: 'Admission Fee', amount: p.amount },
-        payment_source: 'admission_fee'
-      }))];
+      combined = [...combined, ...admData.map((p: any) => ({ ...p, fee_schedule: { fee_type: 'Admission Fee', amount: p.amount }, payment_source: 'admission_fee' }))];
     }
 
     if (statusFilter && statusFilter !== 'all') {

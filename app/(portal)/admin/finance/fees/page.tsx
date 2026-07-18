@@ -6,17 +6,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Plus, MoreVertical, Trash2, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { getFeeSchedulesAction, createFeeScheduleAction, deleteFeeScheduleAction } from '@/app/actions/admin/finance-actions'
+import { getFeesAction, createFeeAction, deleteFeeAction } from '@/app/actions/admin/finance-actions'
 import { getProgramsAction } from '@/app/actions/admin/program-actions'
 import { Switch } from '@/components/ui/switch'
-import { set } from 'zod'
+import { Textarea } from '@/components/ui/textarea'
 
 export default function AdminFeeSchedulesPage() {
-  const [feeSchedules, setFeeSchedules] = useState<any[]>([])
+  const [fees, setFees] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -26,10 +26,10 @@ export default function AdminFeeSchedulesPage() {
   const [formData, setFormData] = useState({
     programId: '',
     feeType: 'tuition',
-    amount: 0,
-    currency: 'NGN',
-    dueDate: '',
-    isMandatory: true
+    amount: '',
+    description: '',
+    dueInDays: '',
+    isActive: true
   })
 
   useEffect(() => {
@@ -40,16 +40,26 @@ export default function AdminFeeSchedulesPage() {
     setLoading(true)
     try {
       const [feeRes, progRes] = await Promise.all([
-        getFeeSchedulesAction(),
+        getFeesAction(),
         getProgramsAction()
       ])
 
-      if (feeRes.success) setFeeSchedules(feeRes.data || [])
-      else toast.error('Failed to load fee schedules')
+      if (feeRes.success) {
+        setFees(feeRes.data || [])
+      } else {
+        console.error('Fees error:', feeRes.error)
+        toast.error(feeRes.error || 'Failed to load fees')
+      }
 
-      if (progRes.success) setPrograms(progRes.data || [])
+      if (progRes.success) {
+        setPrograms(progRes.data || [])
+      } else {
+        console.error('Programs error:', progRes.error)
+        toast.error(progRes.error || 'Failed to load programs')
+      }
     } catch (err) {
-      toast.error('An error occurred')
+      console.error('Load data error:', err)
+      toast.error('An error occurred while loading data')
     } finally {
       setLoading(false)
     }
@@ -59,14 +69,21 @@ export default function AdminFeeSchedulesPage() {
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      const res = await createFeeScheduleAction(formData)
+      const res = await createFeeAction({
+        programId: formData.programId,
+        feeType: formData.feeType,
+        amount: parseFloat(formData.amount),
+        description: formData.description,
+        dueInDays: formData.dueInDays ? parseInt(formData.dueInDays) : null,
+        isActive: formData.isActive
+      })
       if (res.success) {
-        toast.success('Fee Schedule created')
+        toast.success('Fee created successfully')
         setIsCreateModalOpen(false)
         loadData()
-        setFormData({ programId: '', feeType: 'tuition', amount: 0, currency: 'NGN', dueDate: '', isMandatory: true })
+        setFormData({ programId: '', feeType: 'tuition', amount: '', description: '', dueInDays: '', isActive: true })
       } else {
-        toast.error(res.error || 'Failed to create fee schedule')
+        toast.error(res.error || 'Failed to create fee')
       }
     } catch (err) {
       toast.error('An error occurred')
@@ -76,13 +93,13 @@ export default function AdminFeeSchedulesPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this fee schedule?')) return
-    const res = await deleteFeeScheduleAction(id)
+    if (!window.confirm('Delete this fee?')) return
+    const res = await deleteFeeAction(id)
     if (res.success) {
-      toast.success('Fee Schedule deleted')
+      toast.success('Fee deleted successfully')
       loadData()
     } else {
-      toast.error(res.error || 'Failed to delete fee schedule')
+      toast.error(res.error || 'Failed to delete fee')
     }
   }
 
@@ -98,9 +115,10 @@ export default function AdminFeeSchedulesPage() {
             <DialogTrigger asChild>
               <Button className="rounded-xl px-6"><Plus className="mr-2 h-4 w-4" /> Add Fee</Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="bg-white dark:bg-black sm:max-w-[425px]">
               <DialogHeader>
-                <DialogTitle>Create Fee Schedule</DialogTitle>
+                <DialogTitle>Create School Fee</DialogTitle>
+                <DialogDescription>Create a new fee for a program.</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreate} className="space-y-4">
                 <div className="space-y-2">
@@ -119,32 +137,32 @@ export default function AdminFeeSchedulesPage() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="tuition">Tuition Fee</SelectItem>
-                      <SelectItem value="acceptance">Acceptance Fee</SelectItem>
-                      <SelectItem value="graduation">Graduation Fee</SelectItem>
+                      <SelectItem value="registration">Registration Fee</SelectItem>
+                      <SelectItem value="exam">Exam Fee</SelectItem>
+                      <SelectItem value="library">Library Fee</SelectItem>
                       <SelectItem value="other">Other Charges</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Amount</label>
-                    <Input type="number" min="0" required value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: parseInt(e.target.value) || 0 })} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Currency</label>
-                    <Input value={formData.currency} onChange={(e) => setFormData({ ...formData, currency: e.target.value })} />
-                  </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Amount (₦)</label>
+                  <Input type="number" min="0" step="0.01" required value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Due Date (Optional)</label>
-                  <Input type="date" value={formData.dueDate} onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} />
+                  <label className="text-sm font-medium">Description</label>
+                  <Textarea placeholder="Enter fee description..." value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Due In Days (Optional)</label>
+                  <Input type="number" min="0" placeholder="e.g., 30" value={formData.dueInDays} onChange={(e) => setFormData({ ...formData, dueInDays: e.target.value })} />
                 </div>
 
                 <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
-                  <span className="text-sm font-medium">Is Mandatory?</span>
-                  <Switch checked={formData.isMandatory} onCheckedChange={(val) => setFormData({ ...formData, isMandatory: val })} />
+                  <span className="text-sm font-medium">Is Active?</span>
+                  <Switch checked={formData.isActive} onCheckedChange={(val) => setFormData({ ...formData, isActive: val })} />
                 </div>
 
                 <div className="flex justify-end pt-4">
@@ -164,22 +182,23 @@ export default function AdminFeeSchedulesPage() {
                 <TableHead>Fee Type</TableHead>
                 <TableHead>Program</TableHead>
                 <TableHead>Amount</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead>Mandatory</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Due In Days</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">Loading fees...</TableCell>
+                  <TableCell colSpan={7} className="text-center py-8">Loading fees...</TableCell>
                 </TableRow>
-              ) : feeSchedules.length === 0 ? (
+              ) : fees.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">No fee schedules found.</TableCell>
+                  <TableCell colSpan={7} className="text-center py-8">No fees found.</TableCell>
                 </TableRow>
               ) : (
-                feeSchedules.map((fee) => (
+                fees.map((fee: any) => (
                   <TableRow key={fee.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-3">
@@ -189,16 +208,19 @@ export default function AdminFeeSchedulesPage() {
                         <span className="capitalize">{fee.fee_type}</span>
                       </div>
                     </TableCell>
-                    <TableCell>{fee.program?.title}</TableCell>
+                    <TableCell>{fee.program?.title || 'All Programs'}</TableCell>
                     <TableCell className="font-semibold text-emerald-600 dark:text-emerald-400">
-                      {fee.currency} {fee.amount.toLocaleString()}
+                      ₦{fee.amount.toLocaleString()}
                     </TableCell>
-                    <TableCell>{fee.due_date ? new Date(fee.due_date).toLocaleDateString() : 'None'}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                      {fee.description || '-'}
+                    </TableCell>
+                    <TableCell>{fee.due_in_days ? `${fee.due_in_days} days` : 'None'}</TableCell>
                     <TableCell>
-                      {fee.is_mandatory ? (
-                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Required</span>
+                      {fee.is_active ? (
+                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Active</span>
                       ) : (
-                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">Optional</span>
+                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">Inactive</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">

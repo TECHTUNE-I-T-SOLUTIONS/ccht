@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, MoreVertical, Trash2, Calendar, FileText, Globe } from 'lucide-react'
 import { toast } from 'sonner'
@@ -120,8 +120,11 @@ export default function AdminContentPage() {
                 <DialogTrigger asChild>
                   <Button className="rounded-xl"><Plus className="mr-2 h-4 w-4" /> New Post</Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[600px]">
-                  <DialogHeader><DialogTitle>Create Blog Post</DialogTitle></DialogHeader>
+                <DialogContent className="bg-white dark:bg-black sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle>Create Blog Post</DialogTitle>
+                    <DialogDescription>Create a new blog post to publish on the school website.</DialogDescription>
+                  </DialogHeader>
                   <form onSubmit={handleCreateBlog} className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Title</label>
@@ -213,8 +216,11 @@ export default function AdminContentPage() {
                 <DialogTrigger asChild>
                   <Button className="rounded-xl"><Plus className="mr-2 h-4 w-4" /> New Event</Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader><DialogTitle>Create Event</DialogTitle></DialogHeader>
+                <DialogContent className="bg-white dark:bg-black sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Create Event</DialogTitle>
+                    <DialogDescription>Create a new school event to publish on the website.</DialogDescription>
+                  </DialogHeader>
                   <form onSubmit={handleCreateEvent} className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Event Title</label>
