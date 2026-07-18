@@ -5,8 +5,12 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { BadgeCheck, CreditCard, FileDown, FileUp, HelpCircle, Sparkles, UploadCloud, UserRound, Award, Clock3, CheckCircle2, Lock, ChevronRight, X, AlertTriangle, Trash2 } from 'lucide-react'
+import { BadgeCheck, CreditCard, FileDown, FileUp, HelpCircle, Sparkles, UploadCloud, UserRound, Award, Clock3, CheckCircle2, Lock, ChevronRight, X, AlertTriangle, Trash2, Phone, Calendar, MapPin, User } from 'lucide-react'
 import { toast } from 'sonner'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { checkProfileCompletionAction, updateAspirantProfileAction, checkOfferStatusAction, respondToOfferAction } from '@/app/actions/aspirant/profile-actions'
 
 const documentTypes = [
   { label: "O'level Result", value: 'secondary_certificate' },
@@ -109,6 +113,7 @@ export default function AspirantDashboard() {
   const [submittingPassport, setSubmittingPassport] = useState(false)
   const [submittingDoc, setSubmittingDoc] = useState(false)
   const [initiatingPayment, setInitiatingPayment] = useState(false)
+  const [reverifyingPayment, setReverifyingPayment] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   
   // Modal states
@@ -118,6 +123,28 @@ export default function AspirantDashboard() {
   const [completingDocuments, setCompletingDocuments] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<{ id: string; type: string; name: string } | null>(null)
+  
+  // Profile completion modal states
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [profileData, setProfileData] = useState({
+    phone: '',
+    gender: '',
+    nationality: 'Nigerian',
+    dateOfBirth: '',
+    stateOfOrigin: ''
+  })
+  const [submittingProfile, setSubmittingProfile] = useState(false)
+  const [profileChecked, setProfileChecked] = useState(false)
+
+  // Offer modal states
+  const [showOfferModal, setShowOfferModal] = useState(false)
+  const [offerDetails, setOfferDetails] = useState<any>(null)
+  const [respondingToOffer, setRespondingToOffer] = useState(false)
+  const [offerChecked, setOfferChecked] = useState(false)
+
+  // Migration success modal state
+  const [showMigrationSuccessModal, setShowMigrationSuccessModal] = useState(false)
+  const [migrationDismissed, setMigrationDismissed] = useState(false)
 
   const loadData = async () => {
     setIsLoading(true)
@@ -186,6 +213,11 @@ export default function AspirantDashboard() {
     setStage(profile?.current_stage || 'signup')
     setProfile(profile)
     
+    // Show migration success modal if status is migrated and not yet dismissed
+    if (profile?.application_status === 'migrated' && !migrationDismissed) {
+      setShowMigrationSuccessModal(true)
+    }
+    
     setIsLoading(false)
     
     if (appPaymentSuccess && !profile?.application_fee_paid) {
@@ -212,6 +244,85 @@ export default function AspirantDashboard() {
   useEffect(() => {
     loadData().catch((error) => console.error(error))
   }, [])
+
+  useEffect(() => {
+    const checkProfileCompletion = async () => {
+      if (summary.id && !profileChecked) {
+        try {
+          const res = await checkProfileCompletionAction(summary.id)
+          if (res.success && res.data && !res.data.isComplete) {
+            setShowProfileModal(true)
+          }
+          setProfileChecked(true)
+        } catch (error) {
+          console.error('Error checking profile completion:', error)
+        }
+      }
+    }
+    checkProfileCompletion()
+  }, [summary.id, profileChecked])
+
+  const handleProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmittingProfile(true)
+    try {
+      const res = await updateAspirantProfileAction(summary.id, profileData)
+      if (res.success) {
+        toast.success('Profile details updated successfully')
+        setShowProfileModal(false)
+        setProfileChecked(true)
+      } else {
+        toast.error(res.error || 'Failed to update profile details')
+      }
+    } catch (error) {
+      toast.error('An error occurred while updating profile')
+    } finally {
+      setSubmittingProfile(false)
+    }
+  }
+
+  useEffect(() => {
+    const checkOfferStatus = async () => {
+      if (summary.id && !offerChecked) {
+        try {
+          const res = await checkOfferStatusAction(summary.id)
+          if (res.success && res.data && res.data.hasOffer) {
+            setOfferDetails(res.data.offerDetails)
+            setShowOfferModal(true)
+          }
+          setOfferChecked(true)
+        } catch (error) {
+          console.error('Error checking offer status:', error)
+        }
+      }
+    }
+    checkOfferStatus()
+  }, [summary.id, offerChecked])
+
+  const handleOfferResponse = async (accept: boolean) => {
+    setRespondingToOffer(true)
+    try {
+      const res = await respondToOfferAction(summary.id, accept)
+      if (res.success) {
+        if (accept) {
+          toast.success('Congratulations! You have accepted the admission offer.')
+          setShowOfferModal(false)
+          // Reload to show updated status
+          await loadData()
+        } else {
+          toast.success('You have declined the admission offer.')
+          setShowOfferModal(false)
+          await loadData()
+        }
+      } else {
+        toast.error(res.error || 'Failed to respond to offer')
+      }
+    } catch (error) {
+      toast.error('An error occurred while responding to offer')
+    } finally {
+      setRespondingToOffer(false)
+    }
+  }
 
   const handlePassportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null
@@ -499,6 +610,44 @@ export default function AspirantDashboard() {
     }
   }
 
+  const reverifyAdmissionPayment = async () => {
+    setReverifyingPayment(true)
+    try {
+      // Get the latest admission payment
+      const response = await fetch('/api/v1/aspirant/payments/status')
+      const data = await response.json()
+      
+      if (!response.ok || !data.success) {
+        throw new Error('Failed to fetch payment status')
+      }
+
+      const admissionPayment = data.data?.admissionFee
+      if (!admissionPayment || !admissionPayment.paystack_reference) {
+        throw new Error('No pending payment found to verify')
+      }
+
+      // Verify the payment
+      const verifyRes = await fetch('/api/v1/aspirant/payments/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference: admissionPayment.paystack_reference }),
+      })
+      
+      const verifyData = await verifyRes.json()
+      
+      if (verifyRes.ok && verifyData.success) {
+        toast.success('Payment verified successfully!')
+        await loadData()
+      } else {
+        toast.error(verifyData.error || 'Payment verification failed')
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to reverify payment')
+    } finally {
+      setReverifyingPayment(false)
+    }
+  }
+
   const handleCompleteDocuments = async () => {
     setCompletingDocuments(true)
     try {
@@ -631,13 +780,15 @@ export default function AspirantDashboard() {
       description: 'Pay ₦30,000 admission and administrative charges',
       icon: CreditCard,
       completed: adminFeePaid,
-      locked: !appFeePaid || !hasUploadedDocuments || examResults.length === 0 || profile?.application_status !== 'admitted',
+      locked: stage !== 'admission_fee' && stage !== 'migration' && !['pending_payment', 'admitted'].includes(profile?.application_status || ''),
       action: initiateAdmissionPayment,
       actionLabel: 'Pay ₦30,000',
       detail: adminFeePaid 
         ? 'Payment completed' 
-        : profile?.application_status === 'admitted'
+        : profile?.application_status === 'pending_payment'
         ? 'Pay to accept admission'
+        : profile?.application_status === 'admitted'
+        ? 'Payment required'
         : 'Awaiting admission decision',
     },
     {
@@ -645,11 +796,15 @@ export default function AspirantDashboard() {
       title: 'Student Migration',
       description: 'Receive your matric number and move to the student portal',
       icon: UserRound,
-      completed: !!profile?.matric_number,
+      completed: profile?.application_status === 'migrated',
       locked: !adminFeePaid,
-      action: acceptAdmissionAndMigrate,
-      actionLabel: 'Accept & Move',
-      detail: profile?.matric_number ? `Active - ${profile.matric_number}` : 'Requires admission fee payment',
+      action: null,
+      actionLabel: null,
+      detail: profile?.application_status === 'migrated'
+        ? `Migrated - Matric: ${profile.matric_number || 'Pending'}`
+        : profile?.application_status === 'admitted'
+        ? 'Awaiting migration by admin'
+        : 'Requires admission fee payment',
     },
   ]
 
@@ -774,14 +929,26 @@ export default function AspirantDashboard() {
               <p className="text-sm font-medium">Status: {currentStep.detail}</p>
             </div>
             {!currentStep.completed && !currentStep.locked && currentStep.action && (
-              <Button
-                onClick={currentStep.action}
-                disabled={initiatingPayment}
-                className="mt-4 rounded-xl border border-black dark:border-white bg-white dark:bg-slate-900 hover:bg-gray-300 dark:hover:bg-gray-500"
-              >
-                {currentStep.actionLabel}
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
+              <div className="mt-4 flex gap-3">
+                <Button
+                  onClick={currentStep.action}
+                  disabled={initiatingPayment}
+                  className="rounded-xl border border-black dark:border-white bg-white dark:bg-slate-900 hover:bg-gray-300 dark:hover:bg-gray-500"
+                >
+                  {currentStep.actionLabel}
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+                {currentStep.id === 'admission_fee' && (
+                  <Button
+                    onClick={reverifyAdmissionPayment}
+                    disabled={reverifyingPayment}
+                    variant="outline"
+                    className="rounded-xl"
+                  >
+                    {reverifyingPayment ? 'Reverifying...' : 'Reverify Payment'}
+                  </Button>
+                )}
+              </div>
             )}
             {!currentStep.completed && !currentStep.locked && currentStep.link && (
               <Button asChild className="mt-4 rounded-xl border border-black dark:border-white bg-white dark:bg-slate-900 hover:bg-gray-300 dark:hover:bg-gray-500">
@@ -1253,10 +1420,311 @@ export default function AspirantDashboard() {
         </div>
       )}
 
+      {/* Profile Completion Modal - Compulsory */}
+      {showProfileModal && (
+        <Dialog open={showProfileModal} onOpenChange={(open) => {
+          // Prevent closing unless form is submitted successfully
+          if (!open && !profileChecked) return
+          setShowProfileModal(open)
+        }}>
+          <DialogContent 
+            className="bg-white dark:bg-black sm:max-w-[500px] z-[100]"
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
+            <DialogHeader>
+              <DialogTitle>Complete Your Profile</DialogTitle>
+              <DialogDescription>
+                Please provide the following required information to continue with your application. This is required before you can proceed.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleProfileSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  Phone Number <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  type="tel"
+                  placeholder="e.g., 08012345678"
+                  required
+                  value={profileData.phone}
+                  onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Gender <span className="text-red-500">*</span>
+                </label>
+                <Select value={profileData.gender} onValueChange={(val) => setProfileData({ ...profileData, gender: val })} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[200]">
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="prefer_not_to_say">Prefer not to say</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Nationality <span className="text-red-500">*</span>
+                </label>
+                <Select value={profileData.nationality} onValueChange={(val) => setProfileData({ ...profileData, nationality: val })} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select nationality" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[200]">
+                    <SelectItem value="Nigerian">Nigerian</SelectItem>
+                    <SelectItem value="Ghanaian">Ghanaian</SelectItem>
+                    <SelectItem value="Beninese">Beninese</SelectItem>
+                    <SelectItem value="Cameroonian">Cameroonian</SelectItem>
+                    <SelectItem value="Chadian">Chadian</SelectItem>
+                    <SelectItem value="Nigerien">Nigerien</SelectItem>
+                    <SelectItem value="Togolese">Togolese</SelectItem>
+                    <SelectItem value="American">American</SelectItem>
+                    <SelectItem value="British">British</SelectItem>
+                    <SelectItem value="Canadian">Canadian</SelectItem>
+                    <SelectItem value="French">French</SelectItem>
+                    <SelectItem value="German">German</SelectItem>
+                    <SelectItem value="Chinese">Chinese</SelectItem>
+                    <SelectItem value="Indian">Indian</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Date of Birth <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  type="date"
+                  required
+                  value={profileData.dateOfBirth}
+                  onChange={(e) => setProfileData({ ...profileData, dateOfBirth: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  State of Origin <span className="text-red-500">*</span>
+                </label>
+                <Select value={profileData.stateOfOrigin} onValueChange={(val) => setProfileData({ ...profileData, stateOfOrigin: val })} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select state of origin" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[200]">
+                    <SelectItem value="Abia">Abia</SelectItem>
+                    <SelectItem value="Adamawa">Adamawa</SelectItem>
+                    <SelectItem value="Akwa Ibom">Akwa Ibom</SelectItem>
+                    <SelectItem value="Anambra">Anambra</SelectItem>
+                    <SelectItem value="Bauchi">Bauchi</SelectItem>
+                    <SelectItem value="Bayelsa">Bayelsa</SelectItem>
+                    <SelectItem value="Benue">Benue</SelectItem>
+                    <SelectItem value="Borno">Borno</SelectItem>
+                    <SelectItem value="Cross River">Cross River</SelectItem>
+                    <SelectItem value="Delta">Delta</SelectItem>
+                    <SelectItem value="Ebonyi">Ebonyi</SelectItem>
+                    <SelectItem value="Edo">Edo</SelectItem>
+                    <SelectItem value="Ekiti">Ekiti</SelectItem>
+                    <SelectItem value="Enugu">Enugu</SelectItem>
+                    <SelectItem value="Gombe">Gombe</SelectItem>
+                    <SelectItem value="Imo">Imo</SelectItem>
+                    <SelectItem value="Jigawa">Jigawa</SelectItem>
+                    <SelectItem value="Kaduna">Kaduna</SelectItem>
+                    <SelectItem value="Kano">Kano</SelectItem>
+                    <SelectItem value="Katsina">Katsina</SelectItem>
+                    <SelectItem value="Kebbi">Kebbi</SelectItem>
+                    <SelectItem value="Kogi">Kogi</SelectItem>
+                    <SelectItem value="Kwara">Kwara</SelectItem>
+                    <SelectItem value="Lagos">Lagos</SelectItem>
+                    <SelectItem value="Nasarawa">Nasarawa</SelectItem>
+                    <SelectItem value="Niger">Niger</SelectItem>
+                    <SelectItem value="Ogun">Ogun</SelectItem>
+                    <SelectItem value="Ondo">Ondo</SelectItem>
+                    <SelectItem value="Osun">Osun</SelectItem>
+                    <SelectItem value="Oyo">Oyo</SelectItem>
+                    <SelectItem value="Plateau">Plateau</SelectItem>
+                    <SelectItem value="Rivers">Rivers</SelectItem>
+                    <SelectItem value="Sokoto">Sokoto</SelectItem>
+                    <SelectItem value="Taraba">Taraba</SelectItem>
+                    <SelectItem value="Yobe">Yobe</SelectItem>
+                    <SelectItem value="Zamfara">Zamfara</SelectItem>
+                    <SelectItem value="FCT">Federal Capital Territory</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <Button type="submit" disabled={submittingProfile} className="w-full">
+                  {submittingProfile ? 'Saving...' : 'Save Profile Details & Continue'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Offer Acceptance/Rejection Modal - Compulsory */}
+      {showOfferModal && offerDetails && (
+        <Dialog open={showOfferModal} onOpenChange={(open) => {
+          // Prevent closing unless offer is responded to
+          if (!open) return
+          setShowOfferModal(open)
+        }}>
+          <DialogContent 
+            className="bg-white dark:bg-black sm:max-w-[500px] z-[100]"
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-2xl">Admission Offer</DialogTitle>
+              <DialogDescription>
+                Congratulations! You have been offered admission. Please review the details below and respond.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10">
+                <div className="flex items-center gap-3 mb-3">
+                  <Award className="h-6 w-6 text-emerald-600" />
+                  <h3 className="font-bold text-lg">Program Offered</h3>
+                </div>
+                <p className="font-semibold text-xl">{offerDetails.program?.title}</p>
+              </div>
+
+              {offerDetails.review_feedback && (
+                <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 dark:bg-blue-500/10">
+                  <p className="text-sm font-semibold mb-1">Admin Note:</p>
+                  <p className="text-sm text-muted-foreground">{offerDetails.review_feedback}</p>
+                </div>
+              )}
+
+              <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10">
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                  ⚠️ Important: By accepting this offer, you will be converted to a student profile and assigned a matriculation number. This action cannot be undone.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 pt-4">
+                <Button 
+                  onClick={() => handleOfferResponse(true)} 
+                  disabled={respondingToOffer}
+                  className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 h-12"
+                >
+                  {respondingToOffer ? 'Processing...' : 'Accept Offer & Become Student'}
+                </Button>
+                <Button 
+                  onClick={() => handleOfferResponse(false)} 
+                  disabled={respondingToOffer}
+                  variant="outline"
+                  className="w-full rounded-xl h-12 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  {respondingToOffer ? 'Processing...' : 'Decline Offer'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Migration Success Modal */}
+      {showMigrationSuccessModal && profile && (
+        <Dialog open={showMigrationSuccessModal} onOpenChange={setShowMigrationSuccessModal}>
+          <DialogContent className="bg-white dark:bg-black sm:max-w-[500px] z-[100]">
+            <DialogHeader>
+              <DialogTitle className="text-2xl">Congratulations! 🎉</DialogTitle>
+              <DialogDescription>
+                You have been successfully migrated to the student portal.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10">
+                <div className="flex items-center gap-3 mb-3">
+                  <BadgeCheck className="h-6 w-6 text-emerald-600" />
+                  <h3 className="font-bold text-lg">Migration Complete</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Your account has been converted from aspirant to student. You now have full access to the student portal.
+                </p>
+              </div>
+              
+              <div className="rounded-xl border bg-slate-50 dark:bg-slate-800 p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Matric Number:</span>
+                  <span className="font-semibold">{profile.matric_number || 'Pending Assignment'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Status:</span>
+                  <span className="font-semibold text-emerald-600">Active Student</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button 
+                  onClick={() => {
+                    setShowMigrationSuccessModal(false)
+                    setMigrationDismissed(true)
+                  }}
+                  variant="outline"
+                  className="flex-1 rounded-xl"
+                >
+                  Stay Here
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setShowMigrationSuccessModal(false)
+                    setMigrationDismissed(true)
+                    window.location.href = '/student/dashboard'
+                  }}
+                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700"
+                >
+                  Go to Student Portal
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Admission Status */}
       <Card className="rounded-[2rem] border bg-white dark:bg-slate-900 p-6 shadow-sm">
         <h2 className="text-2xl font-bold">Admission status</h2>
-        {profile?.matric_number ? (
+        {profile?.application_status === 'migrated' ? (
+          <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 p-5">
+            <div className="flex items-center gap-3">
+              <BadgeCheck className="h-8 w-8 text-emerald-600" />
+              <div>
+                <h4 className="font-bold">Successfully Migrated</h4>
+                <p className="text-xs text-muted-foreground">You are now a student with full access to the student portal.</p>
+              </div>
+            </div>
+            <div className="mt-4 rounded-xl border bg-white dark:bg-slate-800 p-4 text-xs font-technical">
+              <div><strong>Matric Number:</strong> {profile.matric_number || 'Pending Assignment'}</div>
+              <div><strong>Application Status:</strong> Migrated</div>
+              <div><strong>Portal State:</strong> Student Portal Active</div>
+            </div>
+            <div className="mt-4 space-y-2">
+              <Button variant="outline" className="w-full justify-start rounded-xl text-xs" asChild>
+                <Link href="#">
+                  <FileDown className="mr-2 h-4 w-4 text-emerald-600" />
+                  Download Admission Letter
+                </Link>
+              </Button>
+              <Button asChild className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700">
+                <Link href="/student/dashboard">Go to Student Portal</Link>
+              </Button>
+            </div>
+          </div>
+        ) : profile?.matric_number ? (
           <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 p-5">
             <div className="flex items-center gap-3">
               <BadgeCheck className="h-8 w-8 text-emerald-600" />

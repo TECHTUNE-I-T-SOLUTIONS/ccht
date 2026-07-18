@@ -86,7 +86,32 @@ export default function LoginPage() {
       const { user, redirectTo } = data
       toast.success('Login successful.')
       
-      const targetRoute = redirectTo || (user.role === 'admin' ? ROUTES.adminDashboard : user.role === 'lecturer' ? ROUTES.lecturerDashboard : user.role === 'aspirant' ? ROUTES.aspirantDashboard : ROUTES.studentDashboard)
+      let targetRoute = redirectTo
+      
+      if (!targetRoute) {
+        if (user.role === 'admin') {
+          targetRoute = ROUTES.adminDashboard
+        } else if (user.role === 'lecturer') {
+          targetRoute = ROUTES.lecturerDashboard
+        } else if (user.role === 'aspirant') {
+          // Check if aspirant has been migrated to student
+          try {
+            const profileRes = await fetch('/api/v1/aspirant/profile')
+            const profileData = await profileRes.json()
+            if (profileData.success && profileData.data?.application_status === 'migrated') {
+              targetRoute = ROUTES.studentDashboard
+            } else {
+              targetRoute = ROUTES.aspirantDashboard
+            }
+          } catch (error) {
+            console.error('Failed to check aspirant status:', error)
+            targetRoute = ROUTES.aspirantDashboard
+          }
+        } else {
+          targetRoute = ROUTES.studentDashboard
+        }
+      }
+      
       console.log('Redirecting to:', targetRoute)
       
       router.replace(targetRoute)

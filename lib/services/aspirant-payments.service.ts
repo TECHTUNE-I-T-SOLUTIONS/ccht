@@ -270,6 +270,19 @@ export class AspirantPaymentsService {
       },
     })
 
+    if (!response.ok) {
+      const text = await response.text()
+      console.error('Paystack verification failed:', response.status, text)
+      throw new Error(`Paystack API returned ${response.status}: ${text.substring(0, 200)}`)
+    }
+
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text()
+      console.error('Paystack returned non-JSON response:', text.substring(0, 200))
+      throw new Error('Paystack API returned non-JSON response. Please try again later.')
+    }
+
     const data = await response.json()
     
     if (!data.status) {

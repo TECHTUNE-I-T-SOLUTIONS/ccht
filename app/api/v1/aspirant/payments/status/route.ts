@@ -15,11 +15,11 @@ export async function GET(request: NextRequest) {
 
     const status = await AspirantPaymentsService.getAspirantPaymentStatus(user.id, adminSupabase)
     
-    return NextResponse.json({ data: status })
+    return NextResponse.json({ success: true, data: status })
   } catch (error: any) {
     console.error('Payment status fetch error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch payment status' },
+      { success: false, error: error.message || 'Failed to fetch payment status' },
       { status: 500 }
     )
   }

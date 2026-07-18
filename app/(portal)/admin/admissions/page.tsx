@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Search, Eye, FileText, CheckCircle2, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { getApplicationsAction, updateApplicationStatusAction } from '@/app/actions/admin/admission-actions'
+import { getApplicationsAction, updateApplicationStatusAction, bulkMigrateToStudentsAction } from '@/app/actions/admin/admission-actions'
 import { getProgramsAction } from '@/app/actions/admin/program-actions'
 import Link from 'next/link'
 import { set } from 'zod'
@@ -17,6 +17,7 @@ export default function AdminAdmissionsPage() {
   const [applications, setApplications] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [isBulkMigrating, setIsBulkMigrating] = useState(false)
 
   const [statusFilter, setStatusFilter] = useState('all')
   const [programFilter, setProgramFilter] = useState('all')
@@ -61,6 +62,36 @@ export default function AdminAdmissionsPage() {
       loadApplications()
     } else {
       toast.error(res.error || 'Failed to update status')
+    }
+  }
+
+  const handleBulkMigrate = async () => {
+    const admittedApps = applications.filter(app => app.status === 'admitted')
+    if (admittedApps.length === 0) {
+      toast.error('No admitted applicants to migrate')
+      return
+    }
+
+    if (!window.confirm(`Are you sure you want to migrate ${admittedApps.length} admitted applicant(s) to the student portal?`)) return;
+
+    setIsBulkMigrating(true)
+    try {
+      const profileIds = admittedApps.map(app => app.id)
+      const res = await bulkMigrateToStudentsAction(profileIds)
+      
+      if (res.success && res.data) {
+        const successCount = res.data.filter((r: any) => r.success).length
+        const failCount = res.data.filter((r: any) => !r.success).length
+        
+        toast.success(`Migration completed: ${successCount} successful, ${failCount} failed`)
+        loadApplications()
+      } else {
+        toast.error(res.error || 'Failed to bulk migrate')
+      }
+    } catch (err) {
+      toast.error('An error occurred')
+    } finally {
+      setIsBulkMigrating(false)
     }
   }
 
@@ -111,6 +142,14 @@ export default function AdminAdmissionsPage() {
               {programs.map(p => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Button 
+            onClick={handleBulkMigrate}
+            disabled={isBulkMigrating}
+            variant="outline"
+            className="rounded-xl"
+          >
+            {isBulkMigrating ? 'Migrating...' : 'Bulk Migrate Admitted'}
+          </Button>
         </div>
 
         <div className="rounded-xl border overflow-hidden">

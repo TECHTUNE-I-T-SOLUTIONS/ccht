@@ -1,5 +1,26 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { buildCloudinaryPublicUrl, getCloudinaryConfig } from '@/lib/cloudinary';
+
+function getFormatFromMimeType(mimeType?: string | null): string | null {
+  if (!mimeType) return null
+  const map: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+  }
+  return map[mimeType] || null
+}
+
+function getFormatFromFileName(fileName?: string | null): string | null {
+  if (!fileName) return null
+  const match = fileName.match(/\.([^.]+)$/)
+  if (!match) return null
+  return match[1].toLowerCase()
+}
 
 export class AdminAdmissionService {
   static async getApplications(status?: string, programId?: string) {
@@ -29,6 +50,11 @@ export class AdminAdmissionService {
       screening_score: ap.exam_score,
       created_at: ap.created_at,
       program: ap.program,
+      phone: ap.phone,
+      gender: ap.gender,
+      nationality: ap.nationality,
+      date_of_birth: ap.date_of_birth,
+      state_of_origin: ap.state_of_origin,
       profile: {
         ...ap.profile,
         aspirant_profiles: [ap]
@@ -40,12 +66,30 @@ export class AdminAdmissionService {
     const supabase = await createClient();
     const { data: ap, error } = await supabase
       .from('aspirant_profiles')
-      .select('*, profile:profiles(first_name, last_name, email, phone, avatar_url, admission_documents(*)), program:programs(title, level, department:departments(name))')
+      .select('*, profile:profiles(first_name, last_name, email, phone, avatar_url), program:programs(title, level, department:departments(name))')
       .eq('profile_id', id)
       .single();
 
     if (error) throw new Error('Failed to fetch application details: ' + error.message);
     
+    // Fetch documents separately
+    const { data: docs, error: docsError } = await supabase
+      .from('admission_documents')
+      .select('*')
+      .eq('application_id', id)
+      .order('uploaded_at', { ascending: false });
+
+    if (docsError) console.error('Failed to fetch documents:', docsError);
+    
+    const cloudName = getCloudinaryConfig().cloudName;
+    const documentsWithUrls = (docs || []).map((doc: any) => ({
+      ...doc,
+      file_url: (() => {
+        const format = getFormatFromMimeType(doc.mime_type) || getFormatFromFileName(doc.file_name);
+        return buildCloudinaryPublicUrl(cloudName, doc.storage_path, format);
+      })()
+    }));
+
     return {
       id: ap.profile_id,
       profile_id: ap.profile_id,
@@ -55,8 +99,15 @@ export class AdminAdmissionService {
       admin_note: ap.review_feedback,
       created_at: ap.created_at,
       program: ap.program,
+      phone: ap.phone,
+      gender: ap.gender,
+      nationality: ap.nationality,
+      date_of_birth: ap.date_of_birth,
+      state_of_origin: ap.state_of_origin,
+      admission_documents: documentsWithUrls,
       profile: {
         ...ap.profile,
+        admission_documents: documentsWithUrls,
         aspirant_profiles: [ap]
       }
     };
@@ -68,7 +119,9 @@ export class AdminAdmissionService {
       .from('aspirant_profiles')
       .update({
         application_status: status,
-        ...(adminNote ? { review_feedback: adminNote } : {})
+        review_feedback: adminNote || null,
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .eq('profile_id', id)
       .select('profile_id, preferred_program_id, application_status')
@@ -76,11 +129,50 @@ export class AdminAdmissionService {
 
     if (error) throw new Error('Failed to update application status: ' + error.message);
     
+    // Only auto-convert to student if status is 'admitted' (after aspirant accepts offer)
+    // For 'accepted' status (offer sent), aspirant must accept first
     if (status === 'admitted') {
       await AdminAdmissionService.convertToStudent(data.profile_id, data.preferred_program_id);
     }
 
     return { ...data, status: data.application_status, program_id: data.preferred_program_id };
+  }
+
+  static async processAspirantAcceptance(profileId: string) {
+    const supabase = await createClient();
+    
+    // Get the aspirant's preferred program
+    const { data: aspirant, error: fetchError } = await supabase
+      .from('aspirant_profiles')
+      .select('preferred_program_id')
+      .eq('profile_id', profileId)
+      .single();
+
+    if (fetchError) throw new Error('Failed to fetch aspirant details: ' + fetchError.message);
+    
+    // Convert to student
+    await AdminAdmissionService.convertToStudent(profileId, aspirant.preferred_program_id);
+    
+    return { success: true };
+  }
+
+  static async updateDocumentVerificationStatus(docId: string, status: string, note?: string) {
+    const supabase = await createClient();
+    
+    const { data, error } = await supabase
+      .from('admission_documents')
+      .update({
+        verification_status: status,
+        verification_note: note || null,
+        verified_at: status === 'verified' ? new Date().toISOString() : null,
+      })
+      .eq('id', docId)
+      .select()
+      .single();
+
+    if (error) throw new Error('Failed to update document verification status: ' + error.message);
+    
+    return data;
   }
 
   static async updateScreeningScore(id: string, score: number) {
@@ -96,7 +188,7 @@ export class AdminAdmissionService {
     return data;
   }
 
-  private static async convertToStudent(profileId: string, programId: string) {
+  public static async convertToStudent(profileId: string, programId: string, admissionNumber?: string) {
     const adminAuth = createAdminClient();
     const supabase = await createClient();
     
@@ -108,8 +200,8 @@ export class AdminAdmissionService {
       
     if (profileError) console.error("Failed to update profile role to student", profileError);
 
-    // Create student profile
-    const matricNumber = `CCHT/${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`;
+    // Use provided admission number as matric number, or generate one
+    const matricNumber = admissionNumber || `CCHT/${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`;
     
     // Check if student profile already exists
     const { data: existingStudent } = await supabase.from('student_profiles').select('id').eq('profile_id', profileId).single();
@@ -146,5 +238,68 @@ export class AdminAdmissionService {
     await adminAuth.auth.admin.updateUserById(profileId, {
       user_metadata: { role: 'student' }
     });
+  }
+
+  static async migrateToStudent(profileId: string, adminId: string) {
+    const adminSupabase = createAdminClient();
+    const supabase = await createClient();
+    
+    // Get aspirant details
+    const { data: aspirant, error: fetchError } = await adminSupabase
+      .from('aspirant_profiles')
+      .select('preferred_program_id, admission_number')
+      .eq('profile_id', profileId)
+      .single();
+
+    if (fetchError) throw new Error('Failed to fetch aspirant details: ' + fetchError.message);
+    
+    if (!aspirant.admission_number) {
+      throw new Error('Aspirant does not have an admission number. Payment must be completed first.');
+    }
+
+    // Update aspirant profile status to migrated
+    const { error: updateError } = await adminSupabase
+      .from('aspirant_profiles')
+      .update({
+        application_status: 'migrated',
+        current_stage: 'completed',
+        migration_completed: true,
+        migration_completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('profile_id', profileId);
+
+    if (updateError) throw new Error('Failed to update aspirant status: ' + updateError.message);
+
+    // Convert to student
+    await AdminAdmissionService.convertToStudent(profileId, aspirant.preferred_program_id, aspirant.admission_number);
+
+    // Create notification for aspirant
+    await adminSupabase
+      .from('aspirant_notifications')
+      .insert({
+        aspirant_id: profileId,
+        title: 'Migration Completed',
+        message: `Congratulations! You have been successfully migrated to the student portal. Your matric number is ${aspirant.admission_number}.`,
+        type: 'success',
+        read: false,
+      });
+
+    return { success: true, matricNumber: aspirant.admission_number };
+  }
+
+  static async bulkMigrateToStudents(profileIds: string[], adminId: string) {
+    const results = [];
+    
+    for (const profileId of profileIds) {
+      try {
+        const result = await AdminAdmissionService.migrateToStudent(profileId, adminId);
+        results.push({ profileId, ...result });
+      } catch (error: any) {
+        results.push({ profileId, success: false, error: error.message });
+      }
+    }
+
+    return results;
   }
 }

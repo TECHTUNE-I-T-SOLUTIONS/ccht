@@ -76,18 +76,101 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Failed to update aspirant profile: ' + profileError.message }, { status: 500 })
         }
       } else {
+        // Generate admission number
+        const year = new Date().getFullYear()
+        const prefix = `CCHT/${year}`
+        
+        const { data: lastAdmission } = await adminSupabase
+          .from('aspirant_profiles')
+          .select('admission_number')
+          .ilike('admission_number', `${prefix}%`)
+          .order('admission_number', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        let sequence = 1
+        if (lastAdmission?.admission_number) {
+          const lastSequence = parseInt(lastAdmission.admission_number.split('/').pop() || '0')
+          sequence = lastSequence + 1
+        }
+        const sequenceStr = sequence.toString().padStart(4, '0')
+        const admissionNumber = `${prefix}/${sequenceStr}`
+
+        // Get aspirant profile details for conversion
+        const { data: aspirantProfile } = await adminSupabase
+          .from('aspirant_profiles')
+          .select('preferred_program_id, review_feedback')
+          .eq('profile_id', user.id)
+          .single()
+
+        // Update aspirant profile with admission details
         const { error: profileError } = await adminSupabase
           .from('aspirant_profiles')
           .update({
+            admission_number: admissionNumber,
             admission_fee_paid: true,
             admission_fee_paid_at: new Date().toISOString(),
-            current_stage: 'migration'
+            application_status: 'admitted',
+            current_stage: 'migration',
+            submitted_at: new Date().toISOString(),
+            reviewed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           })
           .eq('profile_id', user.id)
 
         if (profileError) {
           console.error('Error updating aspirant profile:', profileError)
           return NextResponse.json({ error: 'Failed to update aspirant profile: ' + profileError.message }, { status: 500 })
+        }
+
+        // Convert to student
+        if (aspirantProfile?.preferred_program_id) {
+          const { error: roleError } = await adminSupabase
+            .from('profiles')
+            .update({ role: 'student' })
+            .eq('id', user.id)
+
+          if (roleError) console.error('Failed to update profile role to student:', roleError)
+
+          // Create student profile
+          const { data: existingStudent } = await adminSupabase
+            .from('student_profiles')
+            .select('id')
+            .eq('profile_id', user.id)
+            .single()
+
+          if (!existingStudent) {
+            const { error: studentError } = await adminSupabase
+              .from('student_profiles')
+              .insert({
+                profile_id: user.id,
+                matric_number: admissionNumber,
+                current_level: '100',
+                admission_status: 'admitted',
+              })
+
+            if (studentError) console.error('Failed to create student profile:', studentError)
+          }
+
+          // Enroll in program
+          const { data: currentSession } = await adminSupabase
+            .from('academic_sessions')
+            .select('id')
+            .eq('is_current', true)
+            .single()
+
+          if (currentSession) {
+            const { error: enrollError } = await adminSupabase
+              .from('program_enrollments')
+              .insert({
+                student_id: user.id,
+                program_id: aspirantProfile.preferred_program_id,
+                session_id: currentSession.id,
+                status: 'active'
+              })
+
+            if (enrollError) console.error('Failed to enroll student:', enrollError)
+          }
         }
       }
     }

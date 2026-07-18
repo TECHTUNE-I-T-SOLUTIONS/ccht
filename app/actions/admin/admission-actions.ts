@@ -41,3 +41,37 @@ export async function updateScreeningScoreAction(id: string, score: number) {
     return { success: false, error: error.message };
   }
 }
+
+export async function updateDocumentVerificationStatusAction(docId: string, status: string, note?: string) {
+  try {
+    const result = await AdminAdmissionService.updateDocumentVerificationStatus(docId, status, note);
+    revalidatePath('/admin/admissions');
+    revalidatePath(`/admin/admissions/${result.application_id}`);
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function migrateToStudentAction(profileId: string) {
+  try {
+    const result = await AdminAdmissionService.migrateToStudent(profileId, 'admin');
+    revalidatePath('/admin/admissions');
+    revalidatePath(`/admin/admissions/${profileId}`);
+    revalidatePath('/aspirant/dashboard');
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function bulkMigrateToStudentsAction(profileIds: string[]) {
+  try {
+    const results = await AdminAdmissionService.bulkMigrateToStudents(profileIds, 'admin');
+    revalidatePath('/admin/admissions');
+    revalidatePath('/aspirant/dashboard');
+    return { success: true, data: results };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
