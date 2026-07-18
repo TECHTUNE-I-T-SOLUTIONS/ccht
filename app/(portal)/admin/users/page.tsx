@@ -17,7 +17,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [roleFilter, setRoleFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
-  
+
   // Create User Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -41,7 +41,7 @@ export default function AdminUsersPage() {
     try {
       const res = await getUsersAction(roleFilter, searchQuery)
       if (res.success) {
-        set( || [])
+        setUsers(res.data || [])
       } else {
         toast.error('Failed to load users: ' + res.error)
       }
@@ -122,24 +122,24 @@ export default function AdminUsersPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">First Name</label>
-                    <Input required value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} />
+                    <Input required value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Last Name</label>
-                    <Input required value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} />
+                    <Input required value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Email</label>
-                  <Input type="email" required value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+                  <Input type="email" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Password</label>
-                  <Input type="password" required minLength={8} value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} />
+                  <Input type="password" required minLength={8} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Role</label>
-                  <Select value={formData.role} onValueChange={(val) => setFormData({...formData, role: val})}>
+                  <Select value={formData.role} onValueChange={(val) => setFormData({ ...formData, role: val })}>
                     <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="student">Student</SelectItem>
@@ -149,23 +149,23 @@ export default function AdminUsersPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 {formData.role === 'student' && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Matric Number (Optional)</label>
-                    <Input value={formData.matricNumber} onChange={(e) => setFormData({...formData, matricNumber: e.target.value})} />
+                    <Input value={formData.matricNumber} onChange={(e) => setFormData({ ...formData, matricNumber: e.target.value })} />
                   </div>
                 )}
                 {formData.role === 'teacher' && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Staff Number</label>
-                    <Input value={formData.staffNumber} onChange={(e) => setFormData({...formData, staffNumber: e.target.value})} />
+                    <Input value={formData.staffNumber} onChange={(e) => setFormData({ ...formData, staffNumber: e.target.value })} />
                   </div>
                 )}
                 {formData.role === 'admin' && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Staff ID</label>
-                    <Input value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})} />
+                    <Input value={formData.staffId} onChange={(e) => setFormData({ ...formData, staffId: e.target.value })} />
                   </div>
                 )}
 

@@ -15,7 +15,7 @@ import { Switch } from '@/components/ui/switch'
 export default function AdminSessionsPage() {
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   // Create Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -36,7 +36,7 @@ export default function AdminSessionsPage() {
     try {
       const res = await getSessionsAction()
       if (res.success) {
-        set( || [])
+        setSessions(res.data || [])
       } else {
         toast.error('Failed to load sessions: ' + res.error)
       }
@@ -107,21 +107,21 @@ export default function AdminSessionsPage() {
               <form onSubmit={handleCreateSession} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Session Name (e.g. 2026/2027)</label>
-                  <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
+                  <Input required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Start Date</label>
-                    <Input type="date" required value={formData.starts_on} onChange={(e) => setFormData({...formData, starts_on: e.target.value})} />
+                    <Input type="date" required value={formData.starts_on} onChange={(e) => setFormData({ ...formData, starts_on: e.target.value })} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">End Date</label>
-                    <Input type="date" required value={formData.ends_on} onChange={(e) => setFormData({...formData, ends_on: e.target.value})} />
+                    <Input type="date" required value={formData.ends_on} onChange={(e) => setFormData({ ...formData, ends_on: e.target.value })} />
                   </div>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
                   <span className="text-sm font-medium">Set as Current Session</span>
-                  <Switch checked={formData.is_current} onCheckedChange={(val) => setFormData({...formData, is_current: val})} />
+                  <Switch checked={formData.is_current} onCheckedChange={(val) => setFormData({ ...formData, is_current: val })} />
                 </div>
 
                 <div className="flex justify-end pt-4">

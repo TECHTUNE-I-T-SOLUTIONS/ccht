@@ -17,13 +17,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { MoreVertical } from 'lucide-react'
+import { set } from 'zod'
 
 export default function AdminProgramDetailPage() {
   const { id } = useParams()
   const [program, setProgram] = useState<any>(null)
   const [departments, setDepartments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     title: '', slug: '', description: '', durationMonths: 24, durationUnit: 'months',
@@ -50,10 +51,10 @@ export default function AdminProgramDetailPage() {
         getDepartmentsAction()
       ])
 
-      if (deptRes.success) set( || [])
+      if (deptRes.success) setDepartments(deptRes.data || [])
 
       if (progRes.success && progRes.data) {
-        set( || [])
+        setProgram(progRes.data)
         const p = progRes.data
         setFormData({
           title: p.title || '',
@@ -175,15 +176,15 @@ export default function AdminProgramDetailPage() {
           <form onSubmit={handleUpdateProgram} className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Program Title</label>
-              <Input required value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} />
+              <Input required value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Slug / Short Code</label>
-              <Input required value={formData.slug} onChange={(e) => setFormData({...formData, slug: e.target.value})} />
+              <Input required value={formData.slug} onChange={(e) => setFormData({ ...formData, slug: e.target.value })} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Department</label>
-              <Select value={formData.departmentId} onValueChange={(val) => setFormData({...formData, departmentId: val})}>
+              <Select value={formData.departmentId} onValueChange={(val) => setFormData({ ...formData, departmentId: val })}>
                 <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
                 <SelectContent>
                   {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
@@ -192,7 +193,7 @@ export default function AdminProgramDetailPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Level</label>
-              <Select value={formData.level} onValueChange={(val) => setFormData({...formData, level: val})}>
+              <Select value={formData.level} onValueChange={(val) => setFormData({ ...formData, level: val })}>
                 <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="certificate">Certificate</SelectItem>
@@ -203,16 +204,16 @@ export default function AdminProgramDetailPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Tuition Fee (NGN)</label>
-              <Input type="number" min="0" required value={formData.tuitionFee} onChange={(e) => setFormData({...formData, tuitionFee: parseInt(e.target.value) || 0})} />
+              <Input type="number" min="0" required value={formData.tuitionFee} onChange={(e) => setFormData({ ...formData, tuitionFee: parseInt(e.target.value) || 0 })} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Duration</label>
-                <Input type="number" min="1" required value={formData.durationMonths} onChange={(e) => setFormData({...formData, durationMonths: parseInt(e.target.value) || 0})} />
+                <Input type="number" min="1" required value={formData.durationMonths} onChange={(e) => setFormData({ ...formData, durationMonths: parseInt(e.target.value) || 0 })} />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Unit</label>
-                <Select value={formData.durationUnit} onValueChange={(val) => setFormData({...formData, durationUnit: val})}>
+                <Select value={formData.durationUnit} onValueChange={(val) => setFormData({ ...formData, durationUnit: val })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="months">Months</SelectItem>
@@ -223,11 +224,11 @@ export default function AdminProgramDetailPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Description</label>
-              <Textarea required value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} rows={4} />
+              <Textarea required value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={4} />
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
               <span className="text-sm font-medium">Admission Open</span>
-              <Switch checked={formData.admissionOpen} onCheckedChange={(val) => setFormData({...formData, admissionOpen: val})} />
+              <Switch checked={formData.admissionOpen} onCheckedChange={(val) => setFormData({ ...formData, admissionOpen: val })} />
             </div>
             <div className="pt-2">
               <Button type="submit" disabled={isSubmitting} className="w-full rounded-xl"><Save className="mr-2 h-4 w-4" /> Save Changes</Button>
@@ -254,25 +255,25 @@ export default function AdminProgramDetailPage() {
                 <form onSubmit={handleSaveCourse} className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Course Code</label>
-                    <Input required value={courseFormData.code} onChange={(e) => setCourseFormData({...courseFormData, code: e.target.value})} placeholder="e.g. CSC 101" />
+                    <Input required value={courseFormData.code} onChange={(e) => setCourseFormData({ ...courseFormData, code: e.target.value })} placeholder="e.g. CSC 101" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Course Title</label>
-                    <Input required value={courseFormData.title} onChange={(e) => setCourseFormData({...courseFormData, title: e.target.value})} placeholder="e.g. Introduction to Computing" />
+                    <Input required value={courseFormData.title} onChange={(e) => setCourseFormData({ ...courseFormData, title: e.target.value })} placeholder="e.g. Introduction to Computing" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Credit Units</label>
-                      <Input type="number" min="1" required value={courseFormData.creditUnits} onChange={(e) => setCourseFormData({...courseFormData, creditUnits: parseInt(e.target.value) || 1})} />
+                      <Input type="number" min="1" required value={courseFormData.creditUnits} onChange={(e) => setCourseFormData({ ...courseFormData, creditUnits: parseInt(e.target.value) || 1 })} />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Level</label>
-                      <Input value={courseFormData.level} onChange={(e) => setCourseFormData({...courseFormData, level: e.target.value})} placeholder="e.g. 100" />
+                      <Input value={courseFormData.level} onChange={(e) => setCourseFormData({ ...courseFormData, level: e.target.value })} placeholder="e.g. 100" />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Semester</label>
-                    <Select value={courseFormData.semester.toString()} onValueChange={(val) => setCourseFormData({...courseFormData, semester: parseInt(val) || 1})}>
+                    <Select value={courseFormData.semester.toString()} onValueChange={(val) => setCourseFormData({ ...courseFormData, semester: parseInt(val) || 1 })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="1">First Semester</SelectItem>
@@ -282,7 +283,7 @@ export default function AdminProgramDetailPage() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Description</label>
-                    <Textarea value={courseFormData.description} onChange={(e) => setCourseFormData({...courseFormData, description: e.target.value})} rows={2} />
+                    <Textarea value={courseFormData.description} onChange={(e) => setCourseFormData({ ...courseFormData, description: e.target.value })} rows={2} />
                   </div>
                   <div className="flex justify-end pt-4">
                     <Button type="submit" disabled={isCourseSubmitting}>{isCourseSubmitting ? 'Saving...' : 'Save Course'}</Button>

@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 export default function AdminDepartmentsPage() {
   const [departments, setDepartments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   // Create Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -35,7 +35,7 @@ export default function AdminDepartmentsPage() {
     try {
       const res = await getDepartmentsAction()
       if (res.success) {
-        set( || [])
+        setDepartments(res.data || [])
       } else {
         toast.error('Failed to load departments: ' + res.error)
       }
@@ -96,17 +96,17 @@ export default function AdminDepartmentsPage() {
               <form onSubmit={handleCreateDepartment} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Department Name</label>
-                  <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="e.g. Computer Science" />
+                  <Input required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. Computer Science" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Department Code</label>
-                  <Input required value={formData.code} onChange={(e) => setFormData({...formData, code: e.target.value})} placeholder="e.g. CSC" />
+                  <Input required value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} placeholder="e.g. CSC" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Description</label>
-                  <Textarea value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} />
+                  <Textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
                 </div>
-                
+
                 <div className="flex justify-end pt-4">
                   <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Creating...' : 'Create Department'}</Button>
                 </div>
