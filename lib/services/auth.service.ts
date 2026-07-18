@@ -76,6 +76,7 @@ export class AuthService {
         emailRedirectTo: `${process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ?? origin}/auth/callback`,
         data: {
           first_name: input.firstName,
+          middle_name: input.middleName || '',
           last_name: input.lastName,
           role: input.role,
           phone: input.phone ?? '',
@@ -86,6 +87,36 @@ export class AuthService {
 
     if (error) throw new Error(error.message || 'Failed to register')
     if (!data.user) throw new Error('Failed to create user')
+
+    // Update profiles table with phone and middle_name
+    const { error: profileUpdateError } = await admin
+      .from('profiles')
+      .update({
+        phone: input.phone || null,
+        middle_name: input.middleName || null,
+      })
+      .eq('id', data.user.id)
+
+    if (profileUpdateError) {
+      console.error('[AuthService] Failed to update profile with phone/middle_name:', profileUpdateError)
+    }
+
+    // Create aspirant profile if role is aspirant
+    if (input.role === 'aspirant') {
+      const { error: aspirantError } = await admin
+        .from('aspirant_profiles')
+        .insert({
+          profile_id: data.user.id,
+          jamb_reg_no: jambRegNo || null,
+          preferred_program_id: input.preferred_program_id || null,
+          application_status: 'draft',
+          current_stage: 'signup',
+        })
+
+      if (aspirantError) {
+        console.error('[AuthService] Failed to create aspirant profile:', aspirantError)
+      }
+    }
 
     // Create admin profile if role is admin
     if (input.role === 'admin') {

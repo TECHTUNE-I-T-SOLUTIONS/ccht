@@ -22,6 +22,7 @@ import { ProgramsService, Program } from '@/lib/services/programs.service'
 
 const initial = {
   firstName: '',
+  middleName: '',
   lastName: '',
   email: '',
   password: '',
@@ -33,6 +34,7 @@ const initial = {
 const signupSchema = z
   .object({
     firstName: z.string().min(2),
+    middleName: z.string().optional().or(z.literal('')),
     lastName: z.string().min(2),
     email: z.string().email(),
     password: z.string().min(8),
@@ -267,6 +269,7 @@ function ApplyPageInner() {
                   <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="grid gap-6 md:grid-cols-2">
                     {[
                       ['First Name', 'firstName'],
+                      ['Middle Name (optional)', 'middleName'],
                       ['Last Name', 'lastName'],
                       ['Email Address', 'email'],
                       ['Phone Number', 'phone'],
@@ -327,7 +330,7 @@ function ApplyPageInner() {
                 {step === 3 && (
                   <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <ReviewCard label="Full Name" value={`${form.firstName} ${form.lastName}`} />
+                      <ReviewCard label="Full Name" value={`${form.firstName} ${form.middleName} ${form.lastName}`.replace(/\s+/g, ' ').trim()} />
                       <ReviewCard label="Email" value={form.email} />
                       <ReviewCard label="Phone" value={form.phone} />
                       <ReviewCard label="Course" value={course} />

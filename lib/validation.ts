@@ -7,6 +7,7 @@ export const SignUpSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
   firstName: z.string().min(2, 'First name is required'),
+  middleName: z.string().optional(),
   lastName: z.string().min(2, 'Last name is required'),
   role: z.enum([USER_ROLES.STUDENT, USER_ROLES.LECTURER, USER_ROLES.ADMIN, 'super_admin', 'aspirant']),
   // Admin-specific fields (optional for other roles)
@@ -18,6 +19,9 @@ export const SignUpSchema = z.object({
   canManageContent: z.boolean().optional(),
   canManageAcademics: z.boolean().optional(),
   canManageFinance: z.boolean().optional(),
+  // Aspirant-specific fields
+  jambRegNo: z.string().optional(),
+  preferred_program_id: z.string().uuid().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],

@@ -16,6 +16,7 @@ export class AspirantService {
   static async updateAspirantProfile(profileId: string, payload: any) {
     const supabase = await createClient();
     
+    // Update aspirant_profiles table
     const { data, error } = await supabase
       .from('aspirant_profiles')
       .update({
@@ -31,6 +32,22 @@ export class AspirantService {
       .single();
 
     if (error) throw new Error('Failed to update aspirant profile: ' + error.message);
+
+    // Also update phone in profiles table
+    if (payload.phone) {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          phone: payload.phone,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', profileId);
+
+      if (profileError) {
+        console.error('Failed to update phone in profiles table:', profileError);
+      }
+    }
+
     return data;
   }
 
