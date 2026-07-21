@@ -333,21 +333,31 @@ export default function ProfilePage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <Label htmlFor="state_of_origin">State of Origin</Label>
-                  <Input
-                    id="state_of_origin"
-                    value={formData.state_of_origin || ''}
-                    onChange={(e) => setFormData({ ...formData, state_of_origin: e.target.value })}
-                    className="rounded-xl"
-                  />
+                  <Select value={formData.state_of_origin || ''} onValueChange={(value) => {
+                    setFormData({ ...formData, state_of_origin: value, local_government_area: '' })
+                  }}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Select state of origin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getStateNames().map((state) => (
+                        <SelectItem key={state} value={state}>{state}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="local_government_area">Local Government Area</Label>
-                  <Input
-                    id="local_government_area"
-                    value={formData.local_government_area || ''}
-                    onChange={(e) => setFormData({ ...formData, local_government_area: e.target.value })}
-                    className="rounded-xl"
-                  />
+                  <Select value={formData.local_government_area || ''} onValueChange={(value) => setFormData({ ...formData, local_government_area: value })} disabled={!formData.state_of_origin}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder={formData.state_of_origin ? "Select LGA" : "Select state first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formData.state_of_origin && getStateLGAs(formData.state_of_origin).map((lga) => (
+                        <SelectItem key={lga} value={lga}>{lga}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -375,22 +385,32 @@ export default function ProfilePage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <Label htmlFor="city">City</Label>
-                  <Input
-                    id="city"
-                    value={formData.city || ''}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    className="rounded-xl"
-                  />
+                  <Label htmlFor="state">State</Label>
+                  <Select value={formData.state || ''} onValueChange={(value) => {
+                    setFormData({ ...formData, state: value, city: '' })
+                  }}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Select state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getStateNames().map((state) => (
+                        <SelectItem key={state} value={state}>{state}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label htmlFor="state">State</Label>
-                  <Input
-                    id="state"
-                    value={formData.state || ''}
-                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                    className="rounded-xl"
-                  />
+                  <Label htmlFor="city">City</Label>
+                  <Select value={formData.city || ''} onValueChange={(value) => setFormData({ ...formData, city: value })} disabled={!formData.state}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder={formData.state ? "Select city" : "Select state first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formData.state && getStateLGAs(formData.state).map((lga) => (
+                        <SelectItem key={lga} value={lga}>{lga}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

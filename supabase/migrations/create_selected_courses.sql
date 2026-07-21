@@ -81,7 +81,8 @@ CREATE POLICY "Teachers can view selected courses for their programs"
   USING (
     EXISTS (
       SELECT 1 FROM public.teacher_profiles tp
-      JOIN public.programs p ON p.department_id = tp.department_id
+      JOIN public.departments d ON d.name = tp.department
+      JOIN public.programs p ON p.department_id = d.id
       JOIN public.courses c ON c.program_id = p.id
       WHERE tp.profile_id = auth.uid() AND selected_courses.course_id = c.id
     )
@@ -93,7 +94,8 @@ CREATE POLICY "Teachers can update selected courses status for their programs"
   USING (
     EXISTS (
       SELECT 1 FROM public.teacher_profiles tp
-      JOIN public.programs p ON p.department_id = tp.department_id
+      JOIN public.departments d ON d.name = tp.department
+      JOIN public.programs p ON p.department_id = d.id
       JOIN public.courses c ON c.program_id = p.id
       WHERE tp.profile_id = auth.uid() AND selected_courses.course_id = c.id
     )
@@ -238,7 +240,8 @@ BEGIN
     NOW(),
     NOW()
   FROM public.teacher_profiles tp
-  JOIN public.programs p ON p.department_id = tp.department_id
+  JOIN public.departments d ON d.name = tp.department
+  JOIN public.programs p ON p.department_id = d.id
   JOIN public.courses c ON c.program_id = p.id
   WHERE c.id = NEW.course_id
   LIMIT 1;

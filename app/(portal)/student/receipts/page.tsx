@@ -55,14 +55,14 @@ export default function StudentReceiptsPage() {
       // Fetch payments from all tables
       const [admissionRes, applicationRes, paymentsRes] = await Promise.all([
         supabase
-          .from('aspirant_admission_payment')
+          .from('aspirant_admission_payments')
           .select('*')
-          .eq('profile_id', user.id)
+          .eq('aspirant_id', user.id)
           .order('created_at', { ascending: false }),
         supabase
-          .from('aspirant_application_payment')
+          .from('aspirant_application_payments')
           .select('*')
-          .eq('profile_id', user.id)
+          .eq('aspirant_id', user.id)
           .order('created_at', { ascending: false }),
         supabase
           .from('payments')
@@ -73,7 +73,7 @@ export default function StudentReceiptsPage() {
 
       const allPayments: Payment[] = []
 
-      // Process aspirant_admission_payment
+      // Process aspirant_admission_payments
       if (admissionRes.data) {
         admissionRes.data.forEach((p: any) => {
           allPayments.push({
@@ -85,12 +85,12 @@ export default function StudentReceiptsPage() {
             description: 'Admission Fee Payment',
             created_at: p.created_at,
             paid_at: p.paid_at,
-            table_source: 'aspirant_admission_payment'
+            table_source: 'aspirant_admission_payments'
           })
         })
       }
 
-      // Process aspirant_application_payment
+      // Process aspirant_application_payments
       if (applicationRes.data) {
         applicationRes.data.forEach((p: any) => {
           allPayments.push({
@@ -102,7 +102,7 @@ export default function StudentReceiptsPage() {
             description: 'Application Fee Payment',
             created_at: p.created_at,
             paid_at: p.paid_at,
-            table_source: 'aspirant_application_payment'
+            table_source: 'aspirant_application_payments'
           })
         })
       }

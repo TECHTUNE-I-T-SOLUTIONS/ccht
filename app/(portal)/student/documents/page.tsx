@@ -52,7 +52,7 @@ export default function StudentDocumentsPage() {
 
     const admissionDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
     
-    const content = generateAdmissionLetter({
+    const doc = generateAdmissionLetter({
       firstName: studentData.profiles?.first_name || '',
       lastName: studentData.profiles?.last_name || '',
       matricNumber: studentData.matric_number || '',
@@ -62,15 +62,7 @@ export default function StudentDocumentsPage() {
       admissionDate
     })
 
-    const blob = new Blob([content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `Admission_Letter_${studentData.matric_number}.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    doc.save(`Admission_Letter_${studentData.matric_number}.pdf`)
     toast.success('Admission letter downloaded')
   }
 
@@ -82,7 +74,7 @@ export default function StudentDocumentsPage() {
 
     const oathDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
     
-    const content = generateOathForm({
+    const doc = generateOathForm({
       firstName: studentData.profiles?.first_name || '',
       lastName: studentData.profiles?.last_name || '',
       matricNumber: studentData.matric_number || '',
@@ -91,15 +83,7 @@ export default function StudentDocumentsPage() {
       oathDate
     })
 
-    const blob = new Blob([content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `School_Oath_Form_${studentData.matric_number}.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    doc.save(`School_Oath_Form_${studentData.matric_number}.pdf`)
     toast.success('Oath form downloaded')
   }
 
