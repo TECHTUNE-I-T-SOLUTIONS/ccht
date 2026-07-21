@@ -116,17 +116,25 @@ export class AdminAdmissionService {
   static async updateApplicationStatus(id: string, status: string, adminNote?: string) {
     const supabase = await createClient();
     
+    // Get current stage to preserve it if not changing
+    const { data: currentProfile } = await supabase
+      .from('aspirant_profiles')
+      .select('current_stage, profile_completion')
+      .eq('profile_id', id)
+      .single();
+    
+    const existingStage = currentProfile?.current_stage || 'signup';
+    
     // Determine the appropriate stage based on status
-    let currentStage = 'signup';
+    let currentStage = existingStage; // Default to existing stage
     if (status === 'accepted') {
       currentStage = 'admission_fee'; // Show payment step after acceptance
-    } else if (status === 'admitted') {
-      currentStage = 'migration'; // Trigger aspirant acceptance flow
     } else if (status === 'student') {
       currentStage = 'completed'; // Final stage when fully migrated
-    } else if (status === 'admission_accepted') {
-      currentStage = 'admission_acceptance'; // Aspirant has accepted, waiting for admin migration
     }
+    
+    // Update profile completion to 100% when admitted
+    const profileCompletion = (status === 'accepted' || status === 'admitted') ? 100 : currentProfile?.profile_completion || 0;
     
     const { data, error } = await supabase
       .from('aspirant_profiles')
@@ -135,7 +143,8 @@ export class AdminAdmissionService {
         current_stage: currentStage,
         review_feedback: adminNote || null,
         reviewed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        profile_completion: profileCompletion
       })
       .eq('profile_id', id)
       .select('profile_id, preferred_program_id, application_status')
@@ -143,8 +152,7 @@ export class AdminAdmissionService {
 
     if (error) throw new Error('Failed to update application status: ' + error.message);
     
-    // Only auto-convert to student if status is 'student' (after admin migration)
-    // For 'admitted' status, aspirant must accept first
+    // Auto-convert to student if status is 'student'
     if (status === 'student') {
       await AdminAdmissionService.convertToStudent(data.profile_id, data.preferred_program_id);
     }
@@ -258,10 +266,10 @@ export class AdminAdmissionService {
     const adminSupabase = createAdminClient();
     const supabase = await createClient();
     
-    // Get aspirant details
+    // Get aspirant details with profile information
     const { data: aspirant, error: fetchError } = await adminSupabase
       .from('aspirant_profiles')
-      .select('preferred_program_id, admission_number')
+      .select('preferred_program_id, admission_number, phone, gender, nationality, date_of_birth, state_of_origin, admission_session, profile:profiles(first_name, last_name, email, phone)')
       .eq('profile_id', profileId)
       .single();
 
@@ -271,7 +279,14 @@ export class AdminAdmissionService {
       throw new Error('Aspirant does not have an admission number. Payment must be completed first.');
     }
 
-    // Update aspirant profile status to migrated
+    // Get admin profile details
+    const { data: adminProfile } = await adminSupabase
+      .from('admin_profiles')
+      .select('profile_id')
+      .eq('profile_id', adminId)
+      .single();
+
+    // Update aspirant profile status to migrated with all required fields
     const { error: updateError } = await adminSupabase
       .from('aspirant_profiles')
       .update({
@@ -279,14 +294,40 @@ export class AdminAdmissionService {
         current_stage: 'completed',
         migration_completed: true,
         migration_completed_at: new Date().toISOString(),
+        matric_number: aspirant.admission_number,
+        profile_completion: 100,
+        submission_notes: `Applicant successfully migrated to student. Matric number: ${aspirant.admission_number}. Migration completed on ${new Date().toLocaleDateString()}.`,
+        reviewed_by: adminProfile?.profile_id || adminId,
+        reviewed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('profile_id', profileId);
 
     if (updateError) throw new Error('Failed to update aspirant status: ' + updateError.message);
 
-    // Convert to student
+    // Convert to student with full details
     await AdminAdmissionService.convertToStudent(profileId, aspirant.preferred_program_id, aspirant.admission_number);
+
+    // Update student_profiles with additional details
+    const phoneNumber = aspirant.phone || (aspirant.profile as any)?.phone || null;
+    const { error: studentUpdateError } = await adminSupabase
+      .from('student_profiles')
+      .update({
+        matric_number: aspirant.admission_number,
+        student_number: phoneNumber,
+        admission_session: aspirant.admission_session,
+        admission_date: new Date().toISOString().split('T')[0],
+        date_of_birth: aspirant.date_of_birth,
+        gender: aspirant.gender,
+        nationality: aspirant.nationality,
+        state_of_origin: aspirant.state_of_origin,
+        current_level: '100',
+        admission_status: 'active',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('profile_id', profileId);
+
+    if (studentUpdateError) console.error("Failed to update student profile details:", studentUpdateError);
 
     // Create notification for aspirant
     await adminSupabase
@@ -294,7 +335,7 @@ export class AdminAdmissionService {
       .insert({
         aspirant_id: profileId,
         title: 'Migration Completed',
-        message: `Congratulations! You have been successfully migrated to the student portal. Your matric number is ${aspirant.admission_number}.`,
+        message: `Congratulations! You have been successfully migrated to the student portal. Your matric number is ${aspirant.admission_number}. You can now access the student portal.`,
         type: 'success',
         read: false,
       });

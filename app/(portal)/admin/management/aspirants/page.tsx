@@ -196,9 +196,11 @@ export default function AspirantManagementPage() {
             <Download className="h-4 w-4" />
             Export Report
           </Button>
-          <Button className="gap-2">
-            <GraduationCap className="h-4 w-4" />
-            View All Applications
+          <Button className="gap-2" asChild>
+            <Link href="/admin/admissions">
+              <GraduationCap className="h-4 w-4" />
+              View All Applications
+            </Link>
           </Button>
         </div>
       </div>

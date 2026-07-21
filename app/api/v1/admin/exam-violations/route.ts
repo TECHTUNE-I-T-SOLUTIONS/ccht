@@ -22,11 +22,16 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Use admin client to get all violations
+    // Use admin client to get all violations with aspirant information
     const adminSupabase = createAdminClient()
     const { data: violations, error: violationsError } = await adminSupabase
       .from('exam_violations')
-      .select('*')
+      .select(`
+        *,
+        exam_sessions (
+          aspirant_id
+        )
+      `)
       .order('timestamp', { ascending: false })
 
     if (violationsError) {
@@ -34,7 +39,33 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch violations' }, { status: 500 })
     }
 
-    return NextResponse.json({ data: violations || [] })
+    // Get aspirant information separately for each violation
+    const violationsWithAspirantInfo = await Promise.all(
+      (violations || []).map(async (violation) => {
+        let aspirantInfo = null
+        if (violation.exam_sessions?.aspirant_id) {
+          const { data: profile } = await adminSupabase
+            .from('profiles')
+            .select('first_name, last_name, email')
+            .eq('id', violation.exam_sessions.aspirant_id)
+            .single()
+          
+          if (profile) {
+            aspirantInfo = {
+              aspirant_name: `${profile.first_name} ${profile.last_name}`,
+              aspirant_email: profile.email,
+            }
+          }
+        }
+
+        return {
+          ...violation,
+          ...aspirantInfo,
+        }
+      })
+    )
+
+    return NextResponse.json({ data: violationsWithAspirantInfo })
   } catch (error) {
     console.error('Fetch violations error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -22,11 +22,18 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Use admin client to get all sessions
+    // Use admin client to get all sessions with aspirant information
     const adminSupabase = createAdminClient()
     const { data: sessions, error: sessionsError } = await adminSupabase
       .from('exam_sessions')
-      .select('*')
+      .select(`
+        *,
+        profiles (
+          first_name,
+          last_name,
+          email
+        )
+      `)
       .order('started_at', { ascending: false })
 
     if (sessionsError) {
@@ -34,7 +41,14 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch exam sessions' }, { status: 500 })
     }
 
-    return NextResponse.json({ data: sessions || [] })
+    // Format the response to include aspirant name and email
+    const formattedSessions = sessions?.map((session: any) => ({
+      ...session,
+      aspirant_name: session.profiles ? `${session.profiles.first_name} ${session.profiles.last_name}` : null,
+      aspirant_email: session.profiles?.email || null,
+    })) || []
+
+    return NextResponse.json({ data: formattedSessions })
   } catch (error) {
     console.error('Fetch exam sessions error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

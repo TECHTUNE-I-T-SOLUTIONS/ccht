@@ -2,6 +2,7 @@
 
 import { AdminAdmissionService } from '@/lib/services/admin/admission-service';
 import { revalidatePath } from 'next/cache';
+import { createClient } from '@/lib/supabase/server';
 
 export async function getApplicationsAction(status?: string, programId?: string) {
   try {
@@ -55,7 +56,24 @@ export async function updateDocumentVerificationStatusAction(docId: string, stat
 
 export async function migrateToStudentAction(profileId: string) {
   try {
-    const result = await AdminAdmissionService.migrateToStudent(profileId, 'admin');
+    const supabase = await createClient();
+    
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    // Get the admin profile ID
+    const { data: adminProfile } = await supabase
+      .from('admin_profiles')
+      .select('profile_id')
+      .eq('profile_id', user.id)
+      .single();
+
+    const adminId = adminProfile?.profile_id || user.id;
+
+    const result = await AdminAdmissionService.migrateToStudent(profileId, adminId);
     revalidatePath('/admin/admissions');
     revalidatePath(`/admin/admissions/${profileId}`);
     revalidatePath('/aspirant/dashboard');

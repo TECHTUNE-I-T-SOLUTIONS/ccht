@@ -45,17 +45,20 @@ export default function StudentFeesPage() {
 
   const loadPaymentData = async () => {
     try {
-      const [meRes, paymentsRes, feesRes] = await Promise.all([
+      const [meRes, feesRes] = await Promise.all([
         fetch('/api/v1/auth/me'),
-        fetch('/api/v1/payments'),
         fetch('/api/v1/student/fees')
       ])
       const me = await meRes.json().catch(() => null)
-      const payList = await paymentsRes.json().catch(() => null)
-      const feeList = await feesRes.json().catch(() => null)
+      const feeData = await feesRes.json().catch(() => null)
       setStudent(me?.user || null)
-      setPayments(payList?.data || [])
-      setFeeStructures(feeList?.data || [])
+      if (feeData?.data) {
+        setFeeStructures(feeData.data.fees || [])
+        setPayments(feeData.data.payments || [])
+        if (feeData.data.summary?.currentSession) {
+          setSelectedSession(feeData.data.summary.currentSession)
+        }
+      }
     } finally {
       setLoading(false)
     }

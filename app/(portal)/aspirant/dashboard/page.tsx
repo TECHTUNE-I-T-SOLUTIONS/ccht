@@ -540,8 +540,8 @@ export default function AspirantDashboard() {
   }
 
   const initiateAdmissionPayment = async () => {
-    // Prevent payment if status is not accepted
-    if (profile?.application_status !== 'accepted') {
+    // Prevent payment if status is not accepted or pending_payment
+    if (!['accepted', 'pending_payment'].includes(profile?.application_status || '')) {
       toast.error('Payment is only available after you have been accepted for admission')
       return
     }
@@ -785,13 +785,16 @@ export default function AspirantDashboard() {
       description: 'Pay ₦30,000 admission and administrative charges',
       icon: CreditCard,
       completed: adminFeePaid,
-      locked: (stage !== 'admission_fee' && stage !== 'migration') || profile?.application_status !== 'accepted',
+      locked: (stage !== 'admission_fee' && stage !== 'migration') || 
+              !['accepted', 'pending_payment'].includes(profile?.application_status || ''),
       action: initiateAdmissionPayment,
       actionLabel: 'Pay ₦30,000',
       detail: adminFeePaid 
         ? 'Payment completed' 
-        : profile?.application_status === 'accepted'
+        : profile?.application_status === 'pending_payment'
         ? 'Pay to accept admission'
+        : profile?.application_status === 'accepted'
+        ? 'Accept offer first'
         : 'Awaiting admission decision',
     },
     {

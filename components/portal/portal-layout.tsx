@@ -44,6 +44,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
   const [examCompleted, setExamCompleted] = useState(false)
   const [currentStage, setCurrentStage] = useState('signup')
   const [examUnlocked, setExamUnlocked] = useState(false)
+  const [studentProfile, setStudentProfile] = useState<any>(null)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -78,6 +79,12 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
         const currentStageIndex = stageOrder.indexOf(statusData?.data?.profile?.current_stage || 'signup')
         setExamUnlocked(currentStageIndex >= stageOrder.indexOf('exam'))
       }
+
+      if ((data?.user?.role || role) === 'student') {
+        const studentProfileRes = await fetch('/api/v1/student/profile')
+        const studentProfileData = await studentProfileRes.json().catch(() => null)
+        setStudentProfile(studentProfileData?.data || null)
+      }
     }
 
     loadUser()
@@ -101,9 +108,11 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
         { label: 'Dashboard', href: ROUTES.studentDashboard, icon: LayoutDashboard },
         { label: 'Courses', href: '/student/courses', icon: BookOpen },
         { label: 'Course Form', href: '/student/course-form', icon: FileText },
-        { label: 'Notifications', href: '/student/notifications', icon: Bell },
         { label: 'Results', href: '/student/results', icon: BarChart3 },
         { label: 'Fees', href: '/student/fees', icon: CreditCard },
+        { label: 'Receipts', href: '/student/receipts', icon: ReceiptText },
+        { label: 'Documents', href: '/student/documents', icon: FileText },
+        { label: 'Notifications', href: '/student/notifications', icon: Bell },
         { label: 'Profile', href: '/student/profile', icon: Users },
       ],
       teacher: [
@@ -277,6 +286,11 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
                   <p className="text-xs capitalize text-foreground/60">{user?.role || role}</p>
                 </div>
               </div>
+              {role === 'student' && studentProfile?.matric_number && (
+                <div className="mt-3 inline-flex rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
+                  {studentProfile.matric_number}
+                </div>
+              )}
               <p className="mt-3 text-xs leading-6 text-foreground/60">
                 Secure workspace for {role === 'admin' ? 'administration and approvals' : role === 'aspirant' ? 'admission progress' : 'academic management'}.
               </p>

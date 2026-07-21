@@ -9,8 +9,10 @@ import { BookOpen, CreditCard, FileText, ReceiptText, ArrowRight, BadgeCheck, Us
 
 export default function StudentDashboard() {
   const [user, setUser] = useState<any>(null)
+  const [studentProfile, setStudentProfile] = useState<any>(null)
   const [payments, setPayments] = useState<any[]>([])
   const [results, setResults] = useState<any[]>([])
+  const [enrollments, setEnrollments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
@@ -18,14 +20,26 @@ export default function StudentDashboard() {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const [profileRes, paymentsRes, resultsRes] = await Promise.all([
+        const [profileRes, studentProfileRes, paymentsRes, aspirantPaymentsRes, resultsRes, enrollmentsRes] = await Promise.all([
           supabase.from('profiles').select('id, email, first_name, last_name, phone, role, avatar_url').eq('id', user.id).single(),
+          supabase.from('student_profiles').select('*').eq('profile_id', user.id).single(),
           supabase.from('payments').select('id, amount, status, created_at, description').order('created_at', { ascending: false }).limit(4),
+          supabase.from('aspirant_admission_payment').select('id, amount, status, created_at, description').eq('profile_id', user.id).order('created_at', { ascending: false }).limit(4),
           supabase.from('results').select('id, course_name, score, grade, semester, academic_year, created_at').eq('student_id', user.id).order('created_at', { ascending: false }).limit(4),
+          supabase.from('enrollments').select('*, program:programs(title)').eq('student_id', user.id).eq('status', 'active'),
         ])
         setUser(profileRes.data)
-        setPayments(paymentsRes.data || [])
+        setStudentProfile(studentProfileRes.data)
+        
+        // Combine regular payments and aspirant payments
+        const allPayments = [
+          ...(paymentsRes.data || []).map((p: any) => ({ ...p, source: 'payments' })),
+          ...(aspirantPaymentsRes.data || []).map((p: any) => ({ ...p, source: 'aspirant' }))
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 4)
+        
+        setPayments(allPayments)
         setResults(resultsRes.data || [])
+        setEnrollments(enrollmentsRes.data || [])
       }
       setLoading(false)
     }
@@ -34,11 +48,38 @@ export default function StudentDashboard() {
 
   if (loading) return <div className="p-8">Loading...</div>
 
+  // Calculate profile completion based on student_profiles fields
+  const calculateProfileCompletion = () => {
+    if (!studentProfile) return 0
+    const fields = [
+      'date_of_birth',
+      'gender',
+      'blood_group',
+      'genotype',
+      'state_of_origin',
+      'local_government_area',
+      'nationality',
+      'address_line_1',
+      'city',
+      'state',
+      'guardian_name',
+      'guardian_phone',
+      'guardian_email',
+      'emergency_contact_name',
+      'emergency_contact_phone'
+    ]
+    const filledFields = fields.filter(field => studentProfile[field] !== null && studentProfile[field] !== '').length
+    return Math.round((filledFields / fields.length) * 100)
+  }
+
+  // Calculate pending fees (unpaid payments)
+  const pendingFees = payments.filter(p => p.status !== 'success' && p.status !== 'paid').reduce((sum, p) => sum + (p.amount || 0), 0)
+
   const stats = [
-    { label: 'Registered courses', value: '6', icon: BookOpen },
-    { label: 'Pending fees', value: '₦18,000', icon: CreditCard },
+    { label: 'Registered courses', value: String(enrollments.length), icon: BookOpen },
+    { label: 'Pending fees', value: pendingFees > 0 ? `₦${pendingFees.toLocaleString()}` : '₦0', icon: CreditCard },
     { label: 'Recent payments', value: String(payments.length), icon: FileText },
-    { label: 'Profile completion', value: user?.phone ? '88%' : '70%', icon: BadgeCheck },
+    { label: 'Profile completion', value: `${calculateProfileCompletion()}%`, icon: BadgeCheck },
   ]
 
   return (

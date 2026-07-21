@@ -96,22 +96,16 @@ export async function POST(request: NextRequest) {
         const sequenceStr = sequence.toString().padStart(4, '0')
         const admissionNumber = `${prefix}/${sequenceStr}`
 
-        // Get aspirant profile details for conversion
-        const { data: aspirantProfile } = await adminSupabase
-          .from('aspirant_profiles')
-          .select('preferred_program_id, review_feedback')
-          .eq('profile_id', user.id)
-          .single()
-
-        // Update aspirant profile with admission details
+        // Update aspirant profile with admission details and set status to admission_accepted
+        // Note: Student conversion will happen when admin migrates the aspirant
         const { error: profileError } = await adminSupabase
           .from('aspirant_profiles')
           .update({
             admission_number: admissionNumber,
             admission_fee_paid: true,
             admission_fee_paid_at: new Date().toISOString(),
-            application_status: 'admitted',
-            current_stage: 'migration',
+            application_status: 'admission_accepted',
+            current_stage: 'admission_acceptance',
             submitted_at: new Date().toISOString(),
             reviewed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -121,39 +115,6 @@ export async function POST(request: NextRequest) {
         if (profileError) {
           console.error('Error updating aspirant profile:', profileError)
           return NextResponse.json({ error: 'Failed to update aspirant profile: ' + profileError.message }, { status: 500 })
-        }
-
-        // Convert to student
-        if (aspirantProfile?.preferred_program_id) {
-          const { error: roleError } = await adminSupabase
-            .from('profiles')
-            .update({ role: 'student' })
-            .eq('id', user.id)
-
-          if (roleError) console.error('Failed to update profile role to student:', roleError)
-
-          // Create student profile
-          const { data: existingStudent } = await adminSupabase
-            .from('student_profiles')
-            .select('id')
-            .eq('profile_id', user.id)
-            .single()
-
-          if (!existingStudent) {
-            const { error: studentError } = await adminSupabase
-              .from('student_profiles')
-              .insert({
-                profile_id: user.id,
-                matric_number: admissionNumber,
-                current_level: '100',
-                admission_status: 'admitted',
-              })
-
-            if (studentError) console.error('Failed to create student profile:', studentError)
-          }
-
-          // Note: Enrollment creation is handled during admin migration from aspirant to student
-          // This ensures the student_profiles record exists before creating enrollments
         }
       }
     }

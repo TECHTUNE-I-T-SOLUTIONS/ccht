@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { UserRound, Mail, Phone, MapPin, CalendarDays, BadgeCheck, Edit2, Save, X, Camera, GraduationCap, IdCard } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { UserRound, Mail, Phone, MapPin, CalendarDays, BadgeCheck, Edit2, Save, X, Camera, GraduationCap, IdCard, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { nigeriaStates, getStateLGAs, getStateNames } from '@/lib/data/nigeria-states'
 
 type StudentProfile = {
   id: string
@@ -18,19 +20,34 @@ type StudentProfile = {
   last_name: string
   email: string
   phone: string | null
-  matric_number: string | null
-  department: string | null
-  level: string | null
-  admission_year: string | null
-  date_of_birth: string | null
-  gender: string | null
-  address: string | null
-  state_of_origin: string | null
-  lga: string | null
-  next_of_kin: string | null
-  next_of_kin_phone: string | null
   avatar_url: string | null
   created_at: string
+  // Student profile fields
+  matric_number: string | null
+  student_number: string | null
+  admission_session: string | null
+  admission_date: string | null
+  date_of_birth: string | null
+  gender: string | null
+  blood_group: string | null
+  genotype: string | null
+  state_of_origin: string | null
+  local_government_area: string | null
+  nationality: string | null
+  address_line_1: string | null
+  address_line_2: string | null
+  city: string | null
+  state: string | null
+  guardian_name: string | null
+  guardian_phone: string | null
+  guardian_email: string | null
+  emergency_contact_name: string | null
+  emergency_contact_phone: string | null
+  current_level: string | null
+  admission_status: string | null
+  // Program info
+  program_title: string | null
+  department_name: string | null
 }
 
 export default function ProfilePage() {
@@ -50,9 +67,20 @@ export default function ProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-      setProfile(data)
-      setFormData(data || {})
+      const [profileRes, studentProfileRes, enrollmentRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('student_profiles').select('*').eq('profile_id', user.id).single(),
+        supabase.from('enrollments').select('*, program:programs(title, department:departments(name))').eq('student_id', user.id).eq('status', 'active').single()
+      ])
+
+      const profile = {
+        ...profileRes.data,
+        ...studentProfileRes.data,
+        program_title: enrollmentRes.data?.program?.title || null,
+        department_name: enrollmentRes.data?.program?.department?.name || null
+      }
+      setProfile(profile)
+      setFormData(profile || {})
     } catch (error) {
       console.error(error)
       toast.error('Failed to load profile')
@@ -64,12 +92,40 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const { error } = await supabase.from('profiles').update(formData).eq('id', profile?.id)
-      if (error) throw error
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Update profiles table (phone only)
+      const profileUpdate = {
+        phone: formData.phone
+      }
+      await supabase.from('profiles').update(profileUpdate).eq('id', user.id)
+
+      // Update student_profiles table
+      const studentProfileUpdate = {
+        date_of_birth: formData.date_of_birth,
+        gender: formData.gender,
+        blood_group: formData.blood_group,
+        genotype: formData.genotype,
+        state_of_origin: formData.state_of_origin,
+        local_government_area: formData.local_government_area,
+        nationality: formData.nationality,
+        address_line_1: formData.address_line_1,
+        address_line_2: formData.address_line_2,
+        city: formData.city,
+        state: formData.state,
+        guardian_name: formData.guardian_name,
+        guardian_phone: formData.guardian_phone,
+        guardian_email: formData.guardian_email,
+        emergency_contact_name: formData.emergency_contact_name,
+        emergency_contact_phone: formData.emergency_contact_phone
+      }
+      await supabase.from('student_profiles').update(studentProfileUpdate).eq('profile_id', user.id)
       
       setProfile({ ...profile, ...formData } as StudentProfile)
       setEditing(false)
       toast.success('Profile updated successfully')
+      loadProfile()
     } catch (error) {
       console.error(error)
       toast.error('Failed to update profile')
@@ -128,12 +184,12 @@ export default function ProfilePage() {
             )}
             <div className="mt-4 space-y-2 text-sm">
               <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                <GraduationCap className="h-4 w-4" />
-                <span>{profile?.department || 'Department not assigned'}</span>
+                <Building2 className="h-4 w-4" />
+                <span>{profile?.department_name || 'Department not assigned'}</span>
               </div>
               <div className="flex items-center justify-center gap-2 text-muted-foreground">
                 <BadgeCheck className="h-4 w-4" />
-                <span>{profile?.level || 'Level not set'}</span>
+                <span>{profile?.current_level ? `${profile.current_level}L` : 'Level not set'}</span>
               </div>
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
@@ -217,15 +273,61 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="address">Residential Address</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address || ''}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="rounded-xl"
-                  rows={3}
-                />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="gender">Gender</Label>
+                  <Select value={formData.gender || ''} onValueChange={(value) => setFormData({ ...formData, gender: value })}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                      <SelectItem value="prefer_not_to_say">Prefer not to say</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="nationality">Nationality</Label>
+                  <Input
+                    id="nationality"
+                    value={formData.nationality || 'Nigerian'}
+                    onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="blood_group">Blood Group</Label>
+                  <Select value={formData.blood_group || ''} onValueChange={(value) => setFormData({ ...formData, blood_group: value })}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Select blood group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A">A</SelectItem>
+                      <SelectItem value="B">B</SelectItem>
+                      <SelectItem value="AB">AB</SelectItem>
+                      <SelectItem value="O">O</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="genotype">Genotype</Label>
+                  <Select value={formData.genotype || ''} onValueChange={(value) => setFormData({ ...formData, genotype: value })}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Select genotype" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AA">AA</SelectItem>
+                      <SelectItem value="AS">AS</SelectItem>
+                      <SelectItem value="SS">SS</SelectItem>
+                      <SelectItem value="AC">AC</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -239,34 +341,111 @@ export default function ProfilePage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="lga">Local Government Area</Label>
+                  <Label htmlFor="local_government_area">Local Government Area</Label>
                   <Input
-                    id="lga"
-                    value={formData.lga || ''}
-                    onChange={(e) => setFormData({ ...formData, lga: e.target.value })}
+                    id="local_government_area"
+                    value={formData.local_government_area || ''}
+                    onChange={(e) => setFormData({ ...formData, local_government_area: e.target.value })}
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="address_line_1">Address Line 1</Label>
+                <Textarea
+                  id="address_line_1"
+                  value={formData.address_line_1 || ''}
+                  onChange={(e) => setFormData({ ...formData, address_line_1: e.target.value })}
+                  className="rounded-xl"
+                  rows={2}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="address_line_2">Address Line 2 (Optional)</Label>
+                <Textarea
+                  id="address_line_2"
+                  value={formData.address_line_2 || ''}
+                  onChange={(e) => setFormData({ ...formData, address_line_2: e.target.value })}
+                  className="rounded-xl"
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={formData.city || ''}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    className="rounded-xl"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="state">State</Label>
+                  <Input
+                    id="state"
+                    value={formData.state || ''}
+                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                     className="rounded-xl"
                   />
                 </div>
               </div>
 
               <div className="border-t border-border pt-4 mt-4">
-                <h3 className="text-sm font-semibold mb-4">Next of Kin Information</h3>
+                <h3 className="text-sm font-semibold mb-4">Guardian Information</h3>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <Label htmlFor="next_of_kin">Next of Kin Name</Label>
+                    <Label htmlFor="guardian_name">Guardian Name</Label>
                     <Input
-                      id="next_of_kin"
-                      value={formData.next_of_kin || ''}
-                      onChange={(e) => setFormData({ ...formData, next_of_kin: e.target.value })}
+                      id="guardian_name"
+                      value={formData.guardian_name || ''}
+                      onChange={(e) => setFormData({ ...formData, guardian_name: e.target.value })}
                       className="rounded-xl"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="next_of_kin_phone">Next of Kin Phone</Label>
+                    <Label htmlFor="guardian_phone">Guardian Phone</Label>
                     <Input
-                      id="next_of_kin_phone"
-                      value={formData.next_of_kin_phone || ''}
-                      onChange={(e) => setFormData({ ...formData, next_of_kin_phone: e.target.value })}
+                      id="guardian_phone"
+                      value={formData.guardian_phone || ''}
+                      onChange={(e) => setFormData({ ...formData, guardian_phone: e.target.value })}
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor="guardian_email">Guardian Email</Label>
+                    <Input
+                      id="guardian_email"
+                      type="email"
+                      value={formData.guardian_email || ''}
+                      onChange={(e) => setFormData({ ...formData, guardian_email: e.target.value })}
+                      className="rounded-xl"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-4 mt-4">
+                <h3 className="text-sm font-semibold mb-4">Emergency Contact Information</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="emergency_contact_name">Emergency Contact Name</Label>
+                    <Input
+                      id="emergency_contact_name"
+                      value={formData.emergency_contact_name || ''}
+                      onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="emergency_contact_phone">Emergency Contact Phone</Label>
+                    <Input
+                      id="emergency_contact_phone"
+                      value={formData.emergency_contact_phone || ''}
+                      onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
                       className="rounded-xl"
                     />
                   </div>
@@ -313,7 +492,9 @@ export default function ProfilePage() {
                 <MapPin className="h-5 w-5 text-primary mt-0.5" />
                 <div className="flex-1">
                   <p className="text-xs text-muted-foreground">Residential Address</p>
-                  <p className="font-semibold">{profile?.address || 'Not provided'}</p>
+                  <p className="font-semibold">{profile?.address_line_1 || 'Not provided'}</p>
+                  {profile?.address_line_2 && <p className="text-sm text-muted-foreground">{profile.address_line_2}</p>}
+                  {profile?.city && <p className="text-sm text-muted-foreground">{profile.city}, {profile?.state || ''}</p>}
                 </div>
               </div>
 
@@ -324,20 +505,38 @@ export default function ProfilePage() {
                 </div>
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
                   <p className="text-xs text-muted-foreground">Local Government Area</p>
-                  <p className="font-semibold">{profile?.lga || 'Not provided'}</p>
+                  <p className="font-semibold">{profile?.local_government_area || 'Not provided'}</p>
                 </div>
               </div>
 
               <div className="border-t border-border pt-4">
-                <h3 className="text-sm font-semibold mb-4">Next of Kin Information</h3>
+                <h3 className="text-sm font-semibold mb-4">Guardian Information</h3>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
                     <p className="text-xs text-muted-foreground">Name</p>
-                    <p className="font-semibold">{profile?.next_of_kin || 'Not provided'}</p>
+                    <p className="font-semibold">{profile?.guardian_name || 'Not provided'}</p>
                   </div>
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
                     <p className="text-xs text-muted-foreground">Phone</p>
-                    <p className="font-semibold">{profile?.next_of_kin_phone || 'Not provided'}</p>
+                    <p className="font-semibold">{profile?.guardian_phone || 'Not provided'}</p>
+                  </div>
+                  <div className="md:col-span-2 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                    <p className="text-xs text-muted-foreground">Email</p>
+                    <p className="font-semibold">{profile?.guardian_email || 'Not provided'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-4">
+                <h3 className="text-sm font-semibold mb-4">Emergency Contact Information</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                    <p className="text-xs text-muted-foreground">Name</p>
+                    <p className="font-semibold">{profile?.emergency_contact_name || 'Not provided'}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                    <p className="text-xs text-muted-foreground">Phone</p>
+                    <p className="font-semibold">{profile?.emergency_contact_phone || 'Not provided'}</p>
                   </div>
                 </div>
               </div>

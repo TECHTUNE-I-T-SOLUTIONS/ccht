@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { GraduationCap, Search, Filter, Download, Eye, TrendingUp, Award, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { GraduationCap, Search, Filter, Download, Eye, TrendingUp, Award, Clock, CheckCircle, XCircle, AlertCircle, Video, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { ExamService } from '@/lib/services/exam.service'
 
 type ExamResult = {
@@ -21,7 +22,20 @@ type ExamResult = {
   grade: string
   status: string
   submitted_at: string
-  answers?: Record<string, string>
+  started_at?: string
+  completed_at?: string
+  recording?: {
+    id: string
+    recording_url?: string
+    created_at: string
+  } | null
+  answers?: Array<{
+    questionId: string
+    question: string
+    answer: string
+    correctAnswer?: string
+    isCorrect?: boolean
+  }> | null
 }
 
 export default function AdminScreeningResultsPage() {
@@ -30,6 +44,8 @@ export default function AdminScreeningResultsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [gradeFilter, setGradeFilter] = useState('all')
+  const [selectedResult, setSelectedResult] = useState<ExamResult | null>(null)
+  const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
     loadResults()
@@ -38,35 +54,22 @@ export default function AdminScreeningResultsPage() {
   const loadResults = async () => {
     try {
       setLoading(true)
-      // For now, we'll load all results. In a real implementation, you'd want to paginate this
-      const { createAdminClient } = await import('@/lib/supabase/admin')
-      const supabase = createAdminClient()
-      const { data, error } = await supabase
-        .from('entrance_exam_results')
-        .select(`
-          *,
-          profiles!entrance_exam_results_aspirant_id_fkey (
-            first_name,
-            last_name,
-            email
-          )
-        `)
-        .order('submitted_at', { ascending: false })
-
-      if (error) throw error
-
-      const formattedResults = data?.map((result: any) => ({
-        ...result,
-        aspirant_name: result.profiles ? `${result.profiles.first_name} ${result.profiles.last_name}` : null,
-        aspirant_email: result.profiles?.email || null,
-      })) || []
-
-      setResults(formattedResults)
+      const response = await fetch('/api/v1/admin/screening/results')
+      const data = await response.json()
+      
+      if (!response.ok) throw new Error(data.error || 'Failed to load results')
+      
+      setResults(data.results || [])
     } catch (error) {
       console.error('Failed to load exam results:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleViewResult = (result: ExamResult) => {
+    setSelectedResult(result)
+    setShowModal(true)
   }
 
   const getGradeColor = (grade: string) => {
@@ -216,15 +219,18 @@ export default function AdminScreeningResultsPage() {
         </div>
       </Card>
 
-      {/* Results Table */}
-      {loading ? (
+      {/* Loading State */}
+      {loading && (
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             <p className="text-sm text-muted-foreground">Loading exam results...</p>
           </div>
         </div>
-      ) : filteredResults.length === 0 ? (
+      )}
+
+      {/* Empty State */}
+      {!loading && filteredResults.length === 0 && (
         <Card className="p-12 text-center">
           <GraduationCap className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
           <h3 className="text-lg font-semibold">No exam results found</h3>
@@ -234,8 +240,11 @@ export default function AdminScreeningResultsPage() {
               : 'No exam results have been submitted yet'}
           </p>
         </Card>
-      ) : (
-        <Card className="overflow-hidden">
+      )}
+
+      {/* Results Table - Desktop/Tablet */}
+      {!loading && filteredResults.length > 0 && (
+        <Card className="overflow-hidden hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50 dark:bg-slate-800/50">
@@ -277,7 +286,18 @@ export default function AdminScreeningResultsPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" className="gap-2">
+                        {result.recording?.recording_url && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="gap-2"
+                            onClick={() => window.open(result.recording?.recording_url, '_blank')}
+                          >
+                            <Video className="h-4 w-4" />
+                            Recording
+                          </Button>
+                        )}
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => handleViewResult(result)}>
                           <Eye className="h-4 w-4" />
                           View
                         </Button>
@@ -290,6 +310,173 @@ export default function AdminScreeningResultsPage() {
           </div>
         </Card>
       )}
+
+      {/* Results Cards - Mobile */}
+      {!loading && filteredResults.length > 0 && (
+        <div className="md:hidden space-y-4">
+          {filteredResults.map((result) => (
+            <Card key={result.id} className="p-4">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold break-words">{result.aspirant_name || 'Unknown'}</p>
+                    <p className="text-xs text-muted-foreground break-words">{result.aspirant_email || 'No email'}</p>
+                  </div>
+                  <Badge className={getGradeColor(result.grade)}>{result.grade}</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Score</p>
+                    <p className="text-lg font-bold">{result.percentage}%</p>
+                    <p className="text-xs text-muted-foreground">({result.score}/{result.total_questions})</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <Badge className={getStatusColor(result.status)}>{result.status}</Badge>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  {new Date(result.submitted_at).toLocaleDateString()}
+                </div>
+                <div className="flex gap-2 pt-2">
+                  {result.recording?.recording_url && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1 gap-2"
+                      onClick={() => window.open(result.recording?.recording_url, '_blank')}
+                    >
+                      <Video className="h-4 w-4" />
+                      Recording
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={() => handleViewResult(result)}>
+                    <Eye className="h-4 w-4" />
+                    View
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Result Details Modal */}
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="max-w-4xl w-full max-h-[85vh] bg-white dark:bg-slate-950 overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0 pb-2">
+            <div className="flex items-center justify-between">
+              <DialogTitle>Exam Result Details</DialogTitle>
+              <Button variant="ghost" size="sm" onClick={() => setShowModal(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <DialogDescription className="hidden">
+              View detailed exam results, answers, and performance metrics for the selected aspirant.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedResult && (
+            <div className="flex-1 overflow-y-auto space-y-3 px-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Aspirant Name</p>
+                  <p className="font-semibold break-words text-sm">{selectedResult.aspirant_name || 'Unknown'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Email</p>
+                  <p className="font-semibold break-words text-xs">{selectedResult.aspirant_email || 'N/A'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Exam Type</p>
+                  <p className="font-semibold break-words text-sm">{selectedResult.exam_type}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <Badge className={getStatusColor(selectedResult.status)}>{selectedResult.status}</Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Score</p>
+                  <p className="text-xl font-bold">{selectedResult.percentage}%</p>
+                  <p className="text-xs text-muted-foreground">({selectedResult.score}/{selectedResult.total_questions})</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Grade</p>
+                  <Badge className={`${getGradeColor(selectedResult.grade)} text-base px-3 py-1`}>{selectedResult.grade}</Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Submitted</p>
+                  <p className="text-xs">{new Date(selectedResult.submitted_at).toLocaleString()}</p>
+                </div>
+              </div>
+              {selectedResult.started_at && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Exam Duration</p>
+                  <p className="text-xs">
+                    {selectedResult.completed_at 
+                      ? `${Math.round((new Date(selectedResult.completed_at).getTime() - new Date(selectedResult.started_at).getTime()) / 60000)} minutes`
+                      : 'In progress'}
+                  </p>
+                </div>
+              )}
+              
+              {selectedResult.answers && selectedResult.answers.length > 0 && (
+                <div className="pt-3 border-t">
+                  <h3 className="text-base font-semibold mb-3">Answers</h3>
+                  <div className="space-y-2">
+                    {selectedResult.answers.map((item, index) => (
+                      <div key={item.questionId} className="rounded-lg border bg-slate-50 dark:bg-slate-900 p-3">
+                        <div className="flex items-start gap-2">
+                          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium mb-1 break-words">{item.question}</p>
+                            <div className="space-y-0.5">
+                              <p className="text-xs text-muted-foreground">
+                                Answer: <span className={`font-medium ${item.isCorrect ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{item.answer}</span>
+                                {item.isCorrect !== undefined && (
+                                  item.isCorrect ? (
+                                    <CheckCircle className="inline-block ml-1 h-3 w-3 text-green-600 dark:text-green-400" />
+                                  ) : (
+                                    <XCircle className="inline-block ml-1 h-3 w-3 text-red-600 dark:text-red-400" />
+                                  )
+                                )}
+                              </p>
+                              {item.correctAnswer && (
+                                <p className="text-xs text-muted-foreground">
+                                  Correct: <span className="font-medium">{item.correctAnswer}</span>
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedResult.recording?.recording_url && (
+                <div className="pt-3 border-t">
+                  <Button 
+                    variant="outline" 
+                    className="w-full gap-2"
+                    onClick={() => window.open(selectedResult.recording?.recording_url, '_blank')}
+                  >
+                    <Video className="h-4 w-4" />
+                    View Exam Recording
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

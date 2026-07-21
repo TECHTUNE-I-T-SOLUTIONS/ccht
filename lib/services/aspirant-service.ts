@@ -87,9 +87,9 @@ export class AspirantService {
 
     if (error) throw new Error('Failed to check offer status: ' + error.message);
 
-    // Show offer modal when status is 'admitted' and stage is 'migration' (waiting for aspirant to accept)
+    // Show offer modal when status is 'accepted' (admin has accepted the application)
     return {
-      hasOffer: data.application_status === 'admitted' && data.current_stage === 'migration',
+      hasOffer: data.application_status === 'accepted',
       offerDetails: data,
     };
   }
@@ -98,12 +98,12 @@ export class AspirantService {
     const supabase = await createClient();
     
     if (accept) {
-      // When accepted, set status to admission_accepted and stage to admission_acceptance
+      // When accepted, set status to pending_payment and stage to admission_fee
       const { data, error } = await supabase
         .from('aspirant_profiles')
         .update({
-          application_status: 'admission_accepted',
-          current_stage: 'admission_acceptance',
+          application_status: 'pending_payment',
+          current_stage: 'admission_fee',
           updated_at: new Date().toISOString(),
         })
         .eq('profile_id', profileId)

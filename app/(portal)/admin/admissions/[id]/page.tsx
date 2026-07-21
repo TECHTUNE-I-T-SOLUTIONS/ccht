@@ -24,6 +24,7 @@ export default function AdminApplicationReviewPage() {
   const [showBulkVerifyModal, setShowBulkVerifyModal] = useState(false)
   const [showAdmitModal, setShowAdmitModal] = useState(false)
   const [showMigrateModal, setShowMigrateModal] = useState(false)
+  const [showCompleteMigrationModal, setShowCompleteMigrationModal] = useState(false)
   const [status, setStatus] = useState('')
   const [adminNote, setAdminNote] = useState('')
 
@@ -138,6 +139,28 @@ export default function AdminApplicationReviewPage() {
       }
     } catch (err) {
       toast.error('An error occurred during migration')
+    } finally {
+      setIsMigrating(false)
+    }
+  }
+
+  const handleCompleteMigration = async () => {
+    setShowCompleteMigrationModal(true)
+  }
+
+  const confirmCompleteMigration = async () => {
+    setShowCompleteMigrationModal(false)
+    setIsMigrating(true)
+    try {
+      const res = await migrateToStudentAction(id as string)
+      if (res.success) {
+        toast.success('Migration completed successfully. All student records have been updated.')
+        loadData()
+      } else {
+        toast.error(res.error || 'Failed to complete migration')
+      }
+    } catch (err) {
+      toast.error('An error occurred during migration completion')
     } finally {
       setIsMigrating(false)
     }
@@ -367,10 +390,14 @@ export default function AdminApplicationReviewPage() {
               )}
               
               {app.status === 'migrated' && (
-                <div className="mt-4 p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 rounded-lg text-sm flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
-                  <p>This applicant has been successfully migrated to the student portal.</p>
-                </div>
+                <Button 
+                  onClick={handleCompleteMigration} 
+                  disabled={isMigrating}
+                  variant="default"
+                  className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {isMigrating ? 'Completing...' : 'Complete Migration'}
+                </Button>
               )}
             </div>
           </Card>
@@ -536,6 +563,39 @@ export default function AdminApplicationReviewPage() {
             </Button>
             <Button onClick={confirmMigrate} disabled={isMigrating}>
               {isMigrating ? 'Migrating...' : 'Migrate to Student'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Complete Migration Confirmation Modal */}
+      <Dialog open={showCompleteMigrationModal} onOpenChange={setShowCompleteMigrationModal}>
+        <DialogContent className="bg-white dark:bg-slate-900 sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Complete Migration to Student</DialogTitle>
+            <DialogDescription>
+              This action will complete the migration process and perform the following updates:
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+              <li>Update current stage to <strong>completed</strong></li>
+              <li>Set profile completion to <strong>100%</strong></li>
+              <li>Add automated submission note</li>
+              <li>Update reviewed by with your admin profile</li>
+              <li>Mark migration as completed with timestamp</li>
+              <li>Set matric number from admission number</li>
+              <li>Insert all details into student_profiles table</li>
+              <li>Set admission status to <strong>active</strong></li>
+            </ul>
+            <p className="text-amber-600 dark:text-amber-400 font-medium">This action cannot be undone.</p>
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={() => setShowCompleteMigrationModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmCompleteMigration} disabled={isMigrating} className="bg-emerald-600 hover:bg-emerald-700">
+              {isMigrating ? 'Completing...' : 'Complete Migration'}
             </Button>
           </div>
         </DialogContent>
