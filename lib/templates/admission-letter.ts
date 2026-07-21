@@ -28,12 +28,31 @@ export function generateAdmissionLetter(data: AdmissionLetterData): jsPDF {
   } = data
 
   const doc = new jsPDF()
-  let y = 20
+  const pageHeight = doc.internal.pageSize.height
+  const margin = 20
+  const lineHeight = 5
+  let y = margin
+
+  const addPageIfNeeded = (additionalSpace = 20) => {
+    if (y + additionalSpace > pageHeight - margin) {
+      doc.addPage()
+      y = margin
+    }
+  }
+
+  // Add school logo
+  try {
+    doc.addImage('/images/logo.png', 'PNG', margin, y, 30, 30)
+    y += 35
+  } catch (error) {
+    // If logo fails to load, continue without it
+    console.warn('Failed to load logo:', error)
+  }
 
   // Header
   doc.setFontSize(18)
   doc.setFont('helvetica', 'bold')
-  doc.text('CROSS COLLEGE OF HEALTH TECHNOLOGY', 105, y, { align: 'center' })
+  doc.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', 105, y, { align: 'center' })
   y += 10
   doc.setFontSize(14)
   doc.text('OFFICIAL ADMISSION LETTER', 105, y, { align: 'center' })
@@ -57,10 +76,11 @@ export function generateAdmissionLetter(data: AdmissionLetterData): jsPDF {
 
   // Main text
   doc.setFont('helvetica', 'normal')
-  const text = `We are pleased to inform you that you have been offered admission into the ${program} program at Cross College of Health Technology for the ${new Date().getFullYear()}/${new Date().getFullYear() + 1} academic session.`
+  const text = `We are pleased to inform you that you have been offered admission into the ${program} program at Covenant College of Health Technology for the ${new Date().getFullYear()}/${new Date().getFullYear() + 1} academic session.`
   const splitText = doc.splitTextToSize(text, 170)
+  addPageIfNeeded(splitText.length * lineHeight + 10)
   doc.text(splitText, 20, y)
-  y += splitText.length * 5 + 10
+  y += splitText.length * lineHeight + 10
 
   // Admission Details
   doc.setFont('helvetica', 'bold')
@@ -94,11 +114,13 @@ export function generateAdmissionLetter(data: AdmissionLetterData): jsPDF {
   doc.setFont('helvetica', 'normal')
   conditions.forEach(condition => {
     const split = doc.splitTextToSize(condition, 170)
+    addPageIfNeeded(split.length * lineHeight + 5)
     doc.text(split, 25, y)
-    y += split.length * 5 + 5
+    y += split.length * lineHeight + 5
   })
 
   y += 5
+  addPageIfNeeded(20)
   doc.setFont('helvetica', 'bold')
   doc.text('SCHOOL RULES AND REGULATIONS:', 20, y)
   y += 7
@@ -119,12 +141,14 @@ export function generateAdmissionLetter(data: AdmissionLetterData): jsPDF {
   doc.setFont('helvetica', 'normal')
   rules.forEach(rule => {
     const split = doc.splitTextToSize(rule, 170)
+    addPageIfNeeded(split.length * lineHeight + 5)
     doc.text(split, 25, y)
-    y += split.length * 5 + 5
+    y += split.length * lineHeight + 5
   })
 
   // Important Dates
   y += 5
+  addPageIfNeeded(20)
   doc.setFont('helvetica', 'bold')
   doc.text('IMPORTANT DATES:', 20, y)
   y += 7
@@ -139,6 +163,7 @@ export function generateAdmissionLetter(data: AdmissionLetterData): jsPDF {
   y += 10
 
   // Contact Information
+  addPageIfNeeded(20)
   doc.setFont('helvetica', 'bold')
   doc.text('CONTACT INFORMATION:', 20, y)
   y += 7
@@ -153,23 +178,27 @@ export function generateAdmissionLetter(data: AdmissionLetterData): jsPDF {
   y += 10
 
   // Footer
+  addPageIfNeeded(30)
   doc.setFont('helvetica', 'italic')
   doc.setFontSize(9)
   const footer = 'Please note that this admission is provisional and subject to verification of all submitted documents.'
   const splitFooter = doc.splitTextToSize(footer, 170)
   doc.text(splitFooter, 20, y)
-  y += splitFooter.length * 5 + 10
+  y += splitFooter.length * lineHeight + 10
 
   doc.setFont('helvetica', 'normal')
-  doc.text('Congratulations on your admission. We look forward to welcoming you to Cross College of Health Technology.', 20, y)
-  y += 10
+  const congrats = 'Congratulations on your admission. We look forward to welcoming you to Covenant College of Health Technology.'
+  const splitCongrats = doc.splitTextToSize(congrats, 170)
+  addPageIfNeeded(splitCongrats.length * lineHeight + 10)
+  doc.text(splitCongrats, 20, y)
+  y += splitCongrats.length * lineHeight + 10
 
   doc.setFont('helvetica', 'bold')
   doc.text('Yours faithfully,', 20, y)
   y += 10
   doc.text('The Registrar', 20, y)
   y += 5
-  doc.text('Cross College of Health Technology', 20, y)
+  doc.text('Covenant College of Health Technology', 20, y)
 
   return doc
 }

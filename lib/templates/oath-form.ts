@@ -20,12 +20,31 @@ export function generateOathForm(data: OathFormData): jsPDF {
   } = data
 
   const doc = new jsPDF()
-  let y = 20
+  const pageHeight = doc.internal.pageSize.height
+  const margin = 20
+  const lineHeight = 5
+  let y = margin
+
+  const addPageIfNeeded = (additionalSpace = 20) => {
+    if (y + additionalSpace > pageHeight - margin) {
+      doc.addPage()
+      y = margin
+    }
+  }
+
+  // Add school logo
+  try {
+    doc.addImage('/images/logo.png', 'PNG', margin, y, 30, 30)
+    y += 35
+  } catch (error) {
+    // If logo fails to load, continue without it
+    console.warn('Failed to load logo:', error)
+  }
 
   // Header
   doc.setFontSize(18)
   doc.setFont('helvetica', 'bold')
-  doc.text('CROSS COLLEGE OF HEALTH TECHNOLOGY', 105, y, { align: 'center' })
+  doc.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', 105, y, { align: 'center' })
   y += 10
   doc.setFontSize(14)
   doc.text('SCHOOL OATH FORM AND AGREEMENT', 105, y, { align: 'center' })
@@ -48,8 +67,9 @@ export function generateOathForm(data: OathFormData): jsPDF {
   doc.setFontSize(10)
   const preamble = `I, ${firstName} ${lastName}, with Matric Number ${matricNumber}, enrolled in the ${program} program, Department of ${department}, hereby solemnly declare and agree as follows:`
   const splitPreamble = doc.splitTextToSize(preamble, 170)
+  addPageIfNeeded(splitPreamble.length * lineHeight + 10)
   doc.text(splitPreamble, 20, y)
-  y += splitPreamble.length * 5 + 10
+  y += splitPreamble.length * lineHeight + 10
 
   // Sections
   const sections = [
@@ -115,6 +135,7 @@ export function generateOathForm(data: OathFormData): jsPDF {
   ]
 
   sections.forEach(section => {
+    addPageIfNeeded(20)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
     doc.text(section.title, 20, y)
@@ -124,13 +145,15 @@ export function generateOathForm(data: OathFormData): jsPDF {
     doc.setFontSize(9)
     section.items.forEach(item => {
       const split = doc.splitTextToSize(item, 170)
+      addPageIfNeeded(split.length * lineHeight + 3)
       doc.text(split, 25, y)
-      y += split.length * 4 + 3
+      y += split.length * lineHeight + 3
     })
     y += 5
   })
 
   // Declaration
+  addPageIfNeeded(20)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   doc.text('DECLARATION AND SIGNATURE:', 20, y)
@@ -138,10 +161,11 @@ export function generateOathForm(data: OathFormData): jsPDF {
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
-  const declaration = 'I hereby declare that I have read, understood, and agree to abide by all the rules, regulations, and guidelines of Cross College of Health Technology as outlined in this oath.'
+  const declaration = 'I hereby declare that I have read, understood, and agree to abide by all the rules, regulations, and guidelines of Covenant College of Health Technology as outlined in this oath.'
   const splitDeclaration = doc.splitTextToSize(declaration, 170)
+  addPageIfNeeded(splitDeclaration.length * lineHeight + 10)
   doc.text(splitDeclaration, 20, y)
-  y += splitDeclaration.length * 5 + 10
+  y += splitDeclaration.length * lineHeight + 10
 
   // Student Info
   doc.setFont('helvetica', 'bold')
@@ -169,12 +193,13 @@ export function generateOathForm(data: OathFormData): jsPDF {
   y += 15
 
   // Footer
+  addPageIfNeeded(20)
   doc.setFont('helvetica', 'italic')
   doc.setFontSize(8)
   doc.text('This document is official and confidential. Any unauthorized reproduction or distribution is prohibited.', 20, y)
   y += 8
   doc.setFont('helvetica', 'normal')
-  doc.text('CROSS COLLEGE OF HEALTH TECHNOLOGY - Excellence in Health Education', 20, y)
+  doc.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY - Excellence in Health Education', 20, y)
   y += 10
   doc.text('For any clarifications, contact: students@ccht.edu.ng', 20, y)
 

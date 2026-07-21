@@ -40,7 +40,7 @@ export default function StudentFeesPage() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [selectedFee, setSelectedFee] = useState<FeeStructure | null>(null)
 
-  const sessions = ['2024/2025', '2023/2024', '2022/2023']
+  const sessions = ['2031/2032', '2030/2031', '2029/2030', '2028/2029', '2027/2028', '2026/2027', '2025/2026', '2024/2025', '2023/2024', '2022/2023']
   const semesters = ['all', 'first', 'second']
 
   const loadPaymentData = async () => {
@@ -154,10 +154,10 @@ export default function StudentFeesPage() {
             <h1 className="mt-2 text-3xl font-extrabold md:text-5xl">School Fees & Payments</h1>
             <p className="mt-1 text-sm text-foreground/75">View fees by session/semester and make secure payments</p>
           </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-white dark:bg-primary/10 p-4 shadow-sm">
             <Coins className="h-10 w-10 text-primary" />
             <div>
-              <span className="block text-[10px] font-technical uppercase font-bold text-muted-foreground">Outstanding Balance</span>
+              <span className="block text-[8px] font-technical uppercase font-bold text-muted-foreground">Outstanding Balance</span>
               <span className="text-2xl font-black font-technical text-primary">₦{remainingBalance.toLocaleString()}</span>
             </div>
           </div>

@@ -81,7 +81,7 @@ export default function StudentReceiptsPage() {
             amount: p.amount || 0,
             payment_type: 'admission_fee',
             status: p.payment_status || p.status || 'pending',
-            reference: p.payment_reference || p.reference || 'N/A',
+            reference: p.paystack_reference || p.provider_transaction_id || 'N/A',
             description: 'Admission Fee Payment',
             created_at: p.created_at,
             paid_at: p.paid_at,
@@ -98,7 +98,7 @@ export default function StudentReceiptsPage() {
             amount: p.amount || 0,
             payment_type: 'application_fee',
             status: p.payment_status || p.status || 'pending',
-            reference: p.payment_reference || p.reference || 'N/A',
+            reference: p.paystack_reference || p.provider_transaction_id || 'N/A',
             description: 'Application Fee Payment',
             created_at: p.created_at,
             paid_at: p.paid_at,
@@ -115,7 +115,7 @@ export default function StudentReceiptsPage() {
             amount: p.amount || 0,
             payment_type: p.payment_type || 'fee',
             status: p.status || 'pending',
-            reference: p.reference || 'N/A',
+            reference: p.paystack_reference || p.provider_transaction_id || 'N/A',
             description: p.description || 'Payment',
             created_at: p.created_at,
             paid_at: p.paid_at,
@@ -173,7 +173,7 @@ export default function StudentReceiptsPage() {
     const paymentDate = payment.paid_at ? new Date(payment.paid_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Pending'
     const createdDate = new Date(payment.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
     
-    const content = generatePaymentReceipt({
+    const doc = generatePaymentReceipt({
       receiptId: payment.id,
       firstName: studentData.profiles?.first_name || '',
       lastName: studentData.profiles?.last_name || '',
@@ -191,15 +191,7 @@ export default function StudentReceiptsPage() {
       requestDate: createdDate
     })
 
-    const blob = new Blob([content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `Receipt_${payment.payment_type}_${payment.id}.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    doc.save(`Receipt_${payment.payment_type}_${payment.id}.pdf`)
     toast.success('Receipt downloaded')
   }
 

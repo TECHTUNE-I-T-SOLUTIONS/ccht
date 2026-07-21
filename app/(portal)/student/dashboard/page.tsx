@@ -124,14 +124,14 @@ export default function StudentDashboard() {
         <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
           <h2 className="text-2xl font-bold">Quick actions</h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <Button asChild className="justify-start rounded-2xl">
+            <Button asChild className="justify-start rounded-2xl border border-primary">
               <Link href="/student/courses"><BookOpen className="mr-2 h-4 w-4" />Register courses</Link>
             </Button>
             <Button asChild variant="outline" className="justify-start rounded-2xl">
               <Link href="/student/results"><FileText className="mr-2 h-4 w-4" />View results</Link>
             </Button>
             <Button asChild variant="outline" className="justify-start rounded-2xl">
-              <Link href="/student/payments"><CreditCard className="mr-2 h-4 w-4" />Pay fees</Link>
+              <Link href="/student/fees"><CreditCard className="mr-2 h-4 w-4" />Pay fees</Link>
             </Button>
             <Button asChild variant="outline" className="justify-start rounded-2xl">
               <Link href="/student/payments"><ReceiptText className="mr-2 h-4 w-4" />Download receipt</Link>

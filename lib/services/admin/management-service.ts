@@ -304,7 +304,9 @@ export class ManagementService {
         totalLecturersResult,
         totalAdminsResult,
         totalProgramsResult,
-        totalPaymentsResult,
+        paymentsResult,
+        admissionPaymentsResult,
+        applicationPaymentsResult,
         totalApplicationsResult
       ] = await Promise.all([
         supabase.from('profiles').select('id'),
@@ -314,6 +316,8 @@ export class ManagementService {
         supabase.from('profiles').select('id').eq('role', 'admin'),
         supabase.from('programs').select('id'),
         supabase.from('payments').select('id'),
+        supabase.from('aspirant_admission_payments').select('id'),
+        supabase.from('aspirant_application_payments').select('id'),
         supabase.from('aspirant_profiles').select('id'),
       ])
 
@@ -323,8 +327,11 @@ export class ManagementService {
       const totalLecturers = totalLecturersResult.data?.length || 0
       const totalAdmins = totalAdminsResult.data?.length || 0
       const totalPrograms = totalProgramsResult.data?.length || 0
-      const totalPayments = totalPaymentsResult.data?.length || 0
+      const payments = paymentsResult.data?.length || 0
+      const admissionPayments = admissionPaymentsResult.data?.length || 0
+      const applicationPayments = applicationPaymentsResult.data?.length || 0
       const totalApplications = totalApplicationsResult.data?.length || 0
+      const totalPayments = payments + admissionPayments + applicationPayments
 
       return {
         totalUsers,

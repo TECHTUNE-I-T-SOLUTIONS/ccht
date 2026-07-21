@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Plus, MoreVertical, Edit, Trash2, BookOpen, Search, Eye } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Plus, MoreVertical, Edit, Trash2, BookOpen, Search, Eye, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { getProgramsAction, createProgramAction, deleteProgramAction } from '@/app/actions/admin/program-actions'
@@ -20,12 +20,16 @@ import { set } from 'zod'
 export default function AdminProgramsPage() {
   const [programs, setPrograms] = useState<any[]>([])
   const [departments, setDepartments] = useState<any[]>([])
+  const [sessions, setSessions] = useState<any[]>([])
+  const [semesters, setSemesters] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
   // Create Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmittingSemester, setIsSubmittingSemester] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
@@ -39,6 +43,15 @@ export default function AdminProgramsPage() {
     isActive: true
   })
 
+  const [semesterFormData, setSemesterFormData] = useState({
+    sessionId: '',
+    semesterName: 'First Semester',
+    startsOn: '',
+    endsOn: '',
+    isCurrent: false,
+    isActive: true
+  })
+
   useEffect(() => {
     loadData()
   }, [])
@@ -46,9 +59,11 @@ export default function AdminProgramsPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [progRes, deptRes] = await Promise.all([
+      const [progRes, deptRes, sessionRes, semesterRes] = await Promise.all([
         getProgramsAction(),
-        getDepartmentsAction()
+        getDepartmentsAction(),
+        fetch('/api/v1/admin/academic/sessions'),
+        fetch('/api/v1/admin/academic/semesters')
       ])
 
       if (progRes.success) setPrograms(progRes.data || [])
@@ -56,6 +71,12 @@ export default function AdminProgramsPage() {
 
       if (deptRes.success) setDepartments(deptRes.data || [])
       else toast.error('Failed to load departments')
+
+      const sessionData = await sessionRes.json()
+      setSessions(sessionData.data || [])
+
+      const semesterData = await semesterRes.json()
+      setSemesters(semesterData.data || [])
     } catch (err) {
       toast.error('An error occurred')
     } finally {
@@ -97,6 +118,38 @@ export default function AdminProgramsPage() {
     }
   }
 
+  const handleCreateSemester = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmittingSemester(true)
+    try {
+      const res = await fetch('/api/v1/admin/academic/semesters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(semesterFormData)
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success('Semester created successfully')
+        setIsSemesterModalOpen(false)
+        loadData()
+        setSemesterFormData({
+          sessionId: '',
+          semesterName: 'First Semester',
+          startsOn: '',
+          endsOn: '',
+          isCurrent: false,
+          isActive: true
+        })
+      } else {
+        toast.error(data.error || 'Failed to create semester')
+      }
+    } catch (err) {
+      toast.error('An error occurred')
+    } finally {
+      setIsSubmittingSemester(false)
+    }
+  }
+
   const filteredPrograms = programs.filter(p =>
     p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.slug.toLowerCase().includes(searchQuery.toLowerCase())
@@ -110,14 +163,70 @@ export default function AdminProgramsPage() {
             <h1 className="mt-2 text-3xl font-extrabold md:text-5xl">Programs</h1>
             <p className="mt-2 text-sm text-foreground/75">Manage academic programs and their course structures.</p>
           </div>
-          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-            <DialogTrigger asChild>
-              <Button className="rounded-xl px-6"><Plus className="mr-2 h-4 w-4" /> Add Program</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
-                <DialogTitle>Create New Program</DialogTitle>
-              </DialogHeader>
+          <div className="flex gap-3">
+            <Dialog open={isSemesterModalOpen} onOpenChange={setIsSemesterModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="rounded-xl px-6"><Calendar className="mr-2 h-4 w-4" /> Add Semester</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px] bg-white dark:bg-slate-950">
+                <DialogHeader>
+                  <DialogTitle>Create New Semester</DialogTitle>
+                  <DialogDescription>Create a new semester for an academic session to enable timetable management.</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateSemester} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Academic Session *</label>
+                    <Select value={semesterFormData.sessionId} onValueChange={(val) => setSemesterFormData({ ...semesterFormData, sessionId: val })}>
+                      <SelectTrigger><SelectValue placeholder="Select session" /></SelectTrigger>
+                      <SelectContent>
+                        {sessions.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Semester Name *</label>
+                    <Select value={semesterFormData.semesterName} onValueChange={(val) => setSemesterFormData({ ...semesterFormData, semesterName: val })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="First Semester">First Semester</SelectItem>
+                        <SelectItem value="Second Semester">Second Semester</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Start Date *</label>
+                      <Input type="date" required value={semesterFormData.startsOn} onChange={(e) => setSemesterFormData({ ...semesterFormData, startsOn: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">End Date *</label>
+                      <Input type="date" required value={semesterFormData.endsOn} onChange={(e) => setSemesterFormData({ ...semesterFormData, endsOn: e.target.value })} />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
+                    <span className="text-sm font-medium">Set as Current Semester</span>
+                    <Switch checked={semesterFormData.isCurrent} onCheckedChange={(val) => setSemesterFormData({ ...semesterFormData, isCurrent: val })} />
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4">
+                    <Button type="button" variant="outline" onClick={() => setIsSemesterModalOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={isSubmittingSemester}>{isSubmittingSemester ? 'Creating...' : 'Create Semester'}</Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+              <DialogTrigger asChild>
+                <Button className="rounded-xl px-6"><Plus className="mr-2 h-4 w-4" /> Add Program</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px] bg-white dark:bg-slate-950">
+                <DialogHeader>
+                  <DialogTitle>Create New Program</DialogTitle>
+                  <DialogDescription>Create a new academic program with department, level, and duration details.</DialogDescription>
+                </DialogHeader>
               <form onSubmit={handleCreateProgram} className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -191,6 +300,7 @@ export default function AdminProgramsPage() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
       </div>
 

@@ -1,3 +1,5 @@
+import { jsPDF } from 'jspdf'
+
 export interface PaymentReceiptData {
   receiptId: string
   firstName: string
@@ -18,7 +20,7 @@ export interface PaymentReceiptData {
   currency?: string
 }
 
-export function generatePaymentReceipt(data: PaymentReceiptData): string {
+export function generatePaymentReceipt(data: PaymentReceiptData): jsPDF {
   const {
     receiptId,
     firstName,
@@ -39,210 +41,160 @@ export function generatePaymentReceipt(data: PaymentReceiptData): string {
     currency = 'NGN'
   } = data
 
+  const doc = new jsPDF()
+  const pageHeight = doc.internal.pageSize.height
+  const margin = 20
+  const lineHeight = 5
+  let y = margin
+
+  const addPageIfNeeded = (additionalSpace = 20) => {
+    if (y + additionalSpace > pageHeight - margin) {
+      doc.addPage()
+      y = margin
+    }
+  }
+
+  // Add school logo
+  try {
+    doc.addImage('/images/logo.png', 'PNG', margin, y, 30, 30)
+    y += 35
+  } catch (error) {
+    // If logo fails to load, continue without it
+    console.warn('Failed to load logo:', error)
+  }
+
+  // Header
+  doc.setFontSize(18)
+  doc.setFont('helvetica', 'bold')
+  doc.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', 105, y, { align: 'center' })
+  y += 10
+  doc.setFontSize(14)
+  doc.text('OFFICIAL PAYMENT RECEIPT', 105, y, { align: 'center' })
+  y += 15
+
+  // Receipt Details
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'bold')
+  doc.text('RECEIPT DETAILS:', 20, y)
+  y += 7
+  doc.setFont('helvetica', 'normal')
+  doc.text(`- Receipt ID: ${receiptId}`, 25, y)
+  y += 5
+  doc.text(`- Receipt Date: ${paymentDate}`, 25, y)
+  y += 5
+  doc.text(`- Payment Method: ${paymentMethod}`, 25, y)
+  y += 10
+
+  // Student Details
+  doc.setFont('helvetica', 'bold')
+  doc.text('STUDENT DETAILS:', 20, y)
+  y += 7
+  doc.setFont('helvetica', 'normal')
+  doc.text(`- Name: ${firstName} ${lastName}`, 25, y)
+  y += 5
+  doc.text(`- Matric Number: ${matricNumber}`, 25, y)
+  y += 5
+  doc.text(`- Program: ${program}`, 25, y)
+  y += 5
+  doc.text(`- Department: ${department}`, 25, y)
+  y += 5
+  doc.text(`- Email: ${email}`, 25, y)
+  y += 5
+  if (phone) {
+    doc.text(`- Phone: ${phone}`, 25, y)
+    y += 5
+  }
+  y += 10
+
+  // Payment Details
+  doc.setFont('helvetica', 'bold')
+  doc.text('PAYMENT DETAILS:', 20, y)
+  y += 7
+  doc.setFont('helvetica', 'normal')
+  doc.text(`- Payment Type: ${paymentType}`, 25, y)
+  y += 5
+  doc.text(`- Description: ${description}`, 25, y)
+  y += 5
+  doc.text(`- Amount: ${currency} ${amount.toLocaleString()}`, 25, y)
+  y += 5
+  doc.text(`- Reference: ${reference}`, 25, y)
+  y += 5
+  doc.text(`- Status: ${status.toUpperCase()}`, 25, y)
+  y += 5
+  doc.text(`- Request Date: ${requestDate}`, 25, y)
+  y += 10
+
+  // Payment Confirmation
   const isPaid = status.toLowerCase() === 'success' || status.toLowerCase() === 'paid'
+  if (isPaid) {
+    doc.setFont('helvetica', 'bold')
+    doc.text('PAYMENT CONFIRMATION:', 20, y)
+    y += 7
+    doc.setFont('helvetica', 'normal')
+    const confirmation = 'This receipt confirms that the payment has been successfully received and processed by Covenant College of Health Technology. This document serves as official proof of payment for the stated amount and may be used for all official college purposes.'
+    const splitConfirmation = doc.splitTextToSize(confirmation, 170)
+    addPageIfNeeded(splitConfirmation.length * lineHeight + 10)
+    doc.text(splitConfirmation, 25, y)
+    y += splitConfirmation.length * lineHeight + 10
 
-  return `
-CROSS COLLEGE OF HEALTH TECHNOLOGY
-OFFICIAL PAYMENT RECEIPT
+    doc.setFont('helvetica', 'bold')
+    doc.text('VERIFICATION DETAILS:', 20, y)
+    y += 7
+    doc.setFont('helvetica', 'normal')
+    doc.text(`- Transaction Reference: ${reference}`, 25, y)
+    y += 5
+    doc.text(`- Payment Date: ${paymentDate}`, 25, y)
+    y += 10
+  } else {
+    doc.setFont('helvetica', 'bold')
+    doc.text('PAYMENT STATUS:', 20, y)
+    y += 7
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Status: ${status.toUpperCase()}`, 25, y)
+    y += 5
+    const pendingText = 'This payment is currently pending. Please complete the payment process to receive a confirmed receipt. Contact the finance department if you have any questions.'
+    const splitPending = doc.splitTextToSize(pendingText, 170)
+    addPageIfNeeded(splitPending.length * lineHeight + 10)
+    doc.text(splitPending, 25, y)
+    y += splitPending.length * lineHeight + 10
+  }
 
-RECEIPT DETAILS:
-- Receipt ID: ${receiptId}
-- Receipt Date: ${paymentDate}
-- Request Date: ${requestDate}
+  // Important Notes
+  addPageIfNeeded(20)
+  doc.setFont('helvetica', 'bold')
+  doc.text('IMPORTANT NOTES:', 20, y)
+  y += 7
+  doc.setFont('helvetica', 'normal')
+  const notes = [
+    '1. Keep this receipt for your records.',
+    '2. Present this receipt for any payment-related inquiries.',
+    '3. This receipt is valid for official college purposes.',
+    '4. Regularly check your student portal for payment updates.',
+    '5. Contact the finance department if you have any questions about your payment.'
+  ]
+  notes.forEach(note => {
+    doc.text(note, 25, y)
+    y += 5
+  })
+  y += 10
 
-STUDENT INFORMATION:
-- Name: ${firstName} ${lastName}
-- Matric Number: ${matricNumber}
-- Program: ${program}
-- Department: ${department}
-- Email: ${email}
-- Phone: ${phone || 'N/A'}
+  // Footer
+  addPageIfNeeded(20)
+  doc.setFont('helvetica', 'bold')
+  doc.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', 20, y)
+  y += 5
+  doc.setFont('helvetica', 'normal')
+  doc.text('Excellence in Health Education', 20, y)
+  y += 10
+  doc.setFont('helvetica', 'italic')
+  doc.setFontSize(8)
+  doc.text('This is a computer-generated receipt. No signature required.', 20, y)
+  y += 5
+  doc.text(`Generated on: ${new Date().toISOString()}`, 20, y)
+  y += 5
+  doc.text('System: Covenant College of Health Technology Payment System', 20, y)
+  y += 5
+  doc.text('Version: 1.0', 20, y)
 
-PAYMENT INFORMATION:
-- Payment Type: ${paymentType.toUpperCase()}
-- Amount: ${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-- Reference Number: ${reference}
-- Description: ${description}
-- Payment Method: ${paymentMethod}
-- Payment Status: ${status.toUpperCase()}
-- Payment Date: ${paymentDate}
-
-PAYMENT BREAKDOWN:
-- Subtotal: ${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-- Processing Fee: ${currency} 0.00
-- Total: ${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-
-PAYMENT STATUS: ${status.toUpperCase()}
-
-${isPaid ? `
-PAYMENT CONFIRMATION:
-
-This receipt confirms that the payment has been successfully received and processed by Cross College of Health Technology. This document serves as official proof of payment for the stated amount and may be used for all official college purposes.
-
-VERIFICATION DETAILS:
-- Transaction Reference: ${reference}
-- Processing Date: ${paymentDate}
-- Confirmation Status: VERIFIED
-- Receipt Validity: VALID
-
-IMPORTANT NOTES:
-1. Please keep this receipt for your records.
-2. This receipt is required for registration and examination purposes.
-3. For any inquiries regarding this payment, contact the finance department.
-4. This receipt is valid for all official college purposes.
-5. Duplicate receipts may be issued upon request with valid identification.
-6. This receipt is non-transferable and valid only for the named student.
-
-REFUND POLICY:
-- Refund requests must be submitted in writing to the finance department.
-- Refund requests will be reviewed on a case-by-case basis.
-- Administrative fees may be deducted from approved refunds.
-- Processing time for refunds may take up to 30 business days.
-- Refund requests must be made within 90 days of payment.
-
-DISPUTE RESOLUTION:
-- If you believe there is an error in this receipt, contact the finance department within 30 days.
-- Provide your receipt ID and reference number for faster resolution.
-- Disputes will be investigated and resolved within 15 business days.
-- The college reserves the right to verify payment details before issuing corrections.
-` : `
-PAYMENT STATUS NOTICE:
-
-This payment is currently ${status.toUpperCase()}. Once processed, a final receipt will be generated and made available through the student portal.
-
-NEXT STEPS:
-1. If payment is pending, please wait for processing to complete.
-2. If payment failed, please contact the finance department for assistance.
-3. If payment was abandoned, you may initiate a new payment through the student portal.
-4. For payment status inquiries, please contact the finance department.
-
-CONTACT FOR ASSISTANCE:
-- Finance Department: finance@ccht.edu.ng
-- Student Affairs: students@ccht.edu.ng
-- College Administration: admin@ccht.edu.ng
-
-Please have your reference number (${reference}) ready when contacting the finance department.
-`}
-
-FEE STRUCTURE REFERENCE:
-
-Application Fee: ${currency} 6,500.00
-Admission Fee: ${currency} 30,000.00
-Tuition Fee: As per program schedule
-Laboratory Fee: As per program schedule
-Library Fee: As per program schedule
-Examination Fee: As per program schedule
-Other Fees: As per program schedule
-
-For detailed fee information, please refer to the current fee schedule available at the finance department or on the college portal.
-
-TERMS AND CONDITIONS:
-
-1. RECEIPT VALIDITY:
-   - This receipt is valid only for the academic session indicated.
-   - This receipt is non-transferable and cannot be used by another student.
-   - This receipt must be presented for verification when requested.
-
-2. PAYMENT VERIFICATION:
-   - The college reserves the right to verify payment details at any time.
-   - Students must provide original payment receipts for verification.
-   - Fraudulent receipts will result in disciplinary action.
-
-3. DISCREPANCIES:
-   - Any discrepancies in this receipt must be reported to the finance department within 30 days.
-   - Corrections will be made after verification of payment records.
-   - The college is not liable for errors after the 30-day period.
-
-4. DUPLICATE RECEIPTS:
-   - Duplicate receipts may be issued upon request with valid identification.
-   - A processing fee may apply for duplicate receipts.
-   - Duplicate receipts will be marked as "DUPLICATE" and will have the same validity as the original.
-
-5. PAYMENT METHODS:
-   - Payments can be made through Paystack, bank transfer, or cash at designated banks.
-   - Online payments are processed securely through Paystack.
-   - Bank transfer details are available on the college portal.
-   - Cash payments must be made at designated bank branches only.
-
-6. LATE PAYMENTS:
-   - Late payment penalties may apply for payments made after the deadline.
-   - Students with outstanding fees may not be allowed to sit for examinations.
-   - Late payment penalties are outlined in the student handbook.
-
-7. REFUNDS:
-   - Refund policies are outlined in the student handbook.
-   - Refund requests must be submitted in writing with supporting documentation.
-   - Refunds are subject to approval by the college administration.
-   - Processing time for refunds may take up to 30 business days.
-
-8. CONFIDENTIALITY:
-   - Payment information is confidential and protected by college policy.
-   - Payment records will not be shared with third parties without authorization.
-   - Students must protect their payment receipts and reference numbers.
-
-9. MODIFICATIONS:
-   - The college reserves the right to modify fee structures and payment policies.
-   - Students will be notified of any changes through official channels.
-   - Changes will be effective from the date of notification.
-
-10. LEGAL COMPLIANCE:
-    - All payments are subject to applicable laws and regulations.
-    - The college complies with all financial reporting requirements.
-    - Payment records are maintained in accordance with legal requirements.
-
-CONTACT INFORMATION:
-
-Finance Department:
-- Email: finance@ccht.edu.ng
-- Phone: [To be provided]
-- Office Hours: Monday - Friday, 8:00 AM - 4:00 PM
-- Location: Administration Building, Ground Floor
-
-Student Affairs:
-- Email: students@ccht.edu.ng
-- Phone: [To be provided]
-- Office Hours: Monday - Friday, 8:00 AM - 4:00 PM
-- Location: Student Affairs Building, First Floor
-
-College Administration:
-- Email: admin@ccht.edu.ng
-- Phone: [To be provided]
-- Office Hours: Monday - Friday, 8:00 AM - 4:00 PM
-- Location: Administration Building, Second Floor
-
-EMERGENCY CONTACTS:
-- College Security: security@ccht.edu.ng
-- Emergency Line: [To be provided]
-- Medical Emergency: [To be provided]
-
-IMPORTANT REMINDERS:
-
-1. Keep this receipt in a safe place.
-2. Do not share your payment reference number with unauthorized persons.
-3. Report any suspicious activity related to your payments immediately.
-4. Regularly check your student portal for payment updates.
-5. Contact the finance department if you have any questions about your payment.
-
-CROSS COLLEGE OF HEALTH TECHNOLOGY
-Excellence in Health Education
-
-This is a computer-generated receipt. No signature required.
-This document is official and confidential.
-Any unauthorized reproduction or distribution is prohibited.
-
----
-RECEIPT VERIFICATION:
-
-To verify this receipt online:
-1. Visit the college portal: [portal URL]
-2. Navigate to Payment Verification
-3. Enter your Receipt ID: ${receiptId}
-4. Enter your Reference Number: ${reference}
-
-For in-person verification, visit the Finance Department with this receipt and your student ID card.
-
-This receipt was generated on: ${new Date().toISOString()}
-System: Cross College of Health Technology Payment System
-Version: 1.0
-    `.trim()
+  return doc
 }

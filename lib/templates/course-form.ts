@@ -27,7 +27,17 @@ export async function generateCourseFormPDF(data: {
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
   
-  let y = 50
+  let y = 20
+
+  // Add school logo
+  try {
+    pdf.addImage('/images/logo.png', 'PNG', 20, y, 30, 30)
+    y += 35
+  } catch (error) {
+    // If logo fails to load, continue without it
+    console.warn('Failed to load logo:', error)
+    y = 50
+  }
 
   // Header
   pdf.setFontSize(18)

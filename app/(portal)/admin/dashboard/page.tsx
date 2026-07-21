@@ -18,30 +18,39 @@ export default function AdminDashboard() {
     totalApplications: 0,
   })
   const [recentUsers, setRecentUsers] = useState<any[]>([])
+  const [recentPayments, setRecentPayments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const getStats = async () => {
       try {
-        const [dashboardStatsRes, recentAspirantsRes, recentStudentsRes] = await Promise.all([
+        const [dashboardStatsRes, recentAspirantsRes, recentStudentsRes, recentPaymentsRes] = await Promise.all([
           fetch('/api/v1/admin/dashboard/stats'),
           fetch('/api/v1/admin/management/aspirants/recent?limit=4'),
           fetch('/api/v1/admin/management/students/recent?limit=4'),
+          fetch('/api/v1/admin/payments/recent?limit=4'),
         ])
         
         const dashboardStats = await dashboardStatsRes.json()
         const recentAspirants = await recentAspirantsRes.json()
         const recentStudents = await recentStudentsRes.json()
+        const recentPayments = await recentPaymentsRes.json()
         
         if (dashboardStats.success) setStats(dashboardStats.data)
         
-        // Combine recent users from different sources
+        // Combine recent users from different sources and deduplicate by ID
         const combinedUsers = [
           ...((recentAspirants.data || []).map((a: any) => ({ ...a, role: 'aspirant' }))),
           ...((recentStudents.data || []).map((s: any) => ({ ...s, role: 'student' }))),
-        ].slice(0, 4)
+        ].reduce((unique: any[], user: any) => {
+          if (!unique.some((u: any) => u.id === user.id)) {
+            unique.push(user)
+          }
+          return unique
+        }, []).slice(0, 4)
         
         setRecentUsers(combinedUsers)
+        setRecentPayments(recentPayments.data || [])
       } catch (error) {
         console.error('Failed to load dashboard stats:', error)
       } finally {
@@ -147,24 +156,43 @@ export default function AdminDashboard() {
           </Card>
 
           <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
-            <h2 className="text-2xl font-bold">Recent users</h2>
+            <h2 className="text-2xl font-bold">Recent activity</h2>
             <div className="mt-4 space-y-3">
-              {recentUsers.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No recent users found.</p>
+              {recentUsers.length === 0 && recentPayments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No recent activity found.</p>
               ) : (
-                recentUsers.map((member) => (
-                  <div key={member.id} className="rounded-2xl border border-border bg-slate-50 p-4 dark:bg-blue-800/20">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <UserRound className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-foreground">{[member.firstName, member.lastName].filter(Boolean).join(' ') || 'User'}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
+                <>
+                  {recentUsers.map((member) => (
+                    <div key={member.id} className="rounded-2xl border border-border bg-slate-50 p-4 dark:bg-blue-800/20">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <UserRound className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-foreground">{[member.firstName, member.lastName].filter(Boolean).join(' ') || 'User'}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{member.role} registered</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  {recentPayments.map((payment) => (
+                    <div key={payment.id} className="rounded-2xl border border-border bg-slate-50 p-4 dark:bg-blue-800/20">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-green-600">
+                          <CreditCard className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-foreground">
+                            {payment.user?.first_name} {payment.user?.last_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {payment.payment_type} - ₦{payment.amount?.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           </Card>

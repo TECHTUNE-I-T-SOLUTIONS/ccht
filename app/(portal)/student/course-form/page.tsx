@@ -133,7 +133,17 @@ export default function StudentCourseFormPage() {
 
   const totalCreditUnits = selectedCourses.reduce((sum, sc) => sum + (sc.course?.credits || 0), 0)
 
-  const sessions = ['2026/2027', '2025/2026', '2024/2025']
+  // Group courses by semester
+  const coursesBySemester = selectedCourses.reduce((acc, sc) => {
+    const semester = sc.semester
+    if (!acc[semester]) {
+      acc[semester] = []
+    }
+    acc[semester].push(sc)
+    return acc
+  }, {} as Record<string, SelectedCourse[]>)
+
+  const sessions = ['2031/2032', '2030/2031', '2029/2030', '2028/2029', '2027/2028', '2026/2027', '2025/2026', '2024/2025', '2023/2024', '2022/2023']
   const semesters = ['all', 'first', 'second']
 
   if (loading) return <div className="p-8">Loading course form...</div>
@@ -293,33 +303,46 @@ export default function StudentCourseFormPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left p-4 text-sm font-semibold">S/N</th>
-                    <th className="text-left p-4 text-sm font-semibold">Course Code</th>
-                    <th className="text-left p-4 text-sm font-semibold">Course Title</th>
-                    <th className="text-left p-4 text-sm font-semibold">Credit Units</th>
-                    <th className="text-left p-4 text-sm font-semibold">Semester</th>
-                    <th className="text-left p-4 text-sm font-semibold">Level</th>
-                    <th className="text-left p-4 text-sm font-semibold">Approved Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedCourses.map((sc, index) => (
-                    <tr key={sc.id} className="border-b border-border hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <td className="p-4 text-sm">{index + 1}</td>
-                      <td className="p-4 text-sm font-semibold">{sc.course?.code}</td>
-                      <td className="p-4 text-sm">{sc.course?.title}</td>
-                      <td className="p-4 text-sm">{sc.course?.credits}</td>
-                      <td className="p-4 text-sm capitalize">{sc.semester}</td>
-                      <td className="p-4 text-sm capitalize">{sc.course?.level}L</td>
-                      <td className="p-4 text-sm">{sc.reviewed_at ? new Date(sc.reviewed_at).toLocaleDateString() : 'N/A'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-6">
+              {Object.entries(coursesBySemester).map(([semester, courses]) => (
+                <div key={semester}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold capitalize flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-primary"></span>
+                      {semester} Semester
+                    </h3>
+                    <span className="text-sm text-muted-foreground">
+                      {courses.reduce((sum, sc) => sum + (sc.course?.credits || 0), 0)} Credit Units
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border bg-slate-50 dark:bg-slate-800/50">
+                          <th className="text-left p-4 text-sm font-semibold">S/N</th>
+                          <th className="text-left p-4 text-sm font-semibold">Course Code</th>
+                          <th className="text-left p-4 text-sm font-semibold">Course Title</th>
+                          <th className="text-left p-4 text-sm font-semibold">Credit Units</th>
+                          <th className="text-left p-4 text-sm font-semibold">Level</th>
+                          <th className="text-left p-4 text-sm font-semibold">Approved Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {courses.map((sc, index) => (
+                          <tr key={sc.id} className="border-b border-border hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="p-4 text-sm">{index + 1}</td>
+                            <td className="p-4 text-sm font-semibold">{sc.course?.code}</td>
+                            <td className="p-4 text-sm">{sc.course?.title}</td>
+                            <td className="p-4 text-sm font-semibold">{sc.course?.credits}</td>
+                            <td className="p-4 text-sm capitalize">{sc.course?.level}L</td>
+                            <td className="p-4 text-sm">{sc.reviewed_at ? new Date(sc.reviewed_at).toLocaleDateString() : 'N/A'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </Card>
@@ -344,7 +367,7 @@ export default function StudentCourseFormPage() {
 
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground py-4">
-          <p>This document is officially generated by the Cross College of Health Technology portal.</p>
+          <p>This document is officially generated by the Covenant College of Health Technology portal.</p>
           <p className="mt-1">Generated on {new Date().toLocaleDateString()}</p>
         </div>
       </div>

@@ -131,7 +131,7 @@ export default function StudentDocumentsPage() {
                 </div>
               </div>
               <Button
-                className="mt-4 w-full rounded-xl"
+                className="mt-4 w-full rounded-xl border border-primary hover:text-blue-500"
                 onClick={downloadAdmissionLetter}
                 disabled={!studentData}
               >
@@ -167,7 +167,7 @@ export default function StudentDocumentsPage() {
                 </div>
               </div>
               <Button
-                className="mt-4 w-full rounded-xl"
+                className="mt-4 w-full rounded-xl border border-primary hover:text-blue-500"
                 onClick={downloadOathForm}
                 disabled={!studentData}
               >
