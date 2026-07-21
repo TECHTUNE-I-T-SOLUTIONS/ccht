@@ -14,6 +14,7 @@ import { getFeesAction, createFeeAction, deleteFeeAction } from '@/app/actions/a
 import { getProgramsAction } from '@/app/actions/admin/program-actions'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 
 export default function AdminFeeSchedulesPage() {
   const [fees, setFees] = useState<any[]>([])
@@ -160,9 +161,13 @@ export default function AdminFeeSchedulesPage() {
                   <Input type="number" min="0" placeholder="e.g., 30" value={formData.dueInDays} onChange={(e) => setFormData({ ...formData, dueInDays: e.target.value })} />
                 </div>
 
-                <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
-                  <span className="text-sm font-medium">Is Active?</span>
-                  <Switch checked={formData.isActive} onCheckedChange={(val) => setFormData({ ...formData, isActive: val })} />
+                <div className="flex items-center gap-3 p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
+                  <Checkbox 
+                    id="isActive"
+                    checked={formData.isActive} 
+                    onCheckedChange={(val) => setFormData({ ...formData, isActive: val as boolean })} 
+                  />
+                  <label htmlFor="isActive" className="text-sm font-medium cursor-pointer">Is Active?</label>
                 </div>
 
                 <div className="flex justify-end pt-4">

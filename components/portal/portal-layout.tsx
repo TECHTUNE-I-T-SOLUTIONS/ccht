@@ -278,7 +278,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-foreground/45">Portal menu</p>
             </div>
-            <div className={`mt-2 rounded-2xl border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))] p-4 ${sidebarCollapsed ? 'xl:hidden' : ''}`}>
+            <div className={`mt-1 rounded-2xl border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))] p-2 ${sidebarCollapsed ? 'xl:hidden' : ''}`}>
               <div className="flex items-center gap-2">
                 <Avatar className="h-11 w-11">
                   <AvatarImage src={user?.avatarUrl} alt={displayName} />
@@ -294,7 +294,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
                   {studentProfile.matric_number}
                 </div>
               )}
-              <p className="mt-3 text-xs leading-6 text-foreground/60">
+              <p className="mt-1 text-xs leading-6 text-foreground/60">
                 Secure workspace for {role === 'admin' ? 'administration and approvals' : role === 'aspirant' ? 'admission progress' : 'academic management'}.
               </p>
               {role === 'aspirant' && passportUploaded && <div className="mt-3 inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">Passport uploaded</div>}
@@ -324,7 +324,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
               )
               return <div key={item.href} className="relative">{sidebarCollapsed ? <Tooltip><TooltipTrigger asChild>{navLink}</TooltipTrigger><TooltipContent side="right" className="border border-border bg-white text-foreground dark:bg-slate-950">{item.label}</TooltipContent></Tooltip> : navLink}</div>
             })}
-            <div className={`mt-4 rounded-2xl border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))] p-4 ${sidebarCollapsed ? 'xl:hidden' : ''}`}>
+            <div className={`mt-2 rounded-2xl border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))] p-2 ${sidebarCollapsed ? 'xl:hidden' : ''}`}>
               <p className="text-xs uppercase tracking-[0.22em] text-foreground/45">Account</p>
               <p className="mt-2 text-sm font-semibold capitalize text-foreground">{displayName}</p>
               <p className="text-xs text-foreground/55">{user?.email || ''}</p>

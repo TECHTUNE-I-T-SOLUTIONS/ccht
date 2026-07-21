@@ -26,116 +26,165 @@ export async function generateCourseFormPDF(data: {
   const pdf = new jsPDF()
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 15
   
-  let y = 20
+  let y = margin
 
-  // Add school logo
+  // Add school logo centered at top
   try {
-    pdf.addImage('/images/logo.png', 'PNG', 20, y, 30, 30)
-    y += 35
+    const logoSize = 20
+    const logoX = (pageWidth - logoSize) / 2
+    pdf.addImage('/images/logo.png', 'PNG', logoX, y, logoSize, logoSize)
+    y += logoSize + 5
   } catch (error) {
-    // If logo fails to load, continue without it
     console.warn('Failed to load logo:', error)
-    y = 50
+    y += 5
   }
 
-  // Header
-  pdf.setFontSize(18)
-  pdf.setFont('helvetica', 'bold')
-  pdf.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', pageWidth / 2, y, { align: 'center' })
-  y += 15
-
+  // Header - School name
   pdf.setFontSize(12)
-  pdf.setFont('helvetica', 'normal')
-  pdf.text('Official Course Registration Form', pageWidth / 2, y, { align: 'center' })
-  y += 15
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('COVENANT COLLEGE OF', pageWidth / 2, y, { align: 'center' })
+  y += 5
+  pdf.text('HEALTH TECHNOLOGY', pageWidth / 2, y, { align: 'center' })
+  y += 8
 
-  // Session badge
-  pdf.setFillColor(230, 245, 255)
-  pdf.roundedRect(pageWidth / 2 - 80, y, 160, 20, 3, 3, 'F')
   pdf.setFontSize(10)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setTextColor(0, 80, 150)
-  pdf.text(`Academic Session ${data.session}`, pageWidth / 2, y + 13, { align: 'center' })
-  pdf.setTextColor(0, 0, 0)
-  y += 25
-
-  if (data.semester !== 'all') {
-    pdf.setFillColor(245, 255, 245)
-    pdf.roundedRect(pageWidth / 2 - 60, y, 120, 20, 3, 3, 'F')
-    pdf.setFontSize(10)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setTextColor(0, 120, 50)
-    pdf.text(`${data.semester.charAt(0).toUpperCase() + data.semester.slice(1)} Semester`, pageWidth / 2, y + 13, { align: 'center' })
-    pdf.setTextColor(0, 0, 0)
-    y += 25
-  }
-
-  // Student Information Section
+  pdf.setFont('helvetica', 'normal')
+  pdf.text('OFFICIAL COURSE REGISTRATION FORM', pageWidth / 2, y, { align: 'center' })
   y += 10
-  pdf.setFontSize(14)
-  pdf.setFont('helvetica', 'bold')
-  pdf.text('Student Information', 50, y)
-  y += 15
 
-  const studentInfo = [
-    { label: 'Full Name:', value: `${data.student.firstName} ${data.student.lastName}` },
-    { label: 'Matric Number:', value: data.student.matricNumber || 'Not assigned' },
-    { label: 'Email Address:', value: data.student.email },
-    { label: 'Phone Number:', value: data.student.phone || 'Not provided' },
-    { label: 'Department:', value: data.student.departmentName || 'Not assigned' },
-    { label: 'Program:', value: data.student.programTitle || 'Not assigned' },
-    { label: 'Current Level:', value: data.student.currentLevel ? `${data.student.currentLevel}L` : 'Not specified' },
-    { label: 'Admission Session:', value: data.student.admissionSession || 'Not specified' },
+  // Draw line separator
+  pdf.setDrawColor(200)
+  pdf.setLineWidth(0.5)
+  pdf.line(margin, y, pageWidth - margin, y)
+  y += 8
+
+  // Session and Semester Info Table
+  const labelWidth = 40
+  const valueWidth = (pageWidth - 2 * margin - 2 * labelWidth) / 2
+  const cellHeight = 8
+
+  const sessionData = [
+    ['Academic Session:', data.session, 'Semester:', data.semester !== 'all' ? data.semester.charAt(0).toUpperCase() + data.semester.slice(1) + ' Semester' : 'All Semesters']
   ]
 
-  pdf.setFontSize(9)
-  studentInfo.forEach((info, index) => {
-    const col = index % 2
-    const row = Math.floor(index / 2)
-    const x = col === 0 ? 50 : pageWidth / 2 + 20
-    const yPos = y + (row * 20)
-
+  sessionData.forEach((row, rowIndex) => {
+    // First pair
+    const x1 = margin
+    const cellY = y + rowIndex * cellHeight
+    
+    pdf.setDrawColor(200)
+    pdf.setLineWidth(0.3)
+    pdf.rect(x1, cellY, labelWidth, cellHeight)
     pdf.setFont('helvetica', 'bold')
-    pdf.setTextColor(100, 100, 100)
-    pdf.text(info.label, x, yPos)
+    pdf.setTextColor(80)
+    pdf.text(row[0], x1 + 3, cellY + 5)
+    
+    pdf.rect(x1 + labelWidth, cellY, valueWidth, cellHeight)
     pdf.setFont('helvetica', 'normal')
-    pdf.setTextColor(0, 0, 0)
-    pdf.text(info.value, x + 100, yPos)
+    pdf.setTextColor(0)
+    pdf.text(row[1], x1 + labelWidth + 3, cellY + 5)
+    
+    // Second pair
+    const x2 = x1 + labelWidth + valueWidth
+    pdf.rect(x2, cellY, labelWidth, cellHeight)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(80)
+    pdf.text(row[2], x2 + 3, cellY + 5)
+    
+    pdf.rect(x2 + labelWidth, cellY, valueWidth, cellHeight)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setTextColor(0)
+    pdf.text(row[3], x2 + labelWidth + 3, cellY + 5)
   })
 
-  y += 90
+  y += sessionData.length * cellHeight + 10
+
+  // Student Information Table
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('STUDENT INFORMATION', margin, y)
+  y += 5
+
+  const studentData = [
+    ['Name:', `${data.student.firstName} ${data.student.lastName}`, 'Email:', data.student.email],
+    ['Matric No:', data.student.matricNumber || 'N/A', 'Phone:', data.student.phone || 'N/A'],
+    ['Program:', data.student.programTitle || 'N/A', 'Department:', data.student.departmentName || 'N/A'],
+    ['Current Level:', data.student.currentLevel ? `${data.student.currentLevel}L` : 'N/A', 'Admission Session:', data.student.admissionSession || 'N/A']
+  ]
+
+  studentData.forEach((row, rowIndex) => {
+    // First pair (left column)
+    const x1 = margin
+    const cellY = y + rowIndex * cellHeight
+    
+    if (row[0]) {
+      pdf.setDrawColor(200)
+      pdf.setLineWidth(0.3)
+      pdf.rect(x1, cellY, labelWidth, cellHeight)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setTextColor(80)
+      pdf.text(row[0], x1 + 3, cellY + 5)
+    }
+    
+    if (row[1]) {
+      pdf.rect(x1 + labelWidth, cellY, valueWidth, cellHeight)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setTextColor(0)
+      pdf.text(row[1], x1 + labelWidth + 3, cellY + 5)
+    }
+    
+    // Second pair (right column)
+    const x2 = x1 + labelWidth + valueWidth
+    
+    if (row[2]) {
+      pdf.rect(x2, cellY, labelWidth, cellHeight)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setTextColor(80)
+      pdf.text(row[2], x2 + 3, cellY + 5)
+    }
+    
+    if (row[3]) {
+      pdf.rect(x2 + labelWidth, cellY, valueWidth, cellHeight)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setTextColor(0)
+      pdf.text(row[3], x2 + labelWidth + 3, cellY + 5)
+    }
+  })
+
+  y += studentData.length * cellHeight + 10
 
   // Courses Section
-  pdf.setFontSize(14)
+  pdf.setFontSize(9)
   pdf.setFont('helvetica', 'bold')
-  pdf.text('Registered Courses', 50, y)
-  y += 15
+  pdf.text('REGISTERED COURSES', margin, y)
+  y += 5
 
   const totalCredits = data.courses.reduce((sum, course) => sum + course.credits, 0)
-  pdf.setFontSize(10)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setTextColor(0, 80, 150)
-  pdf.text(`Total Credit Units: ${totalCredits}`, pageWidth - 50, y, { align: 'right' })
-  pdf.setTextColor(0, 0, 0)
-  y += 15
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setTextColor(80)
+  pdf.text(`Total Credit Units: ${totalCredits}`, pageWidth - margin, y, { align: 'right' })
+  pdf.setTextColor(0)
+  y += 8
 
-  // Table header
-  const tableX = 50
-  const tableWidth = pageWidth - 100
-  const colWidths = [30, 70, tableWidth - 230, 50, 50, 40, 60]
-  const headers = ['S/N', 'Code', 'Title', 'Credits', 'Semester', 'Level', 'Approved Date']
+  // Courses table
+  const tableX = margin
+  const tableWidth = pageWidth - 2 * margin
+  const colWidths = [12, 20, tableWidth - 95, 15, 22, 15, 25]
+  const headers = ['S/N', 'Code', 'Title', 'Credits', 'Semester', 'Level', 'Approved']
 
   pdf.setFillColor(245, 245, 245)
-  pdf.rect(tableX, y - 8, tableWidth, 12, 'F')
-  pdf.setFontSize(8)
+  pdf.rect(tableX, y - 6, tableWidth, 10, 'F')
+  pdf.setFontSize(7)
   pdf.setFont('helvetica', 'bold')
   let currentX = tableX
   headers.forEach((header, index) => {
-    pdf.text(header, currentX + 5, y, { maxWidth: colWidths[index] })
+    pdf.text(header, currentX + 3, y, { maxWidth: colWidths[index] })
     currentX += colWidths[index]
   })
-  y += 12
+  y += 10
 
   // Table rows
   pdf.setFont('helvetica', 'normal')
@@ -152,53 +201,48 @@ export async function generateCourseFormPDF(data: {
     
     currentX = tableX
     row.forEach((cell, cellIndex) => {
-      pdf.text(cell, currentX + 5, y, { maxWidth: colWidths[cellIndex] })
+      pdf.text(cell, currentX + 3, y, { maxWidth: colWidths[cellIndex] })
       currentX += colWidths[cellIndex]
     })
     
     pdf.setDrawColor(230, 230, 230)
     pdf.line(tableX, y + 2, tableX + tableWidth, y + 2)
     pdf.setDrawColor(0, 0, 0)
-    y += 12
+    y += 8
   })
 
-  y += 15
+  y += 10
 
-  // Summary Section
+  // Summary box
+  pdf.setDrawColor(0)
   pdf.setFillColor(245, 250, 255)
-  pdf.roundedRect(50, y - 10, pageWidth - 100, 50, 5, 5, 'F')
-  
-  const summaryData = [
-    { label: 'Total Courses:', value: String(data.courses.length) },
-    { label: 'Total Credit Units:', value: String(totalCredits) },
-    { label: 'Registration Status:', value: 'Approved' },
-  ]
-
-  summaryData.forEach((item, index) => {
-    const x = 80 + (index * ((pageWidth - 100) / 3))
-    pdf.setFontSize(9)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setTextColor(100, 100, 100)
-    pdf.text(item.label, x, y + 5)
-    pdf.setFontSize(14)
-    pdf.setFont('helvetica', 'bold')
-    if (index === 2) {
-      pdf.setTextColor(0, 120, 50)
-    } else {
-      pdf.setTextColor(0, 80, 150)
-    }
-    pdf.text(item.value, x, y + 20)
-  })
-
-  y += 60
+  pdf.rect(margin, y, pageWidth - 2 * margin, 12, 'FD')
+  y += 8
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text(`Total Courses: ${data.courses.length}`, margin + 5, y)
+  pdf.text(`Total Credit Units: ${totalCredits}`, pageWidth / 2, y, { align: 'center' })
+  pdf.setTextColor(0, 120, 50)
+  pdf.text('Status: Approved', pageWidth - margin - 5, y, { align: 'right' })
+  pdf.setTextColor(0)
+  y += 12
 
   // Footer
-  pdf.setFontSize(9)
+  y = pageHeight - 20
+  pdf.setDrawColor(200)
+  pdf.line(margin, y, pageWidth - margin, y)
+  y += 7
+
+  pdf.setFontSize(7)
   pdf.setFont('helvetica', 'normal')
-  pdf.setTextColor(100, 100, 100)
-  pdf.text('This document is officially generated by the Covenant College of Health Technology portal.', pageWidth / 2, y, { align: 'center' })
-  y += 10
-  pdf.text(`Generated on ${new Date().toLocaleDateString()}`, pageWidth / 2, y, { align: 'center' })
+  pdf.setTextColor(80)
+  pdf.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', pageWidth / 2, y, { align: 'center' })
+  y += 4
+  pdf.setFont('helvetica', 'italic')
+  pdf.text('Excellence in Health Education', pageWidth / 2, y, { align: 'center' })
+  y += 4
+  pdf.setFont('helvetica', 'normal')
+  pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, y, { align: 'center' })
 
   return pdf.output('arraybuffer')
 }

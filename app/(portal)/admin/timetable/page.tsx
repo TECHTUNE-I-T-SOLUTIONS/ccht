@@ -21,7 +21,7 @@ type TimetableSession = {
   description?: string
   is_active: boolean
   session?: { name: string }
-  semester?: { name: string }
+  semester?: { semester_name: string }
   program?: { title: string }
   entries?: TimetableEntry[]
 }
@@ -66,7 +66,7 @@ type AcademicSession = {
 
 type AcademicSemester = {
   id: string
-  name: string
+  semester_name: string
 }
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -113,9 +113,9 @@ export default function AdminTimetablePage() {
     try {
       const [sessionsRes, semestersRes, programsRes, timetableRes] = await Promise.all([
         supabase.from('academic_sessions').select('*').order('name'),
-        supabase.from('academic_semesters').select('*').order('name'),
+        supabase.from('academic_semesters').select('*').order('semester_name'),
         supabase.from('programs').select('*').eq('is_active', true),
-        supabase.from('timetable_sessions').select('*, session:academic_sessions(name), semester:academic_semesters(name), program:programs(title)').order('created_at', { ascending: false })
+        supabase.from('timetable_sessions').select('*, session:academic_sessions(name), semester:academic_semesters(semester_name), program:programs(title)').order('created_at', { ascending: false })
       ])
 
       setSessions(sessionsRes.data || [])
@@ -326,7 +326,7 @@ export default function AdminTimetablePage() {
                     </SelectTrigger>
                     <SelectContent>
                       {semesters.map((semester) => (
-                        <SelectItem key={semester.id} value={semester.id}>{semester.name}</SelectItem>
+                        <SelectItem key={semester.id} value={semester.id}>{semester.semester_name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -405,7 +405,7 @@ export default function AdminTimetablePage() {
                 <div>
                   <h3 className="text-lg font-semibold">{timetable.title || `${timetable.program?.title} - ${timetable.level}L`}</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {timetable.session?.name} · {timetable.semester?.name} · {timetable.level}L
+                    {timetable.session?.name} · {timetable.semester?.semester_name} · {timetable.level}L
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

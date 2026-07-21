@@ -42,159 +42,239 @@ export function generatePaymentReceipt(data: PaymentReceiptData): jsPDF {
   } = data
 
   const doc = new jsPDF()
+  const pageWidth = doc.internal.pageSize.width
   const pageHeight = doc.internal.pageSize.height
-  const margin = 20
-  const lineHeight = 5
+  const margin = 15
   let y = margin
 
-  const addPageIfNeeded = (additionalSpace = 20) => {
-    if (y + additionalSpace > pageHeight - margin) {
-      doc.addPage()
-      y = margin
-    }
-  }
-
-  // Add school logo
+  // Add school logo centered at top
   try {
-    doc.addImage('/images/logo.png', 'PNG', margin, y, 30, 30)
-    y += 35
+    const logoSize = 20
+    const logoX = (pageWidth - logoSize) / 2
+    doc.addImage('/images/logo.png', 'PNG', logoX, y, logoSize, logoSize)
+    y += logoSize + 5
   } catch (error) {
-    // If logo fails to load, continue without it
     console.warn('Failed to load logo:', error)
-  }
-
-  // Header
-  doc.setFontSize(18)
-  doc.setFont('helvetica', 'bold')
-  doc.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', 105, y, { align: 'center' })
-  y += 10
-  doc.setFontSize(14)
-  doc.text('OFFICIAL PAYMENT RECEIPT', 105, y, { align: 'center' })
-  y += 15
-
-  // Receipt Details
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'bold')
-  doc.text('RECEIPT DETAILS:', 20, y)
-  y += 7
-  doc.setFont('helvetica', 'normal')
-  doc.text(`- Receipt ID: ${receiptId}`, 25, y)
-  y += 5
-  doc.text(`- Receipt Date: ${paymentDate}`, 25, y)
-  y += 5
-  doc.text(`- Payment Method: ${paymentMethod}`, 25, y)
-  y += 10
-
-  // Student Details
-  doc.setFont('helvetica', 'bold')
-  doc.text('STUDENT DETAILS:', 20, y)
-  y += 7
-  doc.setFont('helvetica', 'normal')
-  doc.text(`- Name: ${firstName} ${lastName}`, 25, y)
-  y += 5
-  doc.text(`- Matric Number: ${matricNumber}`, 25, y)
-  y += 5
-  doc.text(`- Program: ${program}`, 25, y)
-  y += 5
-  doc.text(`- Department: ${department}`, 25, y)
-  y += 5
-  doc.text(`- Email: ${email}`, 25, y)
-  y += 5
-  if (phone) {
-    doc.text(`- Phone: ${phone}`, 25, y)
     y += 5
   }
-  y += 10
 
-  // Payment Details
+  // Header - School name
+  doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
-  doc.text('PAYMENT DETAILS:', 20, y)
-  y += 7
+  doc.text('COVENANT COLLEGE OF', pageWidth / 2, y, { align: 'center' })
+  y += 5
+  doc.text('HEALTH TECHNOLOGY', pageWidth / 2, y, { align: 'center' })
+  y += 8
+
+  doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.text(`- Payment Type: ${paymentType}`, 25, y)
-  y += 5
-  doc.text(`- Description: ${description}`, 25, y)
-  y += 5
-  doc.text(`- Amount: ${currency} ${amount.toLocaleString()}`, 25, y)
-  y += 5
-  doc.text(`- Reference: ${reference}`, 25, y)
-  y += 5
-  doc.text(`- Status: ${status.toUpperCase()}`, 25, y)
-  y += 5
-  doc.text(`- Request Date: ${requestDate}`, 25, y)
+  doc.text('OFFICIAL PAYMENT RECEIPT', pageWidth / 2, y, { align: 'center' })
   y += 10
 
-  // Payment Confirmation
+  // Draw line separator
+  doc.setDrawColor(200)
+  doc.setLineWidth(0.5)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 8
+
+  // Receipt Info Table
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'bold')
+  
+  const tableData = [
+    ['Receipt No:', receiptId, 'Date:', paymentDate],
+    ['Status:', status.toUpperCase(), 'Method:', paymentMethod],
+    ['Reference:', reference, 'Request Date:', requestDate]
+  ]
+
+  const labelWidth = 35
+  const valueWidth = (pageWidth - 2 * margin - 2 * labelWidth) / 2
+  const cellHeight = 8
+
+  tableData.forEach((row, rowIndex) => {
+    // First pair
+    const x1 = margin
+    const cellY = y + rowIndex * cellHeight
+    
+    doc.setDrawColor(200)
+    doc.setLineWidth(0.3)
+    doc.rect(x1, cellY, labelWidth, cellHeight)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(80)
+    doc.text(row[0], x1 + 3, cellY + 5)
+    
+    doc.rect(x1 + labelWidth, cellY, valueWidth, cellHeight)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0)
+    if (row[1] === status.toUpperCase()) {
+      if (status.toLowerCase() === 'success' || status.toLowerCase() === 'paid') {
+        doc.setTextColor(0, 128, 0)
+      } else {
+        doc.setTextColor(200, 100, 0)
+      }
+    }
+    doc.text(row[1], x1 + labelWidth + 3, cellY + 5)
+    doc.setTextColor(0)
+    
+    // Second pair
+    const x2 = x1 + labelWidth + valueWidth
+    doc.rect(x2, cellY, labelWidth, cellHeight)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(80)
+    doc.text(row[2], x2 + 3, cellY + 5)
+    
+    doc.rect(x2 + labelWidth, cellY, valueWidth, cellHeight)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0)
+    doc.text(row[3], x2 + labelWidth + 3, cellY + 5)
+  })
+
+  y += tableData.length * cellHeight + 10
+
+  // Student Information Table
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'bold')
+  doc.text('STUDENT INFORMATION', margin, y)
+  y += 5
+
+  const studentData = [
+    ['Name:', `${firstName} ${lastName}`, 'Email:', email],
+    ['Matric No:', matricNumber, phone ? 'Phone:' : '', phone || ''],
+    ['Program:', program, '', ''],
+    ['Department:', department, '', '']
+  ]
+
+  studentData.forEach((row, rowIndex) => {
+    // First pair (left column)
+    const x1 = margin
+    const cellY = y + rowIndex * cellHeight
+    
+    if (row[0]) {
+      doc.setDrawColor(200)
+      doc.setLineWidth(0.3)
+      doc.rect(x1, cellY, labelWidth, cellHeight)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(80)
+      doc.text(row[0], x1 + 3, cellY + 5)
+    }
+    
+    if (row[1]) {
+      doc.rect(x1 + labelWidth, cellY, valueWidth, cellHeight)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0)
+      doc.text(row[1], x1 + labelWidth + 3, cellY + 5)
+    }
+    
+    // Second pair (right column)
+    const x2 = x1 + labelWidth + valueWidth
+    
+    if (row[2]) {
+      doc.rect(x2, cellY, labelWidth, cellHeight)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(80)
+      doc.text(row[2], x2 + 3, cellY + 5)
+    }
+    
+    if (row[3]) {
+      doc.rect(x2 + labelWidth, cellY, valueWidth, cellHeight)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0)
+      doc.text(row[3], x2 + labelWidth + 3, cellY + 5)
+    }
+  })
+
+  y += studentData.length * cellHeight + 10
+
+  // Payment Information Table
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'bold')
+  doc.text('PAYMENT INFORMATION', margin, y)
+  y += 5
+
+  const paymentData = [
+    ['Payment Type:', paymentType, '', ''],
+    ['Description:', description, '', '']
+  ]
+
+  paymentData.forEach((row, rowIndex) => {
+    // First pair (left column)
+    const x1 = margin
+    const cellY = y + rowIndex * cellHeight
+    
+    if (row[0]) {
+      doc.setDrawColor(200)
+      doc.setLineWidth(0.3)
+      doc.rect(x1, cellY, labelWidth, cellHeight)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(80)
+      doc.text(row[0], x1 + 3, cellY + 5)
+    }
+    
+    if (row[1]) {
+      doc.rect(x1 + labelWidth, cellY, valueWidth, cellHeight)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0)
+      doc.text(row[1], x1 + labelWidth + 3, cellY + 5)
+    }
+    
+    // Second pair (right column) - empty for payment data
+    const x2 = x1 + labelWidth + valueWidth
+    
+    if (row[2]) {
+      doc.rect(x2, cellY, labelWidth, cellHeight)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(80)
+      doc.text(row[2], x2 + 3, cellY + 5)
+    }
+    
+    if (row[3]) {
+      doc.rect(x2 + labelWidth, cellY, valueWidth, cellHeight)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0)
+      doc.text(row[3], x2 + labelWidth + 3, cellY + 5)
+    }
+  })
+
+  y += paymentData.length * cellHeight + 10
+
+  // Amount box
+  doc.setDrawColor(0)
+  doc.setFillColor(245, 245, 245)
+  doc.rect(margin, y, pageWidth - 2 * margin, 14, 'FD')
+  y += 9
+  doc.setFontSize(12)
+  doc.setFont('helvetica', 'bold')
+  doc.text('TOTAL AMOUNT PAID', margin + 5, y)
+  doc.text(`${currency} ${amount.toLocaleString()}`, pageWidth - margin - 5, y, { align: 'right' })
+  y += 10
+
+  // Payment confirmation
   const isPaid = status.toLowerCase() === 'success' || status.toLowerCase() === 'paid'
   if (isPaid) {
-    doc.setFont('helvetica', 'bold')
-    doc.text('PAYMENT CONFIRMATION:', 20, y)
-    y += 7
-    doc.setFont('helvetica', 'normal')
-    const confirmation = 'This receipt confirms that the payment has been successfully received and processed by Covenant College of Health Technology. This document serves as official proof of payment for the stated amount and may be used for all official college purposes.'
-    const splitConfirmation = doc.splitTextToSize(confirmation, 170)
-    addPageIfNeeded(splitConfirmation.length * lineHeight + 10)
-    doc.text(splitConfirmation, 25, y)
-    y += splitConfirmation.length * lineHeight + 10
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('VERIFICATION DETAILS:', 20, y)
-    y += 7
-    doc.setFont('helvetica', 'normal')
-    doc.text(`- Transaction Reference: ${reference}`, 25, y)
-    y += 5
-    doc.text(`- Payment Date: ${paymentDate}`, 25, y)
-    y += 10
-  } else {
-    doc.setFont('helvetica', 'bold')
-    doc.text('PAYMENT STATUS:', 20, y)
-    y += 7
-    doc.setFont('helvetica', 'normal')
-    doc.text(`Status: ${status.toUpperCase()}`, 25, y)
-    y += 5
-    const pendingText = 'This payment is currently pending. Please complete the payment process to receive a confirmed receipt. Contact the finance department if you have any questions.'
-    const splitPending = doc.splitTextToSize(pendingText, 170)
-    addPageIfNeeded(splitPending.length * lineHeight + 10)
-    doc.text(splitPending, 25, y)
-    y += splitPending.length * lineHeight + 10
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(80)
+    const confirmation = 'This receipt confirms successful payment. Keep for your records.'
+    doc.text(confirmation, margin, y)
+    doc.setTextColor(0)
+    y += 6
   }
 
-  // Important Notes
-  addPageIfNeeded(20)
-  doc.setFont('helvetica', 'bold')
-  doc.text('IMPORTANT NOTES:', 20, y)
-  y += 7
-  doc.setFont('helvetica', 'normal')
-  const notes = [
-    '1. Keep this receipt for your records.',
-    '2. Present this receipt for any payment-related inquiries.',
-    '3. This receipt is valid for official college purposes.',
-    '4. Regularly check your student portal for payment updates.',
-    '5. Contact the finance department if you have any questions about your payment.'
-  ]
-  notes.forEach(note => {
-    doc.text(note, 25, y)
-    y += 5
-  })
-  y += 10
-
   // Footer
-  addPageIfNeeded(20)
-  doc.setFont('helvetica', 'bold')
-  doc.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', 20, y)
-  y += 5
+  y = pageHeight - 22
+  doc.setDrawColor(200)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 7
+
+  doc.setFontSize(7)
   doc.setFont('helvetica', 'normal')
-  doc.text('Excellence in Health Education', 20, y)
-  y += 10
+  doc.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', pageWidth / 2, y, { align: 'center' })
+  y += 4
   doc.setFont('helvetica', 'italic')
-  doc.setFontSize(8)
-  doc.text('This is a computer-generated receipt. No signature required.', 20, y)
-  y += 5
-  doc.text(`Generated on: ${new Date().toISOString()}`, 20, y)
-  y += 5
-  doc.text('System: Covenant College of Health Technology Payment System', 20, y)
-  y += 5
-  doc.text('Version: 1.0', 20, y)
+  doc.text('Excellence in Health Education', pageWidth / 2, y, { align: 'center' })
+  y += 4
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, y, { align: 'center' })
 
   return doc
 }

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { BookOpen, CreditCard, FileText, ReceiptText, ArrowRight, BadgeCheck, UserRound, Award, Clock3 } from 'lucide-react'
+import { BookOpen, CreditCard, FileText, ReceiptText, ArrowRight, BadgeCheck, UserRound, Award, Clock3, Bell } from 'lucide-react'
 
 export default function StudentDashboard() {
   const [user, setUser] = useState<any>(null)
@@ -13,6 +13,8 @@ export default function StudentDashboard() {
   const [payments, setPayments] = useState<any[]>([])
   const [results, setResults] = useState<any[]>([])
   const [enrollments, setEnrollments] = useState<any[]>([])
+  const [announcements, setAnnouncements] = useState<any[]>([])
+  const [notices, setNotices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
@@ -20,13 +22,15 @@ export default function StudentDashboard() {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const [profileRes, studentProfileRes, paymentsRes, aspirantPaymentsRes, resultsRes, enrollmentsRes] = await Promise.all([
+        const [profileRes, studentProfileRes, paymentsRes, aspirantPaymentsRes, resultsRes, enrollmentsRes, announcementsRes, noticesRes] = await Promise.all([
           supabase.from('profiles').select('id, email, first_name, last_name, phone, role, avatar_url').eq('id', user.id).single(),
           supabase.from('student_profiles').select('*').eq('profile_id', user.id).single(),
           supabase.from('payments').select('id, amount, status, created_at, description').order('created_at', { ascending: false }).limit(4),
           supabase.from('aspirant_admission_payment').select('id, amount, status, created_at, description').eq('profile_id', user.id).order('created_at', { ascending: false }).limit(4),
           supabase.from('results').select('id, course_name, score, grade, semester, academic_year, created_at').eq('student_id', user.id).order('created_at', { ascending: false }).limit(4),
           supabase.from('enrollments').select('*, program:programs(title)').eq('student_id', user.id).eq('status', 'active'),
+          supabase.from('announcements').select('*').eq('is_published', true).order('published_at', { ascending: false }).limit(3),
+          supabase.from('notices').select('*').eq('is_published', true).or('target_audience.eq.all,target_audience.eq.students').order('published_at', { ascending: false }).limit(3),
         ])
         setUser(profileRes.data)
         setStudentProfile(studentProfileRes.data)
@@ -40,6 +44,8 @@ export default function StudentDashboard() {
         setPayments(allPayments)
         setResults(resultsRes.data || [])
         setEnrollments(enrollmentsRes.data || [])
+        setAnnouncements(announcementsRes.data || [])
+        setNotices(noticesRes.data || [])
       }
       setLoading(false)
     }
@@ -136,6 +142,69 @@ export default function StudentDashboard() {
             <Button asChild variant="outline" className="justify-start rounded-2xl">
               <Link href="/student/payments"><ReceiptText className="mr-2 h-4 w-4" />Download receipt</Link>
             </Button>
+          </div>
+        </Card>
+
+        <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-primary/10 p-3 text-primary"><Bell className="h-5 w-5" /></div>
+            <div>
+              <h2 className="text-2xl font-bold">Announcements</h2>
+              <p className="text-sm text-muted-foreground">Latest updates</p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-3">
+            {announcements.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No announcements yet.</p>
+            ) : (
+              announcements.map((announcement) => (
+                <div key={announcement.id} className="rounded-2xl border border-border bg-slate-50 p-4">
+                  <p className="font-semibold text-foreground">{announcement.title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{announcement.content}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {new Date(announcement.published_at || announcement.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+
+        <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-orange-500/10 p-3 text-orange-600"><Clock3 className="h-5 w-5" /></div>
+            <div>
+              <h2 className="text-2xl font-bold">Notices</h2>
+              <p className="text-sm text-muted-foreground">Important information</p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-3">
+            {notices.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No notices yet.</p>
+            ) : (
+              notices.map((notice) => (
+                <div key={notice.id} className={`rounded-2xl border border-border p-4 ${
+                  notice.priority === 'urgent' ? 'bg-red-50 dark:bg-red-900/10' :
+                  notice.priority === 'high' ? 'bg-orange-50 dark:bg-orange-900/10' :
+                  'bg-slate-50'
+                }`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-foreground">{notice.title}</p>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      notice.priority === 'urgent' ? 'bg-red-100 text-red-700' :
+                      notice.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>
+                      {notice.priority}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{notice.content}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {new Date(notice.published_at || notice.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         </Card>
 

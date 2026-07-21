@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BookOpen, CreditCard, FileText, GraduationCap, Settings, UserRound, ArrowRight, ClipboardCheck, UserCheck, ShieldCheck } from 'lucide-react'
+import { Users, BookOpen, CreditCard, FileText, GraduationCap, Settings, UserRound, ArrowRight, ClipboardCheck, UserCheck, ShieldCheck, Clock3 } from 'lucide-react'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -19,22 +19,25 @@ export default function AdminDashboard() {
   })
   const [recentUsers, setRecentUsers] = useState<any[]>([])
   const [recentPayments, setRecentPayments] = useState<any[]>([])
+  const [notices, setNotices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const getStats = async () => {
       try {
-        const [dashboardStatsRes, recentAspirantsRes, recentStudentsRes, recentPaymentsRes] = await Promise.all([
+        const [dashboardStatsRes, recentAspirantsRes, recentStudentsRes, recentPaymentsRes, noticesRes] = await Promise.all([
           fetch('/api/v1/admin/dashboard/stats'),
           fetch('/api/v1/admin/management/aspirants/recent?limit=4'),
           fetch('/api/v1/admin/management/students/recent?limit=4'),
           fetch('/api/v1/admin/payments/recent?limit=4'),
+          fetch('/api/v1/admin/notices?limit=3'),
         ])
         
         const dashboardStats = await dashboardStatsRes.json()
         const recentAspirants = await recentAspirantsRes.json()
         const recentStudents = await recentStudentsRes.json()
         const recentPayments = await recentPaymentsRes.json()
+        const notices = await noticesRes.json()
         
         if (dashboardStats.success) setStats(dashboardStats.data)
         
@@ -51,6 +54,7 @@ export default function AdminDashboard() {
         
         setRecentUsers(combinedUsers)
         setRecentPayments(recentPayments.data || [])
+        setNotices(notices.data || [])
       } catch (error) {
         console.error('Failed to load dashboard stats:', error)
       } finally {
@@ -193,6 +197,44 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 </>
+              )}
+            </div>
+          </Card>
+
+          <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-orange-500/10 p-3 text-orange-600"><Clock3 className="h-5 w-5" /></div>
+              <div>
+                <h2 className="text-2xl font-bold">Notices</h2>
+                <p className="text-sm text-muted-foreground">Important information</p>
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
+              {notices.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No notices yet.</p>
+              ) : (
+                notices.map((notice) => (
+                  <div key={notice.id} className={`rounded-2xl border border-border p-4 ${
+                    notice.priority === 'urgent' ? 'bg-red-50 dark:bg-red-900/10' :
+                    notice.priority === 'high' ? 'bg-orange-50 dark:bg-orange-900/10' :
+                    'bg-slate-50'
+                  }`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-foreground">{notice.title}</p>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        notice.priority === 'urgent' ? 'bg-red-100 text-red-700' :
+                        notice.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                        'bg-slate-100 text-slate-700'
+                      }`}>
+                        {notice.priority}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{notice.content}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {new Date(notice.published_at || notice.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))
               )}
             </div>
           </Card>

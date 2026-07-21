@@ -28,6 +28,34 @@ export async function GET(request: NextRequest) {
       .eq('status', 'active')
       .single()
 
+    // Get fees from the fees table for the student's program
+    const { data: fees } = await supabase
+      .from('fees')
+      .select('*, program:programs(id, title)')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+
+    // Filter fees by student's program if they have one
+    const relevantFees = fees?.filter((fee: any) => {
+      // If student has an enrollment, only show fees for their program
+      if (enrollments?.program_id) {
+        return fee.program_id === enrollments.program_id
+      }
+      // Otherwise show all active fees
+      return true
+    }).map((fee: any) => ({
+      id: fee.id,
+      session: currentSession,
+      semester: 'all',
+      fee_type: fee.fee_type,
+      amount: parseFloat(fee.amount),
+      due_date: fee.due_in_days ? new Date(Date.now() + fee.due_in_days * 24 * 60 * 60 * 1000).toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      description: fee.description || '',
+      program_id: fee.program_id
+    })) || []
+
+    const totalFees = relevantFees.reduce((sum: number, fee: any) => sum + fee.amount, 0)
+
     // Get student's payment history from payments table
     const { data: payments } = await supabase
       .from('payments')
@@ -60,9 +88,6 @@ export async function GET(request: NextRequest) {
     const totalPaid = allPayments.filter((p: any) => p.status === 'success' || p.status === 'paid')
       .reduce((sum: number, p: any) => sum + (p.amount || 0), 0)
 
-    // For now, return empty fees array since fee_schedules may not exist
-    const relevantFees: any[] = []
-    const totalFees = 0
     const pendingFees = Math.max(0, totalFees - totalPaid)
 
     return NextResponse.json({ 

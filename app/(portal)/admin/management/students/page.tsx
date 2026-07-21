@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { BookOpen, Users, FileText, Award, Search, Filter, Download, Eye, CheckCircle, XCircle, Clock, AlertCircle, TrendingUp, CalendarDays, BarChart3, GraduationCap, CreditCard, ClipboardList } from 'lucide-react'
+import { BookOpen, Users, FileText, Award, Search, Filter, Download, Eye, CheckCircle, XCircle, Clock, AlertCircle, TrendingUp, CalendarDays, BarChart3, GraduationCap, CreditCard, ClipboardList, Bell } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
@@ -84,10 +84,10 @@ export default function StudentManagementPage() {
       icon: GraduationCap,
       color: 'bg-blue-500/10 text-blue-600',
       links: [
-        { label: 'All Students', href: '/admin/students', description: 'View and manage all students' },
-        { label: 'New Admissions', href: '/admin/students?status=new', description: 'Recently admitted students' },
-        { label: 'Enrollment History', href: '/admin/students/history', description: 'Historical enrollment data' },
-        { label: 'Transfer Students', href: '/admin/students/transfers', description: 'Manage transfer requests' },
+        { label: 'All Students', href: '/admin/management/students', description: 'View and manage all students' },
+        { label: 'New Admissions', href: '/admin/admissions', description: 'Recently admitted students' },
+        { label: 'Enrollment History', href: '/admin/analytics/performance', description: 'Historical enrollment data' },
+        { label: 'Transfer Students', href: '/admin/admissions', description: 'Manage transfer requests' },
       ],
     },
     {
@@ -96,10 +96,10 @@ export default function StudentManagementPage() {
       icon: FileText,
       color: 'bg-purple-500/10 text-purple-600',
       links: [
-        { label: 'Academic Records', href: '/admin/students/records', description: 'View academic transcripts' },
-        { label: 'Course Registration', href: '/admin/students/courses', description: 'Manage course enrollments' },
-        { label: 'Grades & Results', href: '/admin/students/grades', description: 'View and manage grades' },
-        { label: 'Class Attendance', href: '/admin/students/attendance', description: 'Track attendance records' },
+        { label: 'Academic Records', href: '/admin/analytics/performance', description: 'View academic transcripts' },
+        { label: 'Course Registration', href: '/admin/management/students/course-registrations', description: 'Manage course enrollments' },
+        { label: 'Student Exams', href: '/admin/management/students/exams', description: 'Manage student examinations' },
+        { label: 'Student Results', href: '/admin/management/students/results', description: 'View and manage grades' },
       ],
     },
     {
@@ -134,8 +134,8 @@ export default function StudentManagementPage() {
       links: [
         { label: 'Fee Management', href: '/admin/finance/fees', description: 'Manage fee structures' },
         { label: 'Payment History', href: '/admin/finance/payments', description: 'View payment records' },
-        { label: 'Outstanding Fees', href: '/admin/finance/payments?status=outstanding', description: 'Students with outstanding fees' },
-        { label: 'Payment Reminders', href: '/admin/finance/reminders', description: 'Send payment reminders' },
+        { label: 'Outstanding Fees', href: '/admin/finance/payments', description: 'Students with outstanding fees' },
+        { label: 'Payment Reminders', href: '/admin/notifications', description: 'Send payment reminders' },
       ],
     },
     {
@@ -144,10 +144,21 @@ export default function StudentManagementPage() {
       icon: BarChart3,
       color: 'bg-indigo-500/10 text-indigo-600',
       links: [
-        { label: 'Performance Analytics', href: '/admin/analytics/students', description: 'Student performance reports' },
-        { label: 'Attendance Reports', href: '/admin/analytics/attendance', description: 'Attendance statistics' },
-        { label: 'Retention Rates', href: '/admin/analytics/retention', description: 'Student retention metrics' },
-        { label: 'Graduation Rates', href: '/admin/analytics/graduation', description: 'Graduation statistics' },
+        { label: 'Performance Analytics', href: '/admin/analytics/performance', description: 'Student performance reports' },
+        { label: 'Attendance Reports', href: '/admin/analytics/performance', description: 'Attendance statistics' },
+        { label: 'Retention Rates', href: '/admin/analytics/conversion', description: 'Student retention metrics' },
+        { label: 'Graduation Rates', href: '/admin/analytics/conversion', description: 'Graduation statistics' },
+      ],
+    },
+    {
+      title: 'Communications',
+      description: 'Manage announcements and events',
+      icon: Bell,
+      color: 'bg-pink-500/10 text-pink-600',
+      links: [
+        { label: 'Announcements', href: '/admin/management/announcements', description: 'Create and manage announcements' },
+        { label: 'Events', href: '/admin/management/events', description: 'Manage institutional events' },
+        { label: 'Notices', href: '/admin/management/notices', description: 'Create dashboard notices' },
       ],
     },
   ]
@@ -242,9 +253,9 @@ export default function StudentManagementPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                {section.links.map((link) => (
+                {section.links.map((link, index) => (
                   <Link
-                    key={link.href}
+                    key={`${link.href}-${index}`}
                     href={link.href}
                     className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-accent"
                   >

@@ -954,3 +954,40 @@ CREATE TABLE public.student_exam_feedback (
   CONSTRAINT student_exam_feedback_exam_attempt_id_fkey FOREIGN KEY (exam_attempt_id) REFERENCES public.student_exam_attempts(id),
   CONSTRAINT student_exam_feedback_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.timetable_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  semester_id uuid NOT NULL,
+  program_id uuid NOT NULL,
+  level character varying NOT NULL CHECK (level::text = ANY (ARRAY['100'::character varying, '200'::character varying, '300'::character varying, '400'::character varying, '500'::character varying]::text[])),
+  title character varying,
+  description text,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_by uuid,
+  CONSTRAINT timetable_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT timetable_sessions_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.academic_sessions(id),
+  CONSTRAINT timetable_sessions_semester_id_fkey FOREIGN KEY (semester_id) REFERENCES public.academic_semesters(id),
+  CONSTRAINT timetable_sessions_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.programs(id),
+  CONSTRAINT timetable_sessions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.timetable_entries (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  timetable_session_id uuid NOT NULL,
+  course_id uuid NOT NULL,
+  day_of_week character varying NOT NULL CHECK (day_of_week::text = ANY (ARRAY['Monday'::character varying, 'Tuesday'::character varying, 'Wednesday'::character varying, 'Thursday'::character varying, 'Friday'::character varying, 'Saturday'::character varying]::text[])),
+  start_time time without time zone NOT NULL,
+  end_time time without time zone NOT NULL,
+  venue character varying,
+  lecturer_id uuid,
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_by uuid,
+  CONSTRAINT timetable_entries_pkey PRIMARY KEY (id),
+  CONSTRAINT timetable_entries_timetable_session_id_fkey FOREIGN KEY (timetable_session_id) REFERENCES public.timetable_sessions(id),
+  CONSTRAINT timetable_entries_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.courses(id),
+  CONSTRAINT timetable_entries_lecturer_id_fkey FOREIGN KEY (lecturer_id) REFERENCES public.profiles(id),
+  CONSTRAINT timetable_entries_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
