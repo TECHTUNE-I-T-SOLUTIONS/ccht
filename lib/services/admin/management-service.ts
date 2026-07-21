@@ -1,17 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export class ManagementService {
   // Aspirant Management
   static async getAspirantStats() {
-    const supabase = await createClient()
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
     
     try {
       const [totalResult, pendingResult, approvedResult, rejectedResult, inReviewResult] = await Promise.all([
-        supabase.from('profiles').select('id').eq('role', 'aspirant'),
-        supabase.from('aspirant_profiles').select('id').eq('application_status', 'pending'),
-        supabase.from('aspirant_profiles').select('id').eq('application_status', 'approved'),
-        supabase.from('aspirant_profiles').select('id').eq('application_status', 'rejected'),
-        supabase.from('aspirant_profiles').select('id').eq('application_status', 'in_review'),
+        supabase.from('aspirant_profiles').select('profile_id'),
+        supabase.from('aspirant_profiles').select('profile_id').eq('application_status', 'pending'),
+        supabase.from('aspirant_profiles').select('profile_id').eq('application_status', 'accepted'),
+        supabase.from('aspirant_profiles').select('profile_id').eq('application_status', 'rejected'),
+        supabase.from('aspirant_profiles').select('profile_id').eq('application_status', 'under_review'),
       ])
 
       const total = totalResult.data?.length || 0
@@ -19,6 +20,8 @@ export class ManagementService {
       const approved = approvedResult.data?.length || 0
       const rejected = rejectedResult.data?.length || 0
       const inReview = inReviewResult.data?.length || 0
+
+      console.log('[ManagementService] Aspirant stats:', { total, pending, approved, rejected, inReview })
 
       return { total, pending, approved, rejected, inReview }
     } catch (error) {
@@ -28,39 +31,46 @@ export class ManagementService {
   }
 
   static async getRecentAspirants(limit = 10) {
-    const supabase = await createClient()
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
     
     try {
       const { data, error } = await supabase
-        .from('profiles')
+        .from('aspirant_profiles')
         .select(`
-          id,
-          first_name,
-          last_name,
-          email,
-          aspirant_profiles(
-            jamb_reg_no,
-            application_status,
-            current_stage,
-            profile_completion
+          profile_id,
+          admission_number,
+          jamb_reg_no,
+          application_status,
+          current_stage,
+          profile_completion,
+          created_at,
+          profiles!aspirant_profiles_profile_id_fkey (
+            id,
+            first_name,
+            last_name,
+            email,
+            avatar_url,
+            profile_photo_path,
+            profile_photo_bucket
           )
         `)
-        .eq('role', 'aspirant')
         .order('created_at', { ascending: false })
         .limit(limit)
 
       if (error) throw error
 
-      return data?.map((profile: any) => ({
-        id: profile.id,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        email: profile.email,
-        jambRegNo: profile.aspirant_profiles?.[0]?.jamb_reg_no || '',
-        applicationStatus: profile.aspirant_profiles?.[0]?.application_status || 'pending',
-        currentStage: profile.aspirant_profiles?.[0]?.current_stage || 'signup',
-        profileCompletion: profile.aspirant_profiles?.[0]?.profile_completion || 0,
-        submittedAt: profile.created_at,
+      return data?.map((aspirant: any) => ({
+        id: aspirant.profile_id,
+        firstName: aspirant.profiles?.first_name || '',
+        lastName: aspirant.profiles?.last_name || '',
+        email: aspirant.profiles?.email || '',
+        avatarUrl: aspirant.profiles?.avatar_url || aspirant.profiles?.profile_photo_path || null,
+        jambRegNo: aspirant.jamb_reg_no || '',
+        admissionNumber: aspirant.admission_number || '',
+        applicationStatus: aspirant.application_status || 'pending',
+        currentStage: aspirant.current_stage || 'signup',
+        profileCompletion: aspirant.profile_completion || 0,
+        submittedAt: aspirant.created_at,
       })) || []
     } catch (error) {
       console.error('[ManagementService] Failed to get recent aspirants:', error)
@@ -70,7 +80,7 @@ export class ManagementService {
 
   // Student Management
   static async getStudentStats() {
-    const supabase = await createClient()
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
     
     try {
       const [totalResult, activeResult, inactiveResult, suspendedResult, graduatedResult] = await Promise.all([
@@ -95,7 +105,7 @@ export class ManagementService {
   }
 
   static async getRecentStudents(limit = 10) {
-    const supabase = await createClient()
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
     
     try {
       const { data, error } = await supabase
@@ -105,6 +115,7 @@ export class ManagementService {
           first_name,
           last_name,
           email,
+          created_at,
           student_profiles(
             student_number,
             matric_number,
@@ -137,7 +148,7 @@ export class ManagementService {
 
   // Lecturer Management
   static async getLecturerStats() {
-    const supabase = await createClient()
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
     
     try {
       const [totalResult, activeResult, inactiveResult, suspendedResult, partTimeResult] = await Promise.all([
@@ -162,7 +173,7 @@ export class ManagementService {
   }
 
   static async getRecentLecturers(limit = 10) {
-    const supabase = await createClient()
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
     
     try {
       const { data, error } = await supabase
@@ -172,6 +183,7 @@ export class ManagementService {
           first_name,
           last_name,
           email,
+          created_at,
           teacher_profiles(
             employee_number,
             department,
@@ -206,7 +218,7 @@ export class ManagementService {
 
   // Admin Management
   static async getAdminStats() {
-    const supabase = await createClient()
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
     
     try {
       const [totalResult, superAdminResult, operationsResult, academicsResult, financeResult] = await Promise.all([
@@ -231,7 +243,7 @@ export class ManagementService {
   }
 
   static async getRecentAdmins(limit = 10) {
-    const supabase = await createClient()
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
     
     try {
       const { data, error } = await supabase
@@ -241,6 +253,7 @@ export class ManagementService {
           first_name,
           last_name,
           email,
+          created_at,
           admin_profiles(
             staff_id,
             department,
@@ -281,7 +294,7 @@ export class ManagementService {
 
   // Dashboard Stats
   static async getDashboardStats() {
-    const supabase = await createClient()
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
     
     try {
       const [

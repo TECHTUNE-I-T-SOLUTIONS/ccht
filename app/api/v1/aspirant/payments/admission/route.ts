@@ -29,6 +29,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only aspirants can initiate admission payments' }, { status: 403 })
     }
 
+    // Check if aspirant has been accepted for admission
+    const { data: aspirantProfile } = await supabase
+      .from('aspirant_profiles')
+      .select('application_status')
+      .eq('profile_id', user.id)
+      .single()
+
+    if (aspirantProfile?.application_status !== 'accepted') {
+      return NextResponse.json({ error: 'Payment is only available after you have been accepted for admission' }, { status: 403 })
+    }
+
     const response = await AspirantPaymentsService.initiateAdmissionPayment(user.id, email, supabase)
     
     return NextResponse.json(response)

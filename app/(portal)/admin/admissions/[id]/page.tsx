@@ -20,6 +20,10 @@ export default function AdminApplicationReviewPage() {
   
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [isMigrating, setIsMigrating] = useState(false)
+  const [isBulkVerifying, setIsBulkVerifying] = useState(false)
+  const [showBulkVerifyModal, setShowBulkVerifyModal] = useState(false)
+  const [showAdmitModal, setShowAdmitModal] = useState(false)
+  const [showMigrateModal, setShowMigrateModal] = useState(false)
   const [status, setStatus] = useState('')
   const [adminNote, setAdminNote] = useState('')
 
@@ -53,8 +57,29 @@ export default function AdminApplicationReviewPage() {
   }
 
   const handleUpdateStatus = async () => {
-    if (status === 'admitted' && !window.confirm('Warning: Setting status to Admitted will permanently convert this applicant into a Student and assign them a matriculation number. Proceed?')) return;
+    if (status === 'admitted') {
+      setShowAdmitModal(true)
+      return
+    }
     
+    setIsUpdatingStatus(true)
+    try {
+      const res = await updateApplicationStatusAction(id as string, status, adminNote)
+      if (res.success) {
+        toast.success('Status updated successfully')
+        loadData()
+      } else {
+        toast.error(res.error || 'Failed to update status')
+      }
+    } catch (err) {
+      toast.error('An error occurred')
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
+
+  const confirmAdmit = async () => {
+    setShowAdmitModal(false)
     setIsUpdatingStatus(true)
     try {
       const res = await updateApplicationStatusAction(id as string, status, adminNote)
@@ -97,8 +122,11 @@ export default function AdminApplicationReviewPage() {
   }
 
   const handleMigrateToStudent = async () => {
-    if (!window.confirm('Are you sure you want to migrate this applicant to the student portal? This will convert them to a student and assign their matric number.')) return;
-    
+    setShowMigrateModal(true)
+  }
+
+  const confirmMigrate = async () => {
+    setShowMigrateModal(false)
     setIsMigrating(true)
     try {
       const res = await migrateToStudentAction(id as string)
@@ -109,9 +137,44 @@ export default function AdminApplicationReviewPage() {
         toast.error(res.error || 'Failed to migrate applicant')
       }
     } catch (err) {
-      toast.error('An error occurred')
+      toast.error('An error occurred during migration')
     } finally {
       setIsMigrating(false)
+    }
+  }
+
+  const handleBulkVerifyDocuments = async () => {
+    if (!app.admission_documents || app.admission_documents.length === 0) {
+      toast.error('No documents to verify')
+      return
+    }
+
+    setShowBulkVerifyModal(true)
+  }
+
+  const confirmBulkVerify = async () => {
+    setShowBulkVerifyModal(false)
+    setIsBulkVerifying(true)
+    try {
+      // Verify all documents in parallel
+      const verificationPromises = app.admission_documents.map((doc: any) =>
+        updateDocumentVerificationStatusAction(doc.id, 'verified', 'Correct - bulk verified by admin')
+      )
+      
+      const results = await Promise.all(verificationPromises)
+      
+      if (results.every((res: any) => res.success)) {
+        toast.success(`Successfully verified ${results.length} documents`)
+        loadData()
+      } else {
+        const failedCount = results.filter((res: any) => !res.success).length
+        toast.error(`Failed to verify ${failedCount} documents`)
+        loadData() // Still reload to show partial success
+      }
+    } catch (err) {
+      toast.error('An error occurred during bulk verification')
+    } finally {
+      setIsBulkVerifying(false)
     }
   }
 
@@ -212,7 +275,21 @@ export default function AdminApplicationReviewPage() {
               </div>
               
               <div>
-                <p className="text-sm font-semibold mb-2">Previous Education / Documents</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold">Previous Education / Documents</p>
+                  {app.admission_documents && app.admission_documents.length > 0 && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleBulkVerifyDocuments}
+                      disabled={isBulkVerifying}
+                      className="gap-2"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      {isBulkVerifying ? 'Verifying...' : 'Bulk Verify All'}
+                    </Button>
+                  )}
+                </div>
                 {app.admission_documents && app.admission_documents.length > 0 ? (
                   <div className="space-y-2">
                     {app.admission_documents.map((doc: any) => (
@@ -257,6 +334,7 @@ export default function AdminApplicationReviewPage() {
                     <SelectItem value="accepted">Accepted (Offer Letter)</SelectItem>
                     <SelectItem value="pending_payment">Pending Payment (waiting for student to pay)</SelectItem>
                     <SelectItem value="admitted">Admitted (Convert to Student)</SelectItem>
+                    <SelectItem value="admission_accepted">Admission Accepted</SelectItem>
                     <SelectItem value="migrated">Migrated (Converted to Student)</SelectItem>
                     <SelectItem value="rejected">Rejected</SelectItem>
                   </SelectContent>
@@ -402,6 +480,66 @@ export default function AdminApplicationReviewPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Bulk Verify Confirmation Modal */}
+      <Dialog open={showBulkVerifyModal} onOpenChange={setShowBulkVerifyModal}>
+        <DialogContent className="bg-white dark:bg-slate-900">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Bulk Verify Documents</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to verify all {app.admission_documents?.length || 0} documents as "correct"?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={() => setShowBulkVerifyModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmBulkVerify} disabled={isBulkVerifying}>
+              {isBulkVerifying ? 'Verifying...' : 'Verify All Documents'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admit Confirmation Modal */}
+      <Dialog open={showAdmitModal} onOpenChange={setShowAdmitModal}>
+        <DialogContent className="bg-white dark:bg-slate-900">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Confirm Admission</DialogTitle>
+            <DialogDescription>
+              Warning: Setting status to Admitted will permanently convert this applicant into a Student and assign them a matriculation number. Proceed?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={() => setShowAdmitModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmAdmit} disabled={isUpdatingStatus}>
+              {isUpdatingStatus ? 'Updating...' : 'Confirm Admission'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Migrate Confirmation Modal */}
+      <Dialog open={showMigrateModal} onOpenChange={setShowMigrateModal}>
+        <DialogContent className="bg-white dark:bg-slate-900">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Migrate to Student Portal</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to migrate this applicant to the student portal? This will convert them to a student and assign their matric number.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={() => setShowMigrateModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmMigrate} disabled={isMigrating}>
+              {isMigrating ? 'Migrating...' : 'Migrate to Student'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

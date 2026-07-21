@@ -152,25 +152,8 @@ export async function POST(request: NextRequest) {
             if (studentError) console.error('Failed to create student profile:', studentError)
           }
 
-          // Enroll in program
-          const { data: currentSession } = await adminSupabase
-            .from('academic_sessions')
-            .select('id')
-            .eq('is_current', true)
-            .single()
-
-          if (currentSession) {
-            const { error: enrollError } = await adminSupabase
-              .from('program_enrollments')
-              .insert({
-                student_id: user.id,
-                program_id: aspirantProfile.preferred_program_id,
-                session_id: currentSession.id,
-                status: 'active'
-              })
-
-            if (enrollError) console.error('Failed to enroll student:', enrollError)
-          }
+          // Note: Enrollment creation is handled during admin migration from aspirant to student
+          // This ensures the student_profiles record exists before creating enrollments
         }
       }
     }

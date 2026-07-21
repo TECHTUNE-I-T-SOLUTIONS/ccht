@@ -135,7 +135,7 @@ export async function POST() {
           throw new Error(updateError.message)
         }
         
-        console.log('[complete-documents] profile updated successfully:', profileData)
+        // console.log('[complete-documents] profile updated successfully:', profileData)
         profileUpdateSuccess = true
         break
       } catch (err: any) {

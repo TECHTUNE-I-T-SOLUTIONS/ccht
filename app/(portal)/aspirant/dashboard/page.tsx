@@ -127,7 +127,6 @@ export default function AspirantDashboard() {
   // Profile completion modal states
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [profileData, setProfileData] = useState({
-    phone: '',
     gender: '',
     nationality: 'Nigerian',
     dateOfBirth: '',
@@ -541,6 +540,12 @@ export default function AspirantDashboard() {
   }
 
   const initiateAdmissionPayment = async () => {
+    // Prevent payment if status is not accepted
+    if (profile?.application_status !== 'accepted') {
+      toast.error('Payment is only available after you have been accepted for admission')
+      return
+    }
+    
     setInitiatingPayment(true)
     try {
       const response = await fetch('/api/v1/aspirant/payments/admission', {
@@ -727,7 +732,7 @@ export default function AspirantDashboard() {
   
   // Check if stage is documents or later for proceed button
   // Check if stage is exam or later for read-only documents (hide upload forms)
-  const stageOrder = ['signup', 'payment', 'documents', 'exam', 'admission_fee', 'migration']
+  const stageOrder = ['signup', 'payment', 'documents', 'exam', 'admission_fee', 'migration', 'admission_acceptance', 'completed']
   const currentStageIndex = stageOrder.indexOf(stage)
   const isDocumentsOrLater = currentStageIndex >= stageOrder.indexOf('documents')
   const isExamOrLater = currentStageIndex >= stageOrder.indexOf('exam')
@@ -758,7 +763,7 @@ export default function AspirantDashboard() {
         ? 'All required documents uploaded ✓'
         : `Uploaded: ${uploadedDocumentTypes.size} of ${allRequiredDocTypes.length}`,
     },
-    ...(isAdmissionFeeOrLater ? [] : [{
+    ...(isAdmissionFeeOrLater || examResults.length > 0 ? [] : [{
       id: 'exam',
       title: 'Entrance Exam',
       description: 'Take the secure online screening exam',
@@ -780,15 +785,13 @@ export default function AspirantDashboard() {
       description: 'Pay ₦30,000 admission and administrative charges',
       icon: CreditCard,
       completed: adminFeePaid,
-      locked: stage !== 'admission_fee' && stage !== 'migration' && !['pending_payment', 'admitted'].includes(profile?.application_status || ''),
+      locked: (stage !== 'admission_fee' && stage !== 'migration') || profile?.application_status !== 'accepted',
       action: initiateAdmissionPayment,
       actionLabel: 'Pay ₦30,000',
       detail: adminFeePaid 
         ? 'Payment completed' 
-        : profile?.application_status === 'pending_payment'
+        : profile?.application_status === 'accepted'
         ? 'Pay to accept admission'
-        : profile?.application_status === 'admitted'
-        ? 'Payment required'
         : 'Awaiting admission decision',
     },
     {
@@ -1006,7 +1009,7 @@ export default function AspirantDashboard() {
       )}
 
       {/* Exam Result Card - Show only when stage is before admission_fee */}
-      {appFeePaid && stage !== 'admission_fee' && stage !== 'migration' ? (
+      {appFeePaid && !isAdmissionFeeOrLater ? (
         <Card className="rounded-[2rem] border bg-white dark:bg-slate-900 p-6 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-primary/10 p-3 text-primary">
@@ -1086,10 +1089,10 @@ export default function AspirantDashboard() {
                 <input
                   type="file"
                   accept={ACCEPTED_PHOTO_EXTENSIONS}
-                  className="mt-4 w-full text-sm"
+                  className="mt-4 w-full text-sm border border-primary rounded-lg p-2"
                   onChange={handlePassportFileChange}
                 />
-                <Button onClick={uploadPassport} disabled={submittingPassport || !passportFile} className="mt-4 rounded-2xl">
+                <Button onClick={uploadPassport} disabled={submittingPassport || !passportFile} className="mt-4 rounded-2xl border border-primary">
                   <UploadCloud className="mr-2 h-4 w-4" />
                   {submittingPassport ? 'Uploading...' : 'Upload Passport'}
                 </Button>
@@ -1163,7 +1166,7 @@ export default function AspirantDashboard() {
                   onChange={handleDocFileChange}
                 />
               </label>
-              <Button onClick={uploadDocument} disabled={submittingDoc || !docFile} className="w-full rounded-2xl">
+              <Button onClick={uploadDocument} disabled={submittingDoc || !docFile} className="w-full rounded-2xl border border-primary hover:text-blue-500">
                 <FileUp className="mr-2 h-4 w-4" />
                 {submittingDoc ? 'Uploading...' : 'Upload document'}
               </Button>
@@ -1441,20 +1444,6 @@ export default function AspirantDashboard() {
             <form onSubmit={handleProfileSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-2">
-                  <Phone className="h-4 w-4" />
-                  Phone Number <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  type="tel"
-                  placeholder="e.g., 08012345678"
-                  required
-                  value={profileData.phone}
-                  onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2">
                   <User className="h-4 w-4" />
                   Gender <span className="text-red-500">*</span>
                 </label>
@@ -1565,7 +1554,7 @@ export default function AspirantDashboard() {
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={submittingProfile} className="w-full">
+                <Button type="submit" disabled={submittingProfile} className="w-full border border-primary hover:bg-primary hover:text-blue-500">
                   {submittingProfile ? 'Saving...' : 'Save Profile Details & Continue'}
                 </Button>
               </div>

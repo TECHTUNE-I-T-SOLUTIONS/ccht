@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const file = formData.get('file')
     const sessionId = formData.get('sessionId')
+    const duration = formData.get('duration')
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'Recording file is required' }, { status: 400 })
@@ -64,11 +65,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 403 })
     }
 
+    // console.log('[screen-recording] Starting upload to Cloudinary for session:', sessionId)
+    
     // Upload to Cloudinary
     const result = await uploadFileToCloudinary(file, {
       folder: `exam-recordings/${user.id}`,
-      resourceType: 'auto',
+      resourceType: 'auto', // auto-detect video type
     })
+
+    // console.log('[screen-recording] Cloudinary upload successful:', result.secure_url)
+
+    // Calculate duration from file or use provided value
+    let recordingDuration = 0
+    if (duration && !isNaN(Number(duration))) {
+      recordingDuration = Number(duration)
+    } else {
+      // Estimate duration from file size (rough estimate: ~1MB per 10 seconds for webm)
+      recordingDuration = Math.round(file.size / (1024 * 1024) * 10)
+    }
 
     // Save recording metadata
     const { data: recording, error: recordingError } = await supabase
@@ -76,7 +90,7 @@ export async function POST(request: NextRequest) {
       .insert({
         session_id: sessionId,
         recording_url: result.secure_url,
-        recording_duration_seconds: 0, // Will be updated by client
+        recording_duration_seconds: recordingDuration,
         file_size_bytes: file.size,
         storage_provider: 'cloudinary',
         status: 'available',
@@ -86,10 +100,11 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (recordingError) {
-      console.error('Failed to save recording:', recordingError)
+      console.error('[screen-recording] Failed to save recording:', recordingError)
       return NextResponse.json({ error: 'Failed to save recording' }, { status: 500 })
     }
 
+    // console.log('[screen-recording] Recording saved successfully:', recording.id)
     return NextResponse.json({ success: true, data: recording }, { status: 201 })
   } catch (error) {
     console.error('[screen-recording] upload error:', error)

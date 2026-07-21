@@ -39,7 +39,7 @@ type ExamStep = 'intro' | 'requirements' | 'screen-recording' | 'fullscreen' | '
 export default function AspirantEntranceExam() {
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
-  const [answers, setAnswers] = useState<Record<number, string>>({})
+  const [answers, setAnswers] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [currentStep, setCurrentStep] = useState<ExamStep>('intro')
   const [agreedToRules, setAgreedToRules] = useState(false)
@@ -59,6 +59,9 @@ export default function AspirantEntranceExam() {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([])
   const [recordingUploaded, setRecordingUploaded] = useState(false)
+  const [recordingStartTime, setRecordingStartTime] = useState<Date | null>(null)
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null)
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
   const [faceDetected, setFaceDetected] = useState(true)
   const [audioDetected, setAudioDetected] = useState(false)
   const [aiViolationScore, setAiViolationScore] = useState(0)
@@ -124,12 +127,15 @@ export default function AspirantEntranceExam() {
 
     try {
       // Capture the screen
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+      const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { mediaSource: 'screen' } as any,
         audio: false,
       })
 
-      const recorder = new MediaRecorder(screenStream, { mimeType: 'video/webm' })
+      // Store the stream for later cleanup
+      setScreenStream(stream)
+
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' })
       const chunks: Blob[] = []
 
       recorder.ondataavailable = (event) => {
@@ -142,17 +148,32 @@ export default function AspirantEntranceExam() {
         const blob = new Blob(chunks, { type: 'video/webm' })
         setRecordedChunks(chunks)
 
+        // Calculate recording duration
+        const endTime = new Date()
+        const durationSeconds = recordingStartTime 
+          ? Math.round((endTime.getTime() - recordingStartTime.getTime()) / 1000)
+          : 0
+
+        console.log(`[exam] Recording duration: ${durationSeconds} seconds`)
+        console.log(`[exam] Recording start time: ${recordingStartTime?.toISOString()}`)
+        console.log(`[exam] Recording end time: ${endTime.toISOString()}`)
+
         // Upload recording to Cloudinary via API route (optional - gracefully handle errors)
         try {
-          if (!examSessionId) {
-            console.error('No exam session ID, skipping recording upload')
+          // Use the stored session ID for upload - check multiple sources
+          const sessionIdForUpload = (recorder as any).sessionId || pendingSessionId || examSessionId
+          if (!sessionIdForUpload) {
+            console.error('No exam session ID available, skipping recording upload')
             return
           }
+
+          console.log('[exam] Uploading recording with session ID:', sessionIdForUpload)
 
           const formData = new FormData()
           const file = new File([blob], `exam-recording-${Date.now()}.webm`, { type: 'video/webm' })
           formData.append('file', file)
-          formData.append('sessionId', examSessionId)
+          formData.append('sessionId', sessionIdForUpload)
+          formData.append('duration', durationSeconds.toString())
 
           const response = await fetch('/api/v1/admissions/screen-recording', {
             method: 'POST',
@@ -171,21 +192,62 @@ export default function AspirantEntranceExam() {
           // Continue without recording - don't block exam submission
         }
 
-        // Stop all tracks
-        screenStream.getTracks().forEach((track: any) => track.stop())
+        // Stop all tracks in the screen stream
+        if (stream) {
+          stream.getTracks().forEach((track: any) => {
+            track.stop()
+            console.log('[exam] Stopped screen track:', track.kind)
+          })
+        }
       }
 
       recorder.start()
       setMediaRecorder(recorder)
+      setRecordingStartTime(new Date())
+      console.log('[exam] Screen recording started')
     } catch (error) {
       console.error('Failed to start screen recording:', error)
     }
   }
 
-  const stopScreenRecording = async () => {
+  const stopScreenRecording = async (sessionId?: string) => {
+    console.log('[exam] stopScreenRecording called')
+    
+    // Stop media recorder if active
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      // Store the session ID synchronously in a ref for immediate access
+      if (sessionId) {
+        setPendingSessionId(sessionId)
+        // Also store it directly on the mediaRecorder for immediate access
+        ;(mediaRecorder as any).sessionId = sessionId
+      }
       mediaRecorder.stop()
+      console.log('[exam] MediaRecorder stopped')
       // Recording is saved in the onstop handler
+    }
+    
+    // Force stop the screen stream directly to ensure browser stops recording
+    if (screenStream) {
+      screenStream.getTracks().forEach((track: any) => {
+        track.stop()
+        console.log('[exam] Force stopped screen track:', track.kind, track.readyState)
+      })
+      setScreenStream(null)
+    }
+    
+    // Additional cleanup: try to stop any remaining screen sharing
+    // This is a more aggressive approach to ensure screen sharing stops
+    try {
+      // Get all video tracks and stop them
+      const allVideoTracks = screenStream?.getVideoTracks() || []
+      allVideoTracks.forEach((track: any) => {
+        if (track.readyState === 'live') {
+          track.stop()
+          console.log('[exam] Stopped live video track:', track.kind)
+        }
+      })
+    } catch (error) {
+      console.error('[exam] Error stopping video tracks:', error)
     }
   }
 
@@ -193,14 +255,49 @@ export default function AspirantEntranceExam() {
     if (submitting) return
     setSubmitting(true)
     
-    // Stop recording before submission and wait for upload
-    await stopScreenRecording()
+    console.log('[exam] Starting exam submission')
     
-    // Wait a moment for recording to finish uploading
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Ensure exam session exists before stopping recording
+    let currentSessionId = examSessionId
+    if (!currentSessionId) {
+      try {
+        console.log('[exam] Creating exam session')
+        const sessionRes = await fetch('/api/v1/admissions/exam-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            examType: 'Entrance Examination',
+            academicYear: String(new Date().getFullYear()),
+            examConfigId: examConfig?.id,
+          }),
+        })
+        const sessionData = await sessionRes.json()
+        if (sessionData.data?.id) {
+          currentSessionId = sessionData.data.id
+          setExamSessionId(currentSessionId)
+          setPendingSessionId(currentSessionId) // Set for recording upload
+          console.log('[exam] Exam session created:', currentSessionId)
+        }
+      } catch (err) {
+        console.error('Failed to create exam session:', err)
+      }
+    } else {
+      // Use existing session ID for recording
+      setPendingSessionId(currentSessionId)
+      console.log('[exam] Using existing exam session:', currentSessionId)
+    }
+    
+    // Stop recording before submission and wait for upload
+    console.log('[exam] Stopping screen recording with session ID:', currentSessionId)
+    await stopScreenRecording(currentSessionId || undefined)
+    
+    // Wait for recording to finish uploading (increased time)
+    console.log('[exam] Waiting for recording upload...')
+    await new Promise(resolve => setTimeout(resolve, 5000))
+    console.log('[exam] Recording upload wait complete')
     
     try {
-      const score = questions.reduce((count: number, q: Question) => (answers[parseInt(q.id)] === q.correct_answer ? count + 1 : count), 0)
+      const score = questions.reduce((count: number, q: Question) => (answers[q.id] === q.correct_answer ? count + 1 : count), 0)
       const finalPercentage = Math.round((score / questions.length) * 100)
 
       // Update exam session with all required fields
@@ -231,6 +328,7 @@ export default function AspirantEntranceExam() {
           academicYear: String(new Date().getFullYear()),
           semester: 1,
           percentage: finalPercentage,
+          answers: answers, // Include the actual answers
         }),
       })
 
@@ -242,6 +340,24 @@ export default function AspirantEntranceExam() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
+      
+      // Exit fullscreen mode
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+        console.log('[exam] Exited fullscreen mode')
+      }
+      
+      // Force stop screen recording and cleanup
+      if (screenStream) {
+        screenStream.getTracks().forEach((track: any) => {
+          track.stop()
+          console.log('[exam] Force stopped screen track:', track.kind)
+        })
+        setScreenStream(null)
+      }
+      
+      // Clear media recorder
+      setMediaRecorder(null)
       
       router.push('/aspirant/exam/thank-you')
     } catch {
@@ -284,9 +400,9 @@ export default function AspirantEntranceExam() {
         setQuestions(data.data.questions || [])
         
         // Initialize answers with empty strings for all questions
-        const initialAnswers: Record<number, string> = {}
+        const initialAnswers: Record<string, string> = {}
         data.data.questions.forEach((q: Question) => {
-          initialAnswers[parseInt(q.id)] = ''
+          initialAnswers[q.id] = ''
         })
         setAnswers(initialAnswers)
         
@@ -1250,31 +1366,31 @@ export default function AspirantEntranceExam() {
                     {questions[currentQuestionIndex].question_text}
                   </p>
                   <div className="space-y-3">
-                    {questions[currentQuestionIndex].options.map((option: string) => {
-                      const isSelected = answers[parseInt(questions[currentQuestionIndex].id)] === option
+                    {questions[currentQuestionIndex].options.map((option: string, optionIndex: number) => {
+                      const isSelected = answers[questions[currentQuestionIndex].id] === option
                       return (
                         <button
                           key={option}
-                          onClick={() => setAnswers({ ...answers, [parseInt(questions[currentQuestionIndex].id)]: option })}
+                          onClick={() => setAnswers({ ...answers, [questions[currentQuestionIndex].id]: option })}
                           className={`w-full rounded-xl p-4 text-left transition-all ${
                             isSelected
-                              ? 'bg-primary text-primary-foreground font-medium'
+                              ? 'bg-primary text-primary-foreground font-medium shadow-lg shadow-primary/25'
                               : 'bg-slate-50 text-foreground hover:bg-slate-100 dark:bg-slate-800/50 dark:hover:bg-slate-800'
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <div className={`h-5 w-5 rounded-full border-2 ${
+                            <div className={`flex h-6 w-6 items-center justify-center rounded-lg border-2 ${
                               isSelected
-                                ? 'border-primary-foreground bg-primary-foreground'
+                                ? 'border-primary-foreground bg-primary-foreground text-primary'
                                 : 'border-slate-300 dark:border-slate-600'
                             }`}>
-                              {isSelected && (
-                                <div className="flex h-full items-center justify-center">
-                                  <div className="h-2 w-2 rounded-full bg-white" />
-                                </div>
+                              {isSelected ? (
+                                <CheckCircle2 className="h-4 w-4" />
+                              ) : (
+                                <span className="text-sm font-semibold">{String.fromCharCode(65 + optionIndex)}</span>
                               )}
                             </div>
-                            <span className="font-medium">{option}</span>
+                            <span className="flex-1">{option}</span>
                           </div>
                         </button>
                       )

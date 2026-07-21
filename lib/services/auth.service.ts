@@ -101,21 +101,54 @@ export class AuthService {
       console.error('[AuthService] Failed to update profile with phone/middle_name:', profileUpdateError)
     }
 
-    // Create aspirant profile if role is aspirant
+    // Create or update aspirant profile if role is aspirant
     if (input.role === 'aspirant') {
-      const { error: aspirantError } = await admin
+      // Check if aspirant profile already exists
+      const { data: existingProfile } = await admin
         .from('aspirant_profiles')
-        .insert({
-          profile_id: data.user.id,
-          jamb_reg_no: jambRegNo || null,
-          preferred_program_id: input.preferred_program_id || null,
-          application_status: 'draft',
-          current_stage: 'signup',
-        })
+        .select('profile_id')
+        .eq('profile_id', data.user.id)
+        .single()
 
-      if (aspirantError) {
-        console.error('[AuthService] Failed to create aspirant profile:', aspirantError)
+      if (!existingProfile) {
+        // Create new aspirant profile
+        const { error: aspirantError } = await admin
+          .from('aspirant_profiles')
+          .insert({
+            profile_id: data.user.id,
+            jamb_reg_no: jambRegNo || null,
+            phone: input.phone,
+            preferred_program_id: input.preferred_program_id || null,
+            admission_session: input.admission_session || null,
+            application_status: 'draft',
+            current_stage: 'signup',
+          })
+
+        if (aspirantError) {
+          console.error('[AuthService] Failed to create aspirant profile:', aspirantError)
+        } else {
+          console.log('[AuthService] Aspirant profile created for user:', data.user.id)
+        }
+      } else {
+        // Update existing aspirant profile with latest data
+        const { error: updateError } = await admin
+          .from('aspirant_profiles')
+          .update({
+            jamb_reg_no: jambRegNo || null,
+            preferred_program_id: input.preferred_program_id || null,
+            admission_session: input.admission_session || null,
+          })
+          .eq('profile_id', data.user.id)
+
+        if (updateError) {
+          console.error('[AuthService] Failed to update aspirant profile:', updateError)
+        } else {
+          console.log('[AuthService] Aspirant profile updated for user:', data.user.id)
+        }
       }
+
+      // Note: Enrollment creation is handled during admin migration from aspirant to student
+      // This ensures the student_profiles record exists before creating enrollments
     }
 
     // Create admin profile if role is admin

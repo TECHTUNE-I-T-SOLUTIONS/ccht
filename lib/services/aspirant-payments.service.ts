@@ -328,6 +328,52 @@ export class AspirantPaymentsService {
   }
 
   /**
+   * Get all payment history for an aspirant
+   */
+  static async getAspirantPaymentHistory(aspirantId: string, supabaseClient?: any) {
+    const supabase = supabaseClient || createClient()
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const adminSupabase = createAdminClient()
+    
+    console.log('[AspirantPaymentsService] Fetching payment history for aspirant:', aspirantId)
+    
+    // Try with admin client to bypass RLS for debugging
+    const [applicationPayments, admissionPayments] = await Promise.all([
+      adminSupabase
+        .from('aspirant_application_payments')
+        .select('*')
+        .eq('aspirant_id', aspirantId)
+        .order('created_at', { ascending: false }),
+      adminSupabase
+        .from('aspirant_admission_payments')
+        .select('*')
+        .eq('aspirant_id', aspirantId)
+        .order('created_at', { ascending: false })
+    ])
+
+    // console.log('[AspirantPaymentsService] Application payments:', applicationPayments)
+    // console.log('[AspirantPaymentsService] Admission payments:', admissionPayments)
+
+    // Combine and format all payments
+    const allPayments = [
+      ...(applicationPayments.data || []).map((p: any) => ({
+        ...p,
+        payment_type: 'Application Fee',
+        type: 'application'
+      })),
+      ...(admissionPayments.data || []).map((p: any) => ({
+        ...p,
+        payment_type: 'Admission Fee',
+        type: 'admission'
+      }))
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    // console.log('[AspirantPaymentsService] Combined payments:', allPayments)
+
+    return allPayments
+  }
+
+  /**
    * Process payment webhook
    */
   static async processWebhook(event: any) {

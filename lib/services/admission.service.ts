@@ -216,12 +216,18 @@ export class AdmissionService {
       try {
         const { data: aspirant, error: aspirantError } = await supabase
           .from('aspirant_profiles')
-          .select('profile_id, preferred_program_id, application_status')
+          .select('profile_id, preferred_program_id, application_status, current_stage')
           .eq('profile_id', profileId)
           .maybeSingle()
 
         if (aspirantError || !aspirant) {
           errors.push({ profileId, error: 'Aspirant profile not found' })
+          continue
+        }
+
+        // Only migrate if status is 'completed' or 'admitted' with stage 'completed'
+        if (aspirant.application_status !== 'completed' && !(aspirant.application_status === 'admitted' && aspirant.current_stage === 'completed')) {
+          errors.push({ profileId, error: 'Aspirant status must be completed to migrate' })
           continue
         }
 
@@ -256,12 +262,14 @@ export class AdmissionService {
 
         const matricNumber = `CCHT/${deptCode}/${currentYear}/${String(nextId).padStart(3, '0')}`
 
+        // Update profile role to student
         const { error: profileUpdateError } = await supabase
           .from('profiles')
           .update({ role: 'student' })
           .eq('id', profileId)
         if (profileUpdateError) throw profileUpdateError
 
+        // Create student profile record with all required fields
         const { error: studentError } = await supabase
           .from('student_profiles')
           .upsert({
@@ -271,16 +279,20 @@ export class AdmissionService {
             admission_session: `${currentYear}/${parseInt(currentYear) + 1}`,
             admission_date: new Date().toISOString().split('T')[0],
             current_level: '100',
-            admission_status: 'active',
+            admission_status: 'active', // Must match the check constraint
+            nationality: 'Nigerian', // Default value
           })
         if (studentError) throw studentError
 
+        // Update aspirant profile to mark as migrated
         const { error: aspirantUpdateError } = await supabase
           .from('aspirant_profiles')
           .update({
-            application_status: 'approved',
-            current_stage: 'admitted',
+            application_status: 'migrated',
+            current_stage: 'completed',
             admission_number: matricNumber,
+            migration_completed: true,
+            migration_completed_at: new Date().toISOString(),
           })
           .eq('profile_id', profileId)
         if (aspirantUpdateError) throw aspirantUpdateError

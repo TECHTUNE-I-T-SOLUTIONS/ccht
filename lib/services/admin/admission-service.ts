@@ -115,10 +115,24 @@ export class AdminAdmissionService {
 
   static async updateApplicationStatus(id: string, status: string, adminNote?: string) {
     const supabase = await createClient();
+    
+    // Determine the appropriate stage based on status
+    let currentStage = 'signup';
+    if (status === 'accepted') {
+      currentStage = 'admission_fee'; // Show payment step after acceptance
+    } else if (status === 'admitted') {
+      currentStage = 'migration'; // Trigger aspirant acceptance flow
+    } else if (status === 'student') {
+      currentStage = 'completed'; // Final stage when fully migrated
+    } else if (status === 'admission_accepted') {
+      currentStage = 'admission_acceptance'; // Aspirant has accepted, waiting for admin migration
+    }
+    
     const { data, error } = await supabase
       .from('aspirant_profiles')
       .update({
         application_status: status,
+        current_stage: currentStage,
         review_feedback: adminNote || null,
         reviewed_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -129,9 +143,9 @@ export class AdminAdmissionService {
 
     if (error) throw new Error('Failed to update application status: ' + error.message);
     
-    // Only auto-convert to student if status is 'admitted' (after aspirant accepts offer)
-    // For 'accepted' status (offer sent), aspirant must accept first
-    if (status === 'admitted') {
+    // Only auto-convert to student if status is 'student' (after admin migration)
+    // For 'admitted' status, aspirant must accept first
+    if (status === 'student') {
       await AdminAdmissionService.convertToStudent(data.profile_id, data.preferred_program_id);
     }
 
@@ -213,7 +227,7 @@ export class AdminAdmissionService {
           profile_id: profileId,
           matric_number: matricNumber,
           current_level: '100',
-          admission_status: 'admitted',
+          admission_status: 'active', // Must match the check constraint
         });
       
       if (studentError) console.error("Failed to create student profile", studentError);
@@ -223,7 +237,7 @@ export class AdminAdmissionService {
     const { data: currentSession } = await supabase.from('academic_sessions').select('id').eq('is_current', true).single();
     if (currentSession) {
       const { error: enrollError } = await supabase
-        .from('program_enrollments')
+        .from('enrollments')
         .insert({
           student_id: profileId,
           program_id: programId,

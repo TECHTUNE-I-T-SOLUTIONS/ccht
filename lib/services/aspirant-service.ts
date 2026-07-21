@@ -16,11 +16,10 @@ export class AspirantService {
   static async updateAspirantProfile(profileId: string, payload: any) {
     const supabase = await createClient();
     
-    // Update aspirant_profiles table
+    // Update aspirant_profiles table (phone is collected during registration, not in profile modal)
     const { data, error } = await supabase
       .from('aspirant_profiles')
       .update({
-        phone: payload.phone,
         gender: payload.gender,
         nationality: payload.nationality,
         date_of_birth: payload.dateOfBirth,
@@ -32,21 +31,6 @@ export class AspirantService {
       .single();
 
     if (error) throw new Error('Failed to update aspirant profile: ' + error.message);
-
-    // Also update phone in profiles table
-    if (payload.phone) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          phone: payload.phone,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', profileId);
-
-      if (profileError) {
-        console.error('Failed to update phone in profiles table:', profileError);
-      }
-    }
 
     return data;
   }
@@ -72,14 +56,13 @@ export class AspirantService {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from('aspirant_profiles')
-      .select('phone, gender, nationality, date_of_birth, state_of_origin, profile_completion')
+      .select('gender, nationality, date_of_birth, state_of_origin, profile_completion')
       .eq('profile_id', profileId)
       .single();
 
     if (error) throw new Error('Failed to check profile completion: ' + error.message);
 
     const requiredFields = [
-      { key: 'phone', value: data.phone },
       { key: 'gender', value: data.gender },
       { key: 'nationality', value: data.nationality },
       { key: 'date_of_birth', value: data.date_of_birth },
@@ -98,14 +81,15 @@ export class AspirantService {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from('aspirant_profiles')
-      .select('application_status, review_feedback, program:programs(title), preferred_program_id')
+      .select('application_status, current_stage, review_feedback, program:programs(title), preferred_program_id')
       .eq('profile_id', profileId)
       .single();
 
     if (error) throw new Error('Failed to check offer status: ' + error.message);
 
+    // Show offer modal when status is 'admitted' and stage is 'migration' (waiting for aspirant to accept)
     return {
-      hasOffer: data.application_status === 'accepted',
+      hasOffer: data.application_status === 'admitted' && data.current_stage === 'migration',
       offerDetails: data,
     };
   }
@@ -114,12 +98,12 @@ export class AspirantService {
     const supabase = await createClient();
     
     if (accept) {
-      // When accepted, set status to pending_payment and stage to admission_fee
+      // When accepted, set status to admission_accepted and stage to admission_acceptance
       const { data, error } = await supabase
         .from('aspirant_profiles')
         .update({
-          application_status: 'pending_payment',
-          current_stage: 'admission_fee',
+          application_status: 'admission_accepted',
+          current_stage: 'admission_acceptance',
           updated_at: new Date().toISOString(),
         })
         .eq('profile_id', profileId)

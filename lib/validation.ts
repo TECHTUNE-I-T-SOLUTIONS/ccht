@@ -4,7 +4,7 @@ import { USER_ROLES, PROGRAM_LEVELS, DURATION_UNITS, FEE_TYPES, PAYMENT_METHODS,
 // Authentication Schemas
 export const SignUpSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string().min(10, 'Password must be at least 10 characters'),
   confirmPassword: z.string(),
   firstName: z.string().min(2, 'First name is required'),
   middleName: z.string().optional(),
@@ -22,6 +22,7 @@ export const SignUpSchema = z.object({
   // Aspirant-specific fields
   jambRegNo: z.string().optional(),
   preferred_program_id: z.string().uuid().optional(),
+  admission_session: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],

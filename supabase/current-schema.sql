@@ -151,9 +151,9 @@ CREATE TABLE public.enrollments (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT enrollments_pkey PRIMARY KEY (id),
-  CONSTRAINT enrollments_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id),
   CONSTRAINT enrollments_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.programs(id),
-  CONSTRAINT enrollments_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.academic_sessions(id)
+  CONSTRAINT enrollments_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.academic_sessions(id),
+  CONSTRAINT enrollments_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.assessments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -430,7 +430,7 @@ CREATE TABLE public.aspirant_profiles (
   jamb_reg_no text UNIQUE,
   preferred_program_id uuid,
   application_type text NOT NULL DEFAULT 'Fresh admission'::text CHECK (application_type = ANY (ARRAY['Fresh admission'::text, 'Transfer candidate'::text, 'Returning applicant'::text, 'Special consideration'::text])),
-  application_status text NOT NULL DEFAULT 'draft'::text CHECK (application_status = ANY (ARRAY['draft'::text, 'incomplete'::text, 'submitted'::text, 'under_review'::text, 'correction_required'::text, 'approved'::text, 'rejected'::text])),
+  application_status text NOT NULL DEFAULT 'draft'::text CHECK (application_status = ANY (ARRAY['draft'::text, 'pending'::text, 'incomplete'::text, 'under_review'::text, 'correction_required'::text, 'accepted'::text, 'pending_payment'::text, 'admitted'::text, 'migrated'::text, 'rejected'::text])),
   current_stage text NOT NULL DEFAULT 'signup'::text CHECK (current_stage = ANY (ARRAY['signup'::text, 'payment'::text, 'documents'::text, 'exam'::text, 'admission_fee'::text, 'migration'::text, 'completed'::text])),
   profile_completion integer NOT NULL DEFAULT 0 CHECK (profile_completion >= 0 AND profile_completion <= 100),
   admission_session text,
@@ -454,6 +454,11 @@ CREATE TABLE public.aspirant_profiles (
   migration_completed boolean NOT NULL DEFAULT false,
   migration_completed_at timestamp with time zone,
   matric_number text,
+  phone text,
+  gender text CHECK (gender = ANY (ARRAY['male'::text, 'female'::text, 'other'::text, 'prefer_not_to_say'::text])),
+  nationality text DEFAULT 'Nigerian'::text,
+  date_of_birth date,
+  state_of_origin text,
   CONSTRAINT aspirant_profiles_pkey PRIMARY KEY (profile_id),
   CONSTRAINT aspirant_profiles_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id),
   CONSTRAINT aspirant_profiles_preferred_program_id_fkey FOREIGN KEY (preferred_program_id) REFERENCES public.programs(id),

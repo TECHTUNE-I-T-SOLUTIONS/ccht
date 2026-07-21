@@ -11,6 +11,45 @@ export default function ExamThankYouPage() {
   const router = useRouter()
 
   useEffect(() => {
+    // Force cleanup of any active screen recording and fullscreen
+    const cleanupScreenRecording = () => {
+      try {
+        // Exit fullscreen if active
+        if (document.fullscreenElement) {
+          document.exitFullscreen()
+          console.log('[thank-you] Exited fullscreen mode')
+        }
+
+        // Stop all media tracks (screen recording, webcam, etc.)
+        const mediaTracks = Array.from(document.querySelectorAll('video, audio'))
+          .map(el => (el as HTMLMediaElement).srcObject)
+          .filter(stream => stream instanceof MediaStream)
+        
+        mediaTracks.forEach(stream => {
+          stream.getTracks().forEach(track => {
+            track.stop()
+            console.log('[thank-you] Stopped media track:', track.kind)
+          })
+        })
+
+        // Also try to stop any remaining tracks by getting all media streams
+        if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+          navigator.mediaDevices.enumerateDevices().then(devices => {
+            devices.forEach(device => {
+              console.log('[thank-you] Device:', device.kind, device.label)
+            })
+          })
+        }
+
+        console.log('[thank-you] Screen recording cleanup completed')
+      } catch (error) {
+        console.error('[thank-you] Error during screen recording cleanup:', error)
+      }
+    }
+
+    // Run cleanup immediately
+    cleanupScreenRecording()
+
     // Show success message
     toast.success('Exam submitted successfully!', {
       description: 'Your entrance exam has been submitted for review.',

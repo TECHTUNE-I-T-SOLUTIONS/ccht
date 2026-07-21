@@ -94,11 +94,11 @@ export default function LoginPage() {
         } else if (user.role === 'lecturer') {
           targetRoute = ROUTES.lecturerDashboard
         } else if (user.role === 'aspirant') {
-          // Check if aspirant has been migrated to student
+          // Check if aspirant has been converted to student
           try {
             const profileRes = await fetch('/api/v1/aspirant/profile')
             const profileData = await profileRes.json()
-            if (profileData.success && profileData.data?.application_status === 'migrated') {
+            if (profileData.success && profileData.data?.application_status === 'student') {
               targetRoute = ROUTES.studentDashboard
             } else {
               targetRoute = ROUTES.aspirantDashboard

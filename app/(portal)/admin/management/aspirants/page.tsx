@@ -23,10 +23,12 @@ type RecentAspirant = {
   lastName: string
   email: string
   jambRegNo: string
+  admissionNumber: string
   applicationStatus: string
   currentStage: string
   profileCompletion: number
   submittedAt: string
+  avatarUrl?: string | null
 }
 
 export default function AspirantManagementPage() {
@@ -57,8 +59,22 @@ export default function AspirantManagementPage() {
       const statsData = await statsRes.json()
       const aspirantsData = await aspirantsRes.json()
       
-      if (statsData.success) setStats(statsData.data)
-      if (aspirantsData.success) setRecentAspirants(aspirantsData.data)
+      console.log('[Aspirant Management] Stats response:', statsData)
+      console.log('[Aspirant Management] Aspirants response:', aspirantsData)
+      
+      if (statsData.success) {
+        console.log('[Aspirant Management] Setting stats:', statsData.data)
+        setStats(statsData.data)
+      } else {
+        console.error('[Aspirant Management] Stats error:', statsData.error)
+      }
+      
+      if (aspirantsData.success) {
+        console.log('[Aspirant Management] Setting aspirants:', aspirantsData.data)
+        setRecentAspirants(aspirantsData.data)
+      } else {
+        console.error('[Aspirant Management] Aspirants error:', aspirantsData.error)
+      }
     } catch (error) {
       console.error('Failed to load aspirant data:', error)
     } finally {
@@ -112,7 +128,6 @@ export default function AspirantManagementPage() {
         { label: 'Document Review', href: '/admin/admissions/documents', description: 'Review uploaded documents' },
         { label: 'Pending Documents', href: '/admin/admissions/documents?status=pending', description: 'Documents awaiting verification' },
         { label: 'Verified Documents', href: '/admin/admissions/documents?status=verified', description: 'Successfully verified documents' },
-        { label: 'Document Templates', href: '/admin/settings/documents', description: 'Manage document requirements' },
       ],
     },
     {
@@ -124,6 +139,7 @@ export default function AspirantManagementPage() {
         { label: 'Exam Management', href: '/admin/screening', description: 'Create and manage screening exams' },
         { label: 'Candidate Results', href: '/admin/screening/results', description: 'View exam results and grades' },
         { label: 'Exam Proctoring', href: '/admin/exam-proctoring', description: 'Monitor live exam sessions' },
+        { label: 'Exam Recordings', href: '/admin/screening/recordings', description: 'View and manage exam recordings' },
         { label: 'Exam Analytics', href: '/admin/screening/analytics', description: 'Exam performance analytics' },
       ],
     },

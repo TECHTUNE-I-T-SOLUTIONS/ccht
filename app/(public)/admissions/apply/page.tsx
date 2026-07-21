@@ -29,23 +29,28 @@ const initial = {
   confirmPassword: '',
   phone: '',
   jambRegNo: '',
+  admissionSession: '',
 }
 
-const signupSchema = z
-  .object({
-    firstName: z.string().min(2),
-    middleName: z.string().optional().or(z.literal('')),
-    lastName: z.string().min(2),
-    email: z.string().email(),
-    password: z.string().min(8),
-    confirmPassword: z.string().min(8),
-    phone: z.string().min(10).regex(/^[0-9+\-\s()]+$/),
-    jambRegNo: z.string().optional().or(z.literal('')),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ['confirmPassword'],
-  })
+// Step 1 validation schema (personal details)
+const stepOneSchema = z.object({
+  firstName: z.string().min(2, 'First name must be at least 2 characters'),
+  middleName: z.string().optional().or(z.literal('')),
+  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(10, 'Password must be at least 10 characters'),
+  confirmPassword: z.string().min(10, 'Password must be at least 10 characters'),
+  phone: z.string().min(10, 'Phone number must be at least 10 characters').regex(/^[0-9+\-\s()]+$/, 'Invalid phone number format'),
+  jambRegNo: z.string().optional().or(z.literal('')),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
+})
+
+// Step 2 validation schema (session and course)
+const stepTwoSchema = z.object({
+  admissionSession: z.string().min(1, 'Please select an admission session'),
+})
 
 const steps = [
   'Create your account and confirm your email.',
@@ -63,11 +68,14 @@ function ApplyPageInner() {
   const [form, setForm] = useState(initial)
   const [course, setCourse] = useState('')
   const [courseId, setCourseId] = useState('')
+  const [admissionSession, setAdmissionSession] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [courseOpen, setCourseOpen] = useState(false)
   const [programs, setPrograms] = useState<Program[]>([])
   const [loadingPrograms, setLoadingPrograms] = useState(true)
+  const [sessions, setSessions] = useState<{id: string, name: string}[]>([])
+  const [loadingSessions, setLoadingSessions] = useState(true)
 
   useEffect(() => {
     const loadPrograms = async () => {
@@ -85,6 +93,49 @@ function ApplyPageInner() {
   }, [])
 
   useEffect(() => {
+    const loadSessions = async () => {
+      try {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        
+        // Query for active sessions that are eligible for admission
+        const { data, error } = await supabase
+          .from('academic_sessions')
+          .select('id, name')
+          .eq('is_active', true)
+          .order('name', { ascending: false })
+
+        console.log('Loaded sessions from DB:', data, error)
+
+        if (error) throw error
+        
+        if (data && data.length > 0) {
+          setSessions(data)
+        } else {
+          // Fallback to default sessions if database is empty
+          console.log('No sessions found, using fallback')
+          setSessions([
+            { id: '2025/2026', name: '2025/2026' },
+            { id: '2026/2027', name: '2026/2027' },
+            { id: '2027/2028', name: '2027/2028' },
+          ])
+        }
+      } catch (error) {
+        console.error('Failed to load sessions:', error)
+        // Fallback to default sessions if database fetch fails
+        setSessions([
+          { id: '2025/2026', name: '2025/2026' },
+          { id: '2026/2027', name: '2026/2027' },
+          { id: '2027/2028', name: '2027/2028' },
+        ])
+      } finally {
+        setLoadingSessions(false)
+      }
+    }
+    loadSessions()
+  }, [])
+
+  useEffect(() => {
     const emailParam = searchParams.get('email')
     if (emailParam) {
       setForm((prev) => ({ ...prev, email: emailParam }))
@@ -94,25 +145,79 @@ function ApplyPageInner() {
   const progress = useMemo(() => Math.round((step / 3) * 100), [step])
 
   const validateStepOne = () => {
-    const result = signupSchema.safeParse(form)
-    if (result.success) return true
+    // console.log('Validating step 1:', form)
+    
+    const result = stepOneSchema.safeParse(form)
+    if (result.success) {
+      setErrors({})
+      return true
+    }
+    
     const fieldErrors: Record<string, string> = {}
+    console.log('Validation errors:', result.error.issues)
+    
     for (const issue of result.error.issues) {
       const key = issue.path[0]
-      if (typeof key === 'string' && !fieldErrors[key]) fieldErrors[key] = issue.message
+      if (typeof key === 'string' && !fieldErrors[key]) {
+        fieldErrors[key] = issue.message
+      }
     }
-    setErrors((prev) => ({ ...prev, ...fieldErrors }))
+    setErrors(fieldErrors)
+    return false
+  }
+
+  const validateStepTwo = () => {
+    // console.log('Validating step 2:', { admissionSession, course })
+    
+    const result = stepTwoSchema.safeParse({ admissionSession })
+    if (result.success) {
+      return true
+    }
+    
+    const fieldErrors: Record<string, string> = {}
+    console.log('Step 2 validation errors:', result.error.issues)
+    
+    for (const issue of result.error.issues) {
+      const key = issue.path[0]
+      if (typeof key === 'string' && !fieldErrors[key]) {
+        fieldErrors[key] = issue.message
+      }
+    }
+    setErrors(fieldErrors)
     return false
   }
 
   const goNext = async () => {
-    if (step === 1 && !validateStepOne()) return
-    if (step === 2 && !course) {
-      setErrors((prev) => ({ ...prev, course: 'Please choose a course.' }))
-      return
+    console.log('goNext called, step:', step)
+    
+    if (step === 1) {
+      // console.log('Validating step 1...')
+      const isValid = validateStepOne()
+      // console.log('Validation result:', isValid, 'Errors:', errors)
+      if (!isValid) {
+        console.log('Validation failed, not proceeding')
+        return
+      }
+      console.log('Validation passed, proceeding to step 2')
+    }
+    
+    if (step === 2) {
+      console.log('Validating step 2...')
+      const isValid = validateStepTwo()
+      // console.log('Step 2 validation result:', isValid, 'Errors:', errors)
+      if (!isValid) {
+        console.log('Step 2 validation failed, not proceeding')
+        return
+      }
+      
+      if (!course) {
+        setErrors((prev) => ({ ...prev, course: 'Please choose a course.' }))
+        return
+      }
     }
 
     if (step < 3) {
+      console.log('Moving to next step:', step + 1)
       setStep((value) => value + 1)
       return
     }
@@ -127,6 +232,7 @@ function ApplyPageInner() {
           role: 'aspirant',
           jamb_reg_no: form.jambRegNo || null,
           preferred_program_id: courseId || null,
+          admission_session: admissionSession,
         }),
       })
 
@@ -283,7 +389,17 @@ function ApplyPageInner() {
                           type={field.includes('password') ? 'password' : field === 'email' ? 'email' : 'text'}
                           className="h-14 rounded-2xl border-border bg-background"
                           value={(form as any)[field]}
-                          onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+                          onChange={(e) => {
+                            setForm({ ...form, [field]: e.target.value })
+                            // Clear error when user starts typing
+                            if (errors[field]) {
+                              setErrors((prev) => {
+                                const newErrors = { ...prev }
+                                delete newErrors[field]
+                                return newErrors
+                              })
+                            }
+                          }}
                         />
                         {errors[field] && <p className="text-xs font-semibold text-red-500">{errors[field]}</p>}
                       </label>
@@ -294,6 +410,31 @@ function ApplyPageInner() {
                 {step === 2 && (
                   <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                     <div className="relative">
+                      <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-foreground/55 mb-2">Admission Session</label>
+                      <select
+                        value={admissionSession}
+                        onChange={(e) => setAdmissionSession(e.target.value)}
+                        className="w-full rounded-2xl border border-border bg-white dark:bg-black p-4 text-left h-14 appearance-none"
+                      >
+                        <option value="">Select admission session</option>
+                        {loadingSessions ? (
+                          <option value="" disabled>Loading sessions...</option>
+                        ) : sessions.length === 0 ? (
+                          <option value="" disabled>No sessions available</option>
+                        ) : (
+                          sessions.map((session) => (
+                            <option key={session.id} value={session.name}>{session.name}</option>
+                          ))
+                        )}
+                      </select>
+                      {errors.admissionSession && <p className="text-xs font-semibold text-red-500 mt-2">{errors.admissionSession}</p>}
+                      {!loadingSessions && sessions.length === 0 && (
+                        <p className="text-xs text-yellow-600 mt-2">No active admission sessions available. Please contact admin.</p>
+                      )}
+                    </div>
+
+                    <div className="relative">
+                      <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-foreground/55 mb-2">Course of Study</label>
                       <button onClick={() => setCourseOpen(!courseOpen)} className="flex w-full items-center justify-between rounded-2xl border border-border bg-background p-5 text-left">
                         <span className={cn('font-semibold', !course && 'text-muted-foreground')}>{course || 'Select a course of study'}</span>
                         <ChevronDown className={cn('h-5 w-5 transition-transform', courseOpen && 'rotate-180')} />
@@ -333,6 +474,7 @@ function ApplyPageInner() {
                       <ReviewCard label="Full Name" value={`${form.firstName} ${form.middleName} ${form.lastName}`.replace(/\s+/g, ' ').trim()} />
                       <ReviewCard label="Email" value={form.email} />
                       <ReviewCard label="Phone" value={form.phone} />
+                      <ReviewCard label="Admission Session" value={admissionSession} />
                       <ReviewCard label="Course" value={course} />
                       <ReviewCard label="JAMB Reg" value={form.jambRegNo || 'Optional'} className="sm:col-span-2" />
                     </div>

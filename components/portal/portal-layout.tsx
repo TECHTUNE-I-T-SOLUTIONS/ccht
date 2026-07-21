@@ -74,7 +74,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
         setExamCompleted((resultsData?.data || []).length > 0)
         setCurrentStage(statusData?.data?.profile?.current_stage || 'signup')
         // Exam is unlocked when stage is 'exam' or later
-        const stageOrder = ['signup', 'payment', 'documents', 'exam', 'admission_fee', 'migration']
+        const stageOrder = ['signup', 'payment', 'documents', 'exam', 'admission_fee', 'migration', 'admission_acceptance', 'completed']
         const currentStageIndex = stageOrder.indexOf(statusData?.data?.profile?.current_stage || 'signup')
         setExamUnlocked(currentStageIndex >= stageOrder.indexOf('exam'))
       }
@@ -133,6 +133,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
         { label: 'Application', href: '/aspirant/application', icon: ClipboardList, stage: 'payment' },
         { label: 'Documents', href: '/aspirant/documents', icon: FileText, stage: 'documents' },
         { label: 'Exam', href: '/aspirant/exam', icon: ShieldCheck, stage: 'exam' },
+        { label: 'Payments', href: '/aspirant/payments', icon: ReceiptText, stage: 'signup' },
         { label: 'Notifications', href: '/aspirant/notifications', icon: Bell, stage: 'signup' },
         { label: 'Status', href: '/aspirant/status', icon: ShieldCheck, stage: 'signup' },
         { label: 'Profile', href: '/aspirant/profile', icon: Users, stage: 'signup' },
@@ -143,13 +144,17 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
     
     // For aspirants, filter items based on stage requirements
     if (role === 'aspirant') {
-      const stageOrder = ['signup', 'payment', 'documents', 'exam', 'admission_fee', 'migration']
+      const stageOrder = ['signup', 'payment', 'documents', 'exam', 'admission_fee', 'migration', 'admission_acceptance', 'completed']
       const currentStageIndex = stageOrder.indexOf(currentStage)
       
       return items.filter((item: NavItem) => {
         if (!item.stage) return true // No stage requirement
         const requiredStageIndex = stageOrder.indexOf(item.stage)
         return currentStageIndex >= requiredStageIndex
+      }).filter((item: NavItem) => {
+        // Hide exam link if exam is already completed
+        if (item.href === '/aspirant/exam' && examCompleted) return false
+        return true
       })
     }
     
