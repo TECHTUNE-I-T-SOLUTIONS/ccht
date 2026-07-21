@@ -59,9 +59,11 @@ export async function GET(request: NextRequest) {
     // Get student's payment history from payments table
     const { data: payments } = await supabase
       .from('payments')
-      .select('*')
+      .select('id, student_id, enrollment_id, invoice_id, amount, currency, payment_method, paystack_reference, status, description, paid_at, created_at')
       .eq('student_id', user.id)
       .order('created_at', { ascending: false })
+
+    // console.log('Payments for student:', user.id, payments)
 
     // Get aspirant admission payments
     const { data: admissionPayments } = await supabase

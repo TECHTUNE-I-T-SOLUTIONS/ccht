@@ -276,4 +276,35 @@ export const paystackService = {
       reference: result.data.reference as string,
     };
   },
+
+  async verifyPayment(reference: string) {
+    if (!PAYSTACK_CONFIG.SECRET_KEY) {
+      throw new Error('Missing PAYSTACK_SECRET_KEY environment variable');
+    }
+
+    const response = await fetch(`${PAYSTACK_CONFIG.API_BASE_URL}/transaction/verify/${reference}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_CONFIG.SECRET_KEY}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to verify Paystack payment');
+    }
+
+    const result = await response.json();
+
+    if (!result?.status || !result?.data) {
+      throw new Error('Invalid response from Paystack');
+    }
+
+    return {
+      status: result.data.status as string,
+      amount: result.data.amount as number,
+      paid_at: result.data.paid_at as string,
+      reference: result.data.reference as string,
+      data: result.data,
+    };
+  },
 };

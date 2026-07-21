@@ -7,6 +7,8 @@ import { CreditCard, Receipt, ShieldCheck, Coins, CalendarDays, Download, AlertC
 import { toast } from 'sonner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { generatePaymentReceipt } from '@/lib/templates/payment-receipt'
+import { createClient } from '@/lib/supabase/client'
 
 type FeeStructure = {
   id: string
@@ -31,6 +33,7 @@ type Payment = {
 
 export default function StudentFeesPage() {
   const [student, setStudent] = useState<any | null>(null)
+  const [studentData, setStudentData] = useState<any | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([])
   const [loading, setLoading] = useState(true)
@@ -47,11 +50,28 @@ export default function StudentFeesPage() {
     try {
       const [meRes, feesRes] = await Promise.all([
         fetch('/api/v1/auth/me'),
-        fetch('/api/v1/student/fees')
+        fetch('/api/v1/student/fees'),
       ])
       const me = await meRes.json().catch(() => null)
       const feeData = await feesRes.json().catch(() => null)
       setStudent(me?.user || null)
+      
+      // Fetch student profile and enrollment data for receipt generation
+      const supabase = createClient()
+      const [profile, studentProfile, enrollment] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', me?.user?.id).single(),
+        supabase.from('student_profiles').select('*').eq('profile_id', me?.user?.id).single(),
+        supabase.from('enrollments').select('*, program:programs(title, department:departments(name))').eq('student_id', me?.user?.id).eq('status', 'active').single()
+      ])
+
+      if (profile.data && studentProfile.data) {
+        setStudentData({
+          profiles: profile.data,
+          ...studentProfile.data,
+          program: enrollment.data?.program || null
+        })
+      }
+      
       if (feeData?.data) {
         setFeeStructures(feeData.data.fees || [])
         setPayments(feeData.data.payments || [])
@@ -99,36 +119,108 @@ export default function StudentFeesPage() {
           email: student.email,
           studentId: student.id,
           description: `${fee.fee_type} - ${fee.session} ${fee.semester} Semester`,
-          feeStructureId: fee.id,
         }),
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Failed to initiate payment')
-      window.location.href = payload.authorizationUrl
+
+      // Load Paystack inline JS dynamically
+      const script = document.createElement('script')
+      script.src = 'https://js.paystack.co/v1/inline.js'
+      script.async = true
+      script.onload = () => {
+        const paystack = (window as any).PaystackPop
+        paystack.setup({
+          key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
+          email: student.email,
+          amount: fee.amount * 100, // Convert to kobo
+          ref: payload.reference,
+          onClose: function() {
+            toast.info('Payment closed')
+            setInitiating(false)
+          },
+          callback: function(response: any) {
+            // Verify payment
+            fetch('/api/v1/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ reference: response.reference }),
+            }).then(async (verifyRes) => {
+              const verifyData = await verifyRes.json()
+              if (verifyRes.ok && verifyData.success) {
+                toast.success('Payment successful!')
+                await loadPaymentData()
+              } else {
+                toast.error('Payment verification failed')
+              }
+              setInitiating(false)
+            }).catch(() => {
+              toast.error('Payment verification error')
+              setInitiating(false)
+            })
+          },
+        }).openIframe()
+      }
+      script.onerror = () => {
+        toast.error('Failed to load payment gateway')
+        setInitiating(false)
+      }
+      document.body.appendChild(script)
     } catch (err: any) {
       toast.error(err.message)
-    } finally {
       setInitiating(false)
     }
   }
 
-  const downloadReceipt = async (paymentId: string) => {
+  const reverifyPayment = async (paymentId: string, reference: string) => {
     try {
-      const response = await fetch(`/api/v1/payments/${paymentId}/receipt`)
-      if (!response.ok) throw new Error('Failed to download receipt')
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `receipt-${paymentId}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      toast.success('Receipt downloaded successfully')
+      const response = await fetch('/api/v1/payments/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference }),
+      })
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        toast.success('Payment verified successfully!')
+        await loadPaymentData()
+      } else {
+        toast.error(data.error || 'Payment verification failed')
+      }
     } catch (err: any) {
-      toast.error(err.message)
+      toast.error(err.message || 'Failed to reverify payment')
     }
+  }
+
+  const downloadReceipt = (payment: Payment) => {
+    if (!studentData) {
+      toast.error('Student data not loaded')
+      return
+    }
+
+    const paymentDate = payment.paid_at ? new Date(payment.paid_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Pending'
+    const createdDate = new Date(payment.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    
+    const doc = generatePaymentReceipt({
+      receiptId: payment.id,
+      firstName: studentData.profiles?.first_name || '',
+      lastName: studentData.profiles?.last_name || '',
+      matricNumber: studentData.matric_number || '',
+      program: studentData.program?.title || '',
+      department: studentData.program?.department?.name || '',
+      email: studentData.profiles?.email || '',
+      phone: studentData.profiles?.phone || studentData.student_number || '',
+      paymentType: payment.description || 'Fee Payment',
+      amount: payment.amount,
+      reference: payment.paystack_reference || 'N/A',
+      description: payment.description,
+      status: payment.status,
+      paymentDate,
+      requestDate: createdDate
+    })
+
+    doc.save(`Receipt_${payment.description?.replace(/\s+/g, '_')}_${payment.id}.pdf`)
+    toast.success('Receipt downloaded')
   }
 
   const handlePaymentClick = (fee: FeeStructure) => {
@@ -250,7 +342,14 @@ export default function StudentFeesPage() {
           ) : (
             <div className="space-y-3">
               {filteredFees.map((fee) => {
-                const isPaid = payments.some(p => p.fee_structure_id === fee.id && p.status === 'success')
+                // Match payment by description, amount, and session since fee_structure_id doesn't exist
+                const isPaid = payments.some(p => 
+                  p.status === 'success' && (
+                    (p.description?.includes(fee.fee_type) && p.amount === fee.amount) ||
+                    (p.description?.includes(fee.session) && p.amount === fee.amount)
+                  )
+                )
+                console.log('Fee:', fee.fee_type, 'ID:', fee.id, 'isPaid:', isPaid, 'Payments:', payments.filter(p => p.status === 'success').map(p => ({ desc: p.description, amount: p.amount })))
                 return (
                   <div key={fee.id} className="flex items-center justify-between p-4 rounded-xl border bg-slate-50 dark:bg-slate-800/50">
                     <div className="flex-1">
@@ -272,7 +371,7 @@ export default function StudentFeesPage() {
                           size="sm" 
                           onClick={() => handlePaymentClick(fee)}
                           disabled={initiating}
-                          className="rounded-xl"
+                          className="rounded-xl border border-primary hover:text-blue-600"
                         >
                           Pay
                         </Button>
@@ -326,11 +425,21 @@ export default function StudentFeesPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => downloadReceipt(payment.id)}
-                      className="rounded-xl"
+                      onClick={() => downloadReceipt(payment)}
+                      className="rounded-xl border border-primary hover:text-blue-600"
                     >
                       <Download className="h-4 w-4 mr-2" />
                       Receipt
+                    </Button>
+                  )}
+                  {payment.status === 'pending' && payment.paystack_reference && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => payment.paystack_reference && reverifyPayment(payment.id, payment.paystack_reference)}
+                      className="rounded-xl border border-primary hover:text-blue-600"
+                    >
+                      Reverify
                     </Button>
                   )}
                 </div>

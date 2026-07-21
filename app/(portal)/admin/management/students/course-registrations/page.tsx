@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Search, CheckCircle, XCircle, Clock, Eye, Loader2 } from 'lucide-react'
+import { Search, CheckCircle, XCircle, Clock, Eye, Loader2, User, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 type SelectedCourse = {
   id: string
@@ -46,6 +47,7 @@ export default function CourseRegistrationsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
@@ -89,68 +91,55 @@ export default function CourseRegistrationsPage() {
     }
   }
 
-  const handleApprove = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('selected_courses')
-        .update({ 
-          status: 'approved',
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', id)
-
-      if (error) throw error
-      toast.success('Course registration approved')
-      loadRegistrations()
-    } catch (error) {
-      console.error('Failed to approve:', error)
-      toast.error('Failed to approve registration')
+  // Group registrations by student
+  const groupedByStudent = registrations.reduce((acc, reg) => {
+    const studentId = reg.student_id
+    if (!acc[studentId]) {
+      acc[studentId] = {
+        student: reg.student,
+        student_id: reg.student_id,
+        registrations: []
+      }
     }
-  }
+    acc[studentId].registrations.push(reg)
+    return acc
+  }, {} as Record<string, { student: any; student_id: string; registrations: SelectedCourse[] }>)
 
-  const handleReject = async (id: string) => {
-    const notes = prompt('Enter rejection reason (optional):')
-    if (notes === null) return
+  const studentsArray = Object.values(groupedByStudent)
 
-    try {
-      const { error } = await supabase
-        .from('selected_courses')
-        .update({ 
-          status: 'rejected',
-          review_notes: notes,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', id)
-
-      if (error) throw error
-      toast.success('Course registration rejected')
-      loadRegistrations()
-    } catch (error) {
-      console.error('Failed to reject:', error)
-      toast.error('Failed to reject registration')
-    }
-  }
-
-  const filteredRegistrations = registrations.filter(reg => {
+  const filteredStudents = studentsArray.filter(({ student, registrations }) => {
     const matchesSearch = 
-      `${reg.student?.first_name} ${reg.student?.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reg.student?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reg.student?.student_profiles?.matric_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reg.course?.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reg.course?.title?.toLowerCase().includes(searchTerm.toLowerCase())
+      `${student?.first_name} ${student?.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student?.student_profiles?.matric_number?.toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesStatus = statusFilter === 'all' || reg.status === statusFilter
+    const matchesStatus = statusFilter === 'all' || 
+      registrations.some(reg => reg.status === statusFilter)
+    
     return matchesSearch && matchesStatus
   })
 
-  const getStatusBadge = (status: string) => {
+  const getStudentStatus = (registrations: SelectedCourse[]) => {
+    const pendingCount = registrations.filter(r => r.status === 'pending').length
+    const approvedCount = registrations.filter(r => r.status === 'approved').length
+    const rejectedCount = registrations.filter(r => r.status === 'rejected').length
+    
+    if (pendingCount > 0) return { status: 'pending', count: pendingCount }
+    if (approvedCount > 0 && rejectedCount === 0) return { status: 'approved', count: approvedCount }
+    if (rejectedCount > 0 && approvedCount === 0) return { status: 'rejected', count: rejectedCount }
+    return { status: 'mixed', count: registrations.length }
+  }
+
+  const getStatusBadge = (status: string, count?: number) => {
     switch (status) {
       case 'approved':
-        return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle className="h-3 w-3 mr-1" /> Approved</Badge>
+        return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle className="h-3 w-3 mr-1" /> {count || 'Approved'}</Badge>
       case 'rejected':
-        return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"><XCircle className="h-3 w-3 mr-1" /> Rejected</Badge>
+        return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"><XCircle className="h-3 w-3 mr-1" /> {count || 'Rejected'}</Badge>
+      case 'pending':
+        return <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"><Clock className="h-3 w-3 mr-1" /> {count} Pending</Badge>
       default:
-        return <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"><Clock className="h-3 w-3 mr-1" /> Pending</Badge>
+        return <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-400">{count} Mixed</Badge>
     }
   }
 
@@ -168,7 +157,7 @@ export default function CourseRegistrationsPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by student name, email, matric number, or course..."
+              placeholder="Search by student name, email, or matric number..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -191,73 +180,83 @@ export default function CourseRegistrationsPage() {
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : filteredRegistrations.length === 0 ? (
+        ) : filteredStudents.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">No course registrations found</div>
         ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Student</TableHead>
-                  <TableHead>Matric No</TableHead>
-                  <TableHead>Course</TableHead>
-                  <TableHead>Level</TableHead>
-                  <TableHead>Credits</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRegistrations.map((reg) => (
-                  <TableRow key={reg.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{reg.student?.first_name} {reg.student?.last_name}</p>
-                        <p className="text-sm text-muted-foreground">{reg.student?.email}</p>
+          <>
+            {/* Mobile: Card layout */}
+            <div className="grid gap-4 md:hidden">
+              {filteredStudents.map(({ student, student_id, registrations }) => {
+                const { status, count } = getStudentStatus(registrations)
+                return (
+                  <Card key={student_id} className="p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" onClick={() => router.push(`/admin/management/students/course-registrations/${student_id}`)}>
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-full bg-primary/10 p-3 text-primary">
+                        <User className="h-5 w-5" />
                       </div>
-                    </TableCell>
-                    <TableCell>{reg.student?.student_profiles?.matric_number || '-'}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{reg.course?.code}</p>
-                        <p className="text-sm text-muted-foreground">{reg.course?.title}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{reg.course?.level}L</TableCell>
-                    <TableCell>{reg.course?.credit_units}</TableCell>
-                    <TableCell>{getStatusBadge(reg.status)}</TableCell>
-                    <TableCell className="text-right">
-                      {reg.status === 'pending' && (
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleApprove(reg.id)}
-                            className="text-emerald-600 hover:text-emerald-700"
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleReject(reg.id)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Reject
-                          </Button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold truncate">{student?.first_name} {student?.last_name}</h3>
+                          {getStatusBadge(status, count)}
                         </div>
-                      )}
-                      {reg.review_notes && (
-                        <p className="text-xs text-muted-foreground text-right">{reg.review_notes}</p>
-                      )}
-                    </TableCell>
+                        <p className="text-sm text-muted-foreground mb-1">{student?.email}</p>
+                        <p className="text-sm text-muted-foreground mb-2">Matric: {student?.student_profiles?.matric_number || 'N/A'}</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">{registrations.length} courses</p>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+
+            {/* Desktop: Table layout */}
+            <div className="hidden md:block rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Student</TableHead>
+                    <TableHead>Matric No</TableHead>
+                    <TableHead>Level</TableHead>
+                    <TableHead>Courses</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {filteredStudents.map(({ student, student_id, registrations }) => {
+                    const { status, count } = getStudentStatus(registrations)
+                    return (
+                      <TableRow key={student_id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{student?.first_name} {student?.last_name}</p>
+                            <p className="text-sm text-muted-foreground">{student?.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>{student?.student_profiles?.matric_number || '-'}</TableCell>
+                        <TableCell>{student?.student_profiles?.current_level || 'N/A'}</TableCell>
+                        <TableCell>{registrations.length} courses</TableCell>
+                        <TableCell>{getStatusBadge(status, count)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`/admin/management/students/course-registrations/${student_id}`)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </Card>
     </div>

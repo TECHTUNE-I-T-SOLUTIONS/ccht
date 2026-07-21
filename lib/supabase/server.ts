@@ -32,3 +32,24 @@ export async function createClient() {
     },
   )
 }
+
+/**
+ * Creates a Supabase client with service role key to bypass RLS
+ * Use this for admin operations that need to bypass row-level security
+ */
+export async function createServiceClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return []
+        },
+        setAll() {
+          // No-op for service client
+        },
+      },
+    },
+  )
+}

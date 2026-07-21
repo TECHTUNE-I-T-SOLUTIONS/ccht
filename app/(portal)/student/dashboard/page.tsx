@@ -251,7 +251,7 @@ export default function StudentDashboard() {
                 <p className="text-sm text-muted-foreground">No recent payments found.</p>
               ) : (
                 payments.map((payment) => (
-                  <div key={payment.id} className="rounded-2xl border border-border bg-slate-50 p-4">
+                  <div key={payment.id} className="rounded-2xl border border-border bg-slate-50 dark:bg-primary p-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold">Payment update</p>
                       <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{payment.status}</span>
