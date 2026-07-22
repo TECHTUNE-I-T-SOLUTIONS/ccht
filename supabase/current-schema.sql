@@ -589,6 +589,7 @@ CREATE TABLE public.teacher_profiles (
   employment_status text DEFAULT 'active'::text CHECK (employment_status = ANY (ARRAY['active'::text, 'inactive'::text, 'suspended'::text])),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  departments jsonb DEFAULT '[]'::jsonb,
   CONSTRAINT teacher_profiles_pkey PRIMARY KEY (profile_id),
   CONSTRAINT teacher_profiles_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
 );
@@ -990,4 +991,14 @@ CREATE TABLE public.timetable_entries (
   CONSTRAINT timetable_entries_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.courses(id),
   CONSTRAINT timetable_entries_lecturer_id_fkey FOREIGN KEY (lecturer_id) REFERENCES public.profiles(id),
   CONSTRAINT timetable_entries_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.signup_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  signup_type text NOT NULL UNIQUE CHECK (signup_type = ANY (ARRAY['lecturer'::text, 'student'::text])),
+  is_enabled boolean NOT NULL DEFAULT false,
+  updated_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT signup_settings_pkey PRIMARY KEY (id),
+  CONSTRAINT signup_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.profiles(id)
 );

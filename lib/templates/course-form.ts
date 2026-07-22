@@ -28,18 +28,7 @@ export async function generateCourseFormPDF(data: {
   const pageHeight = pdf.internal.pageSize.getHeight()
   const margin = 15
   
-  let y = margin
-
-  // Add school logo centered at top
-  try {
-    const logoSize = 20
-    const logoX = (pageWidth - logoSize) / 2
-    pdf.addImage('/images/logo.png', 'PNG', logoX, y, logoSize, logoSize)
-    y += logoSize + 5
-  } catch (error) {
-    console.warn('Failed to load logo:', error)
-    y += 5
-  }
+  let y = margin + 5
 
   // Header - School name
   pdf.setFontSize(12)

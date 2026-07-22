@@ -104,16 +104,27 @@ export default function StudentCourseFormPage() {
 
   const handleDownload = async () => {
     try {
+      toast.loading('Generating PDF...', { id: 'pdf-download' })
+      
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+      
       const response = await fetch('/api/v1/student/course-form/pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session: selectedSession,
           semester: selectedSemester
-        })
+        }),
+        signal: controller.signal
       })
       
-      if (!response.ok) throw new Error('Failed to generate PDF')
+      clearTimeout(timeoutId)
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to generate PDF')
+      }
       
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
@@ -124,10 +135,15 @@ export default function StudentCourseFormPage() {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-      toast.success('Course form downloaded successfully')
+      
+      toast.success('Course form downloaded successfully', { id: 'pdf-download' })
     } catch (error: any) {
       console.error(error)
-      toast.error(error.message || 'Failed to download course form')
+      if (error.name === 'AbortError') {
+        toast.error('PDF generation timed out. Please try again.', { id: 'pdf-download' })
+      } else {
+        toast.error(error.message || 'Failed to download course form', { id: 'pdf-download' })
+      }
     }
   }
 

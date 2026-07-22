@@ -4,34 +4,15 @@ import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Search, UserCheck, Loader2, CheckCircle } from 'lucide-react'
+import { Search, Filter, UserCheck, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
-type Lecturer = {
-  id: string
-  first_name: string
-  last_name: string
-  email: string
-  phone?: string
-  role: string
-  teacher_profiles?: {
-    employee_number: string
-    staff_number: string
-    qualification: string
-    specialization: string
-    department: string
-    employment_type: string
-    employment_status: string
-    date_joined: string
-  }
-  has_auth?: boolean
-}
-
-export default function LecturersPage() {
-  const [lecturers, setLecturers] = useState<Lecturer[]>([])
+export default function LecturerProfilesPage() {
+  const [lecturers, setLecturers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const supabase = createClient()
@@ -49,19 +30,7 @@ export default function LecturersPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      
-      // Check which lecturers have auth accounts
-      const lecturersWithAuth = await Promise.all(
-        (data || []).map(async (lecturer) => {
-          const { data: authData } = await supabase.auth.admin.getUserById(lecturer.id)
-          return {
-            ...lecturer,
-            has_auth: !!authData.user
-          }
-        })
-      )
-      
-      setLecturers(lecturersWithAuth)
+      setLecturers(data || [])
     } catch (error) {
       console.error('Failed to load lecturers:', error)
       toast.error('Failed to load lecturers')
@@ -79,18 +48,17 @@ export default function LecturersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Lecturer Management</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage lecturer accounts and access</p>
+          <h1 className="text-3xl font-bold">Lecturer Profiles</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Manage lecturer profiles and information</p>
         </div>
         <Link href="/admin/management/lecturers/add">
           <Button className="gap-2">
-            <Plus className="h-4 w-4" />
+            <UserCheck className="h-4 w-4" />
             Add Lecturer
           </Button>
         </Link>
       </div>
 
-      {/* Search */}
       <Card className="p-4">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -103,7 +71,6 @@ export default function LecturersPage() {
         </div>
       </Card>
 
-      {/* Lecturers List */}
       <Card className="p-6">
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -115,39 +82,26 @@ export default function LecturersPage() {
             <p>No lecturers found</p>
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredLecturers.map((lecturer) => (
-              <Card key={lecturer.id} className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4 flex-1">
+              <Link key={lecturer.id} href={`/admin/lecturers/${lecturer.id}`}>
+                <Card className="p-4 hover:bg-accent/50 transition-colors cursor-pointer">
+                  <div className="flex items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
                       {lecturer.first_name.charAt(0)}{lecturer.last_name.charAt(0)}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{lecturer.first_name} {lecturer.last_name}</h3>
-                        <Badge variant="default" className="bg-green-600">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Active
-                        </Badge>
-                      </div>
+                    <div>
+                      <p className="font-semibold">{lecturer.first_name} {lecturer.last_name}</p>
                       <p className="text-sm text-muted-foreground">{lecturer.email}</p>
                       {lecturer.teacher_profiles && (
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge variant="outline">{lecturer.teacher_profiles.employee_number}</Badge>
-                          <Badge variant="outline">{lecturer.teacher_profiles.staff_number}</Badge>
-                          <Badge variant="outline">{lecturer.teacher_profiles.employment_status}</Badge>
-                        </div>
+                        <Badge className="mt-1" variant={lecturer.teacher_profiles.employment_status === 'active' ? 'default' : 'secondary'}>
+                          {lecturer.teacher_profiles.employment_status}
+                        </Badge>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Link href={`/admin/lecturers/${lecturer.id}`}>
-                      <Button variant="ghost" size="sm">View</Button>
-                    </Link>
-                  </div>
-                </div>
-              </Card>
+                </Card>
+              </Link>
             ))}
           </div>
         )}

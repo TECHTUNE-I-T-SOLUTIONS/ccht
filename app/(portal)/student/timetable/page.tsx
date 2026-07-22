@@ -17,7 +17,7 @@ type TimetableSession = {
   level: string
   title?: string
   session?: { name: string }
-  semester?: { name: string }
+  sem_info?: { semester_name: string }
   program?: { title: string }
 }
 
@@ -80,7 +80,7 @@ export default function StudentTimetablePage() {
           .single(),
         supabase
           .from('timetable_sessions')
-          .select('*, session:academic_sessions(name), semester:academic_semesters(name), program:programs(title)')
+          .select('*, session:academic_sessions(name), sem_info:academic_semesters(semester_name), program:programs(title)')
           .order('created_at', { ascending: false })
       ])
 
@@ -204,7 +204,7 @@ export default function StudentTimetablePage() {
               <SelectContent>
                 {timetableSessions.map((session) => (
                   <SelectItem key={session.id} value={session.id}>
-                    {session.session?.name} · {session.semester?.name}
+                    {session.session?.name} · {session.sem_info?.semester_name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -229,7 +229,7 @@ export default function StudentTimetablePage() {
               {selectedSession.title || `${selectedSession.program?.title} - ${selectedSession.level}L`}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              {selectedSession.session?.name} · {selectedSession.semester?.name}
+              {selectedSession.session?.name} · {selectedSession.sem_info?.semester_name}
             </p>
           </div>
 

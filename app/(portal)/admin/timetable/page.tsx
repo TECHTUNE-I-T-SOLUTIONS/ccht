@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Plus, Edit, Trash2, Clock, Calendar, Download, Loader2, PlusCircle } from 'lucide-react'
+import { Plus, Edit, Trash2, Clock, Calendar, Download, Loader2, PlusCircle, MapPin, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 
@@ -21,7 +21,7 @@ type TimetableSession = {
   description?: string
   is_active: boolean
   session?: { name: string }
-  semester?: { semester_name: string }
+  sem_info?: { semester_name: string }
   program?: { title: string }
   entries?: TimetableEntry[]
 }
@@ -83,6 +83,8 @@ export default function AdminTimetablePage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false)
   const [selectedTimetable, setSelectedTimetable] = useState<TimetableSession | null>(null)
+  const [selectedDay, setSelectedDay] = useState<string>('Monday')
+  const [isLoadingEntryData, setIsLoadingEntryData] = useState(false)
   const supabase = createClient()
 
   const [formData, setFormData] = useState({
@@ -108,20 +110,29 @@ export default function AdminTimetablePage() {
     loadData()
   }, [])
 
+  // Load courses when selected timetable changes
+  useEffect(() => {
+    if (selectedTimetable?.program_id && selectedTimetable?.level) {
+      loadCourses(selectedTimetable.program_id, selectedTimetable.level)
+    }
+  }, [selectedTimetable?.id])
+
   const loadData = async () => {
     setLoading(true)
     try {
-      const [sessionsRes, semestersRes, programsRes, timetableRes] = await Promise.all([
+      const [sessionsRes, semestersRes, programsRes, timetableRes, lecturersRes] = await Promise.all([
         supabase.from('academic_sessions').select('*').order('name'),
         supabase.from('academic_semesters').select('*').order('semester_name'),
         supabase.from('programs').select('*').eq('is_active', true),
-        supabase.from('timetable_sessions').select('*, session:academic_sessions(name), semester:academic_semesters(semester_name), program:programs(title)').order('created_at', { ascending: false })
+        supabase.from('timetable_sessions').select('*, session:academic_sessions(name), sem_info:academic_semesters(semester_name), program:programs(title)').order('created_at', { ascending: false }),
+        supabase.from('profiles').select('id, first_name, last_name').eq('role', 'lecturer')
       ])
 
       setSessions(sessionsRes.data || [])
       setSemesters(semestersRes.data || [])
       setPrograms(programsRes.data || [])
       setTimetableSessions(timetableRes.data || [])
+      setLecturers(lecturersRes.data || [])
     } catch (error) {
       console.error('Failed to load data:', error)
       toast.error('Failed to load data')
@@ -155,21 +166,45 @@ export default function AdminTimetablePage() {
     }
 
     try {
-      const { error } = await supabase.from('timetable_sessions').insert({
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      const { data, error } = await supabase.from('timetable_sessions').insert({
         session_id: formData.session_id,
         semester_id: formData.semester_id,
         program_id: formData.program_id,
         level: formData.level,
         title: formData.title,
-        description: formData.description
-      })
+        description: formData.description,
+        created_by: user?.id
+      }).select().single()
 
       if (error) throw error
 
       toast.success('Timetable created successfully')
       setIsCreateModalOpen(false)
       resetForm()
-      loadData()
+      
+      // Create the new timetable object immediately with all related data
+      const newTimetable: TimetableSession = {
+        ...data,
+        session: sessions.find(s => s.id === data.session_id),
+        sem_info: semesters.find(sem => sem.id === data.semester_id),
+        program: programs.find(p => p.id === data.program_id),
+        entries: []
+      }
+      
+      // Add to state immediately so it shows up in the list
+      setTimetableSessions(prev => [newTimetable, ...prev])
+      
+      // Select the newly created timetable
+      setSelectedTimetable(newTimetable)
+      await loadTimetableEntries(newTimetable.id)
+      await loadLecturers()
+      if (newTimetable.program_id && newTimetable.level) {
+        await loadCourses(newTimetable.program_id, newTimetable.level)
+      }
+      // Open the entry modal to add entries
+      setIsEntryModalOpen(true)
     } catch (error) {
       console.error('Failed to create timetable:', error)
       toast.error('Failed to create timetable')
@@ -293,7 +328,7 @@ export default function AdminTimetablePage() {
         </div>
         <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2 border border-primary hover:text-blue-600">
               <Plus className="h-4 w-4" />
               Create Timetable
             </Button>
@@ -382,7 +417,7 @@ export default function AdminTimetablePage() {
                 <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateTimetable}>
+                <Button onClick={handleCreateTimetable} className="border border-primary hover:text-blue-600">
                   Create Timetable
                 </Button>
               </div>
@@ -405,22 +440,24 @@ export default function AdminTimetablePage() {
                 <div>
                   <h3 className="text-lg font-semibold">{timetable.title || `${timetable.program?.title} - ${timetable.level}L`}</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {timetable.session?.name} · {timetable.semester?.semester_name} · {timetable.level}L
+                    {timetable.session?.name} · {timetable.sem_info?.semester_name} · {timetable.level}L
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={timetable.is_active ? 'default' : 'secondary'}>
                     {timetable.is_active ? 'Active' : 'Inactive'}
                   </Badge>
-                  <Dialog open={isEntryModalOpen && selectedTimetable?.id === timetable.id} onOpenChange={(open) => {
+                  <Dialog open={isEntryModalOpen && selectedTimetable?.id === timetable.id} onOpenChange={async (open) => {
                     setIsEntryModalOpen(open)
                     if (open) {
+                      setIsLoadingEntryData(true)
                       setSelectedTimetable(timetable)
-                      loadTimetableEntries(timetable.id)
-                      loadLecturers()
+                      await loadTimetableEntries(timetable.id)
+                      await loadLecturers()
                       if (timetable.program_id && timetable.level) {
-                        loadCourses(timetable.program_id, timetable.level)
+                        await loadCourses(timetable.program_id, timetable.level)
                       }
+                      setIsLoadingEntryData(false)
                     }
                   }}>
                     <DialogTrigger asChild>
@@ -434,128 +471,229 @@ export default function AdminTimetablePage() {
                         <DialogTitle>Add Timetable Entry</DialogTitle>
                         <DialogDescription>Add a new class session to the timetable with course, day, time, venue, and lecturer details.</DialogDescription>
                       </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="text-sm font-medium">Course *</label>
-                          <Select value={entryFormData.course_id} onValueChange={(value) => setEntryFormData({ ...entryFormData, course_id: value })}>
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="Select course" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {courses.map((course) => (
-                                <SelectItem key={course.id} value={course.id}>{course.code} - {course.title}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                      {isLoadingEntryData ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                      ) : (
+                        <div className="space-y-4">
                           <div>
-                            <label className="text-sm font-medium">Day *</label>
-                            <Select value={entryFormData.day_of_week} onValueChange={(value) => setEntryFormData({ ...entryFormData, day_of_week: value })}>
+                            <label className="text-sm font-medium">Course *</label>
+                            <Select value={entryFormData.course_id} onValueChange={(value) => setEntryFormData({ ...entryFormData, course_id: value })}>
                               <SelectTrigger className="mt-1">
-                                <SelectValue />
+                                <SelectValue placeholder="Select course" />
                               </SelectTrigger>
                               <SelectContent>
-                                {DAYS.map((day) => (
-                                  <SelectItem key={day} value={day}>{day}</SelectItem>
+                                {courses.map((course) => (
+                                  <SelectItem key={course.id} value={course.id}>{course.code} - {course.title}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </div>
-                          <div>
-                            <label className="text-sm font-medium">Lecturer</label>
-                            <Select value={entryFormData.lecturer_id} onValueChange={(value) => setEntryFormData({ ...entryFormData, lecturer_id: value })}>
-                              <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="Select lecturer" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {lecturers.map((lecturer) => (
-                                  <SelectItem key={lecturer.id} value={lecturer.id}>{lecturer.first_name} {lecturer.last_name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-sm font-medium">Day *</label>
+                              <Select value={entryFormData.day_of_week} onValueChange={(value) => setEntryFormData({ ...entryFormData, day_of_week: value })}>
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {DAYS.map((day) => (
+                                    <SelectItem key={day} value={day}>{day}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium">Lecturer</label>
+                              <Select value={entryFormData.lecturer_id} onValueChange={(value) => setEntryFormData({ ...entryFormData, lecturer_id: value })}>
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue placeholder="Select lecturer" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {lecturers.map((lecturer) => (
+                                    <SelectItem key={lecturer.id} value={lecturer.id}>{lecturer.first_name} {lecturer.last_name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-sm font-medium">Start Time *</label>
+                              <Input
+                                type="time"
+                                value={entryFormData.start_time}
+                                onChange={(e) => setEntryFormData({ ...entryFormData, start_time: e.target.value })}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium">End Time *</label>
+                              <Input
+                                type="time"
+                                value={entryFormData.end_time}
+                                onChange={(e) => setEntryFormData({ ...entryFormData, end_time: e.target.value })}
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
                           <div>
-                            <label className="text-sm font-medium">Start Time *</label>
+                            <label className="text-sm font-medium">Venue</label>
                             <Input
-                              type="time"
-                              value={entryFormData.start_time}
-                              onChange={(e) => setEntryFormData({ ...entryFormData, start_time: e.target.value })}
+                              placeholder="e.g., Room 101, Lab A"
+                              value={entryFormData.venue}
+                              onChange={(e) => setEntryFormData({ ...entryFormData, venue: e.target.value })}
                               className="mt-1"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-medium">End Time *</label>
+                            <label className="text-sm font-medium">Notes</label>
                             <Input
-                              type="time"
-                              value={entryFormData.end_time}
-                              onChange={(e) => setEntryFormData({ ...entryFormData, end_time: e.target.value })}
+                              placeholder="Optional notes"
+                              value={entryFormData.notes}
+                              onChange={(e) => setEntryFormData({ ...entryFormData, notes: e.target.value })}
                               className="mt-1"
                             />
                           </div>
+                          <div className="flex justify-end gap-3">
+                            <Button variant="outline" onClick={() => setIsEntryModalOpen(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleAddEntry}>
+                              Add Entry
+                            </Button>
+                          </div>
                         </div>
-                        <div>
-                          <label className="text-sm font-medium">Venue</label>
-                          <Input
-                            placeholder="e.g., Room 101, Lab A"
-                            value={entryFormData.venue}
-                            onChange={(e) => setEntryFormData({ ...entryFormData, venue: e.target.value })}
-                            className="mt-1"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Notes</label>
-                          <Input
-                            placeholder="Optional notes"
-                            value={entryFormData.notes}
-                            onChange={(e) => setEntryFormData({ ...entryFormData, notes: e.target.value })}
-                            className="mt-1"
-                          />
-                        </div>
-                        <div className="flex justify-end gap-3">
-                          <Button variant="outline" onClick={() => setIsEntryModalOpen(false)}>
-                            Cancel
-                          </Button>
-                          <Button onClick={handleAddEntry}>
-                            Add Entry
-                          </Button>
-                        </div>
-                      </div>
+                      )}
                     </DialogContent>
                   </Dialog>
                 </div>
               </div>
 
               {timetable.entries && timetable.entries.length > 0 ? (
-                <div className="space-y-2">
-                  {timetable.entries.map((entry) => (
-                    <div key={entry.id} className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
-                      <div className="flex items-center gap-4">
-                        <Badge variant="outline">{entry.day_of_week}</Badge>
-                        <div>
-                          <p className="font-semibold">{entry.course?.code} - {entry.course?.title}</p>
-                          <p className="text-sm text-muted-foreground">
-                            <Clock className="inline h-3 w-3 mr-1" />
-                            {entry.start_time} - {entry.end_time}
-                            {entry.venue && ` · ${entry.venue}`}
-                            {entry.lecturer && ` · ${entry.lecturer.first_name} ${entry.lecturer.last_name}`}
-                          </p>
+                <div className="space-y-4">
+                  {/* Day selector tabs */}
+                  <div className="flex flex-wrap gap-2 border-b pb-2">
+                    {DAYS.map((day) => {
+                      const dayEntries = timetable.entries?.filter(e => e.day_of_week === day) || []
+                      return (
+                        <Button
+                          key={day}
+                          size="sm"
+                          variant={selectedDay === day ? 'default' : 'outline'}
+                          onClick={() => setSelectedDay(day)}
+                          className="relative"
+                        >
+                          {day}
+                          {dayEntries.length > 0 && (
+                            <span className="ml-2 rounded-full bg-primary/20 px-2 py-0.5 text-xs">
+                              {dayEntries.length}
+                            </span>
+                          )}
+                        </Button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Selected day entries */}
+                  <div className="space-y-2">
+                    {timetable.entries
+                      .filter(e => e.day_of_week === selectedDay)
+                      .sort((a, b) => a.start_time.localeCompare(b.start_time))
+                      .map((entry) => (
+                        <div key={entry.id} className="flex items-center justify-between p-4 rounded-lg border bg-slate-50 dark:bg-slate-800/50 hover:shadow-sm transition-shadow">
+                          <div className="flex items-center gap-4 flex-1">
+                            <div className="flex items-center gap-2 text-sm font-mono text-primary min-w-[140px]">
+                              <Clock className="h-4 w-4" />
+                              <span>{entry.start_time} - {entry.end_time}</span>
+                            </div>
+                            <div className="h-8 w-px bg-border" />
+                            <div className="flex-1">
+                              <p className="font-semibold text-sm">{entry.course?.code} - {entry.course?.title}</p>
+                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                                {entry.venue && (
+                                  <span className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {entry.venue}
+                                  </span>
+                                )}
+                                {entry.lecturer && (
+                                  <span className="flex items-center gap-1">
+                                    <User className="h-3 w-3" />
+                                    {entry.lecturer.first_name} {entry.lecturer.last_name}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteEntry(entry.id)}
+                              className="hover:bg-red-50 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
+                      ))}
+                    
+                    {timetable.entries.filter(e => e.day_of_week === selectedDay).length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                        <p className="text-sm">No classes scheduled for {selectedDay}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-3"
+                          onClick={() => {
+                            setSelectedTimetable(timetable)
+                            setEntryFormData({ ...entryFormData, day_of_week: selectedDay })
+                            setIsEntryModalOpen(true)
+                          }}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add Class
+                        </Button>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteEntry(entry.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  ))}
+                    )}
+                  </div>
+
+                  {/* Quick add button at the bottom */}
+                  {timetable.entries.filter(e => e.day_of_week === selectedDay).length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => {
+                        setSelectedTimetable(timetable)
+                        setEntryFormData({ ...entryFormData, day_of_week: selectedDay })
+                        setIsEntryModalOpen(true)
+                      }}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Another Class for {selectedDay}
+                    </Button>
+                  )}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No entries added yet</p>
+                <div className="text-center py-12 text-muted-foreground">
+                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-sm">No entries added yet</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => {
+                      setSelectedTimetable(timetable)
+                      setIsEntryModalOpen(true)
+                    }}
+                  >
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    Add First Entry
+                  </Button>
+                </div>
               )}
             </Card>
           ))

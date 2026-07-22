@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 /**
@@ -35,20 +36,16 @@ export async function createClient() {
 
 /**
  * Creates a Supabase client with service role key to bypass RLS
- * Use this for admin operations that need to bypass row-level security
+ * Uses the direct supabase-js client instead of SSR for admin operations
  */
 export async function createServiceClient() {
-  return createServerClient(
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
-      cookies: {
-        getAll() {
-          return []
-        },
-        setAll() {
-          // No-op for service client
-        },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
       },
     },
   )

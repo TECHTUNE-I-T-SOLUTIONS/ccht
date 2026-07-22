@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { BookOpen, Users, FileText, Award, Search, Filter, Download, Eye, CheckCircle, XCircle, Clock, AlertCircle, TrendingUp, CalendarDays, BarChart3, GraduationCap, CreditCard, ClipboardList, Bell } from 'lucide-react'
+import { BookOpen, Users, FileText, Award, Search, Filter, Download, Eye, CheckCircle, XCircle, Clock, AlertCircle, TrendingUp, CalendarDays, BarChart3, GraduationCap, CreditCard, ClipboardList, Bell, Settings } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
@@ -181,10 +181,20 @@ export default function StudentManagementPage() {
             <Download className="h-4 w-4" />
             Export Report
           </Button>
-          <Button className="gap-2">
+          <Link href="/admin/management/students">
+          <Button className="gap-2 border border-primary hover:text-blue-600 cursor-pointer">
             <Users className="h-4 w-4" />
             View All Students
           </Button>
+          </Link>
+
+          
+          <Link href="/admin/settings/signup">
+            <Button variant="secondary" className="gap-2 border border-primary hover:text-red-600 cursor-pointer">
+              <Settings className="h-4 w-4" />
+              Signup Settings
+            </Button>
+          </Link>
         </div>
       </div>
 

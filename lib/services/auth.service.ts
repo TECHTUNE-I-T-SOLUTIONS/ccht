@@ -62,30 +62,60 @@ export class AuthService {
     const admin = createAdminClient()
     const jambRegNo = input.jambRegNo ?? input.jamb_reg_no ?? ''
 
+    console.log('[AuthService] Register called with:', {
+      email: input.email,
+      role: input.role,
+      passwordLength: input.password?.length,
+      firstName: input.firstName,
+      lastName: input.lastName,
+    })
+
     const passwordCheck = this.validatePassword(input.password)
     if (!passwordCheck.success) {
+      console.error('[AuthService] Password validation failed:', passwordCheck.error)
       throw new Error(passwordCheck.error.issues[0]?.message || 'Password is too weak')
     }
 
     await this.ensureEmailAvailable(input.email)
+
+    console.log('[AuthService] Calling supabase.auth.signUp...')
+    
+    // Only include jamb_reg_no for aspirant role
+    const userData: any = {
+      first_name: input.firstName,
+      middle_name: input.middleName || '',
+      last_name: input.lastName,
+      role: input.role,
+      phone: input.phone ?? '',
+    }
+    
+    if (input.role === 'aspirant' && jambRegNo) {
+      userData.jamb_reg_no = jambRegNo
+    }
 
     const { data, error } = await supabase.auth.signUp({
       email: input.email,
       password: input.password,
       options: {
         emailRedirectTo: `${process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ?? origin}/auth/callback`,
-        data: {
-          first_name: input.firstName,
-          middle_name: input.middleName || '',
-          last_name: input.lastName,
-          role: input.role,
-          phone: input.phone ?? '',
-          jamb_reg_no: jambRegNo,
-        },
+        data: userData,
       },
     })
 
-    if (error) throw new Error(error.message || 'Failed to register')
+    console.log('[AuthService] signUp result:', { 
+      hasError: !!error, 
+      errorMessage: error?.message, 
+      errorName: error?.name,
+      errorStatus: error?.status,
+      hasUser: !!data?.user,
+      userId: data?.user?.id,
+      errorFull: error,
+    })
+
+    if (error) {
+      console.error('[AuthService] Full error object:', JSON.stringify(error, null, 2))
+      throw new Error(error.message || 'Failed to register')
+    }
     if (!data.user) throw new Error('Failed to create user')
 
     // Update profiles table with phone and middle_name
