@@ -336,7 +336,7 @@ export default function AdminTimetablePage() {
                 <div>
                   <label className="text-sm font-medium">Program *</label>
                   <Select value={formData.program_id} onValueChange={handleProgramChange}>
-                    <SelectTrigger className="mt-1">
+                    <SelectTrigger className="mt-1 text-xs w-50">
                       <SelectValue placeholder="Select program" />
                     </SelectTrigger>
                     <SelectContent>

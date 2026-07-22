@@ -155,13 +155,27 @@ export async function generateCourseFormPDF(data: {
 
   y += studentData.length * cellHeight + 10
 
+  // Group courses by semester
+  const coursesBySemester = data.courses.reduce((acc, course) => {
+    const semester = course.semester
+    if (!acc[semester]) {
+      acc[semester] = []
+    }
+    acc[semester].push(course)
+    return acc
+  }, {} as Record<string, typeof data.courses>)
+
+  const sortedSemesters = Object.keys(coursesBySemester).sort((a, b) => a.localeCompare(b))
+
+  // Calculate total credits
+  const totalCredits = data.courses.reduce((sum, course) => sum + course.credits, 0)
+
   // Courses Section
   pdf.setFontSize(9)
   pdf.setFont('helvetica', 'bold')
   pdf.text('REGISTERED COURSES', margin, y)
   y += 5
 
-  const totalCredits = data.courses.reduce((sum, course) => sum + course.credits, 0)
   pdf.setFontSize(8)
   pdf.setFont('helvetica', 'normal')
   pdf.setTextColor(80)
@@ -169,49 +183,74 @@ export async function generateCourseFormPDF(data: {
   pdf.setTextColor(0)
   y += 8
 
-  // Courses table
+  // Table configuration
   const tableX = margin
   const tableWidth = pageWidth - 2 * margin
-  const colWidths = [12, 20, tableWidth - 95, 15, 22, 15, 25]
-  const headers = ['S/N', 'Code', 'Title', 'Credits', 'Semester', 'Level', 'Approved']
+  const colWidths = [12, 22, tableWidth - 100, 18, 25, 23]
+  const headers = ['S/N', 'Code', 'Title', 'Credits', 'Level', 'Approved']
 
-  pdf.setFillColor(245, 245, 245)
-  pdf.rect(tableX, y - 6, tableWidth, 10, 'F')
-  pdf.setFontSize(7)
-  pdf.setFont('helvetica', 'bold')
-  let currentX = tableX
-  headers.forEach((header, index) => {
-    pdf.text(header, currentX + 3, y, { maxWidth: colWidths[index] })
-    currentX += colWidths[index]
-  })
-  y += 10
+  // Render courses by semester
+  sortedSemesters.forEach((semester) => {
+    const courses = coursesBySemester[semester]
+    const semesterCredits = courses.reduce((sum, course) => sum + course.credits, 0)
 
-  // Table rows
-  pdf.setFont('helvetica', 'normal')
-  data.courses.forEach((course, index) => {
-    const row = [
-      String(index + 1),
-      course.code,
-      course.title,
-      String(course.credits),
-      course.semester.charAt(0).toUpperCase() + course.semester.slice(1),
-      `${course.level}L`,
-      course.reviewedAt ? new Date(course.reviewedAt).toLocaleDateString() : 'N/A',
-    ]
-    
-    currentX = tableX
-    row.forEach((cell, cellIndex) => {
-      pdf.text(cell, currentX + 3, y, { maxWidth: colWidths[cellIndex] })
-      currentX += colWidths[cellIndex]
+    // Check if we need a new page
+    if (y + 50 > pageHeight - margin) {
+      pdf.addPage()
+      y = margin
+    }
+
+    // Semester header
+    pdf.setFillColor(230, 240, 255)
+    pdf.rect(tableX, y, tableWidth, 10, 'F')
+    pdf.setFontSize(9)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(0, 100, 200)
+    const semesterTitle = semester.charAt(0).toUpperCase() + semester.slice(1) + ' Semester'
+    pdf.text(semesterTitle, tableX + 3, y + 6)
+    pdf.setFontSize(8)
+    pdf.text(`${semesterCredits} Credit Units`, tableX + tableWidth - 30, y + 6)
+    pdf.setTextColor(0)
+    y += 12
+
+    // Table header
+    pdf.setFillColor(245, 245, 245)
+    pdf.rect(tableX, y, tableWidth, 8, 'F')
+    pdf.setFontSize(7)
+    pdf.setFont('helvetica', 'bold')
+    let currentX = tableX
+    headers.forEach((header, index) => {
+      pdf.text(header, currentX + 2, y + 5, { maxWidth: colWidths[index] })
+      currentX += colWidths[index]
     })
-    
-    pdf.setDrawColor(230, 230, 230)
-    pdf.line(tableX, y + 2, tableX + tableWidth, y + 2)
-    pdf.setDrawColor(0, 0, 0)
     y += 8
-  })
 
-  y += 10
+    // Table rows
+    pdf.setFont('helvetica', 'normal')
+    courses.forEach((course, index) => {
+      const row = [
+        String(index + 1),
+        course.code,
+        course.title,
+        String(course.credits),
+        `${course.level}L`,
+        course.reviewedAt ? new Date(course.reviewedAt).toLocaleDateString() : 'N/A',
+      ]
+      
+      currentX = tableX
+      row.forEach((cell, cellIndex) => {
+        pdf.text(cell, currentX + 2, y + 4, { maxWidth: colWidths[cellIndex] })
+        currentX += colWidths[cellIndex]
+      })
+      
+      pdf.setDrawColor(230, 230, 230)
+      pdf.line(tableX, y + 5, tableX + tableWidth, y + 5)
+      pdf.setDrawColor(0, 0, 0)
+      y += 7
+    })
+
+    y += 5
+  })
 
   // Summary box
   pdf.setDrawColor(0)

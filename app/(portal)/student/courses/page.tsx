@@ -131,6 +131,24 @@ export default function CoursesPage() {
     return semester === 1 ? 'First Semester' : 'Second Semester'
   }
 
+  const groupCoursesBySemester = (courses: SelectedCourse[]) => {
+    const grouped = courses.reduce((acc, course) => {
+      const semester = course.course.semester
+      if (!acc[semester]) {
+        acc[semester] = []
+      }
+      acc[semester].push(course)
+      return acc
+    }, {} as Record<number, SelectedCourse[]>)
+    
+    return Object.entries(grouped)
+      .map(([semester, courses]) => ({
+        semester: parseInt(semester),
+        courses: courses.sort((a, b) => a.course.code.localeCompare(b.course.code))
+      }))
+      .sort((a, b) => a.semester - b.semester)
+  }
+
   const hasSubmittedSelections = selectedCourses.length > 0
   const hasApprovedSelections = selectedCourses.some(sc => sc.status === 'approved')
 
@@ -206,14 +224,12 @@ export default function CoursesPage() {
                 </p>
               </div>
             </div>
-            {!hasApprovedSelections && (
-              <Button asChild variant="outline" className="rounded-xl gap-2">
-                <Link href="/student/course-selection">
-                  <Plus className="h-4 w-4" />
-                  Add More Courses
-                </Link>
-              </Button>
-            )}
+            <div className="text-sm">
+              <span className="text-muted-foreground">Total Credit Units: </span>
+              <span className="font-bold text-primary">
+                {selectedCourses.reduce((sum, sc) => sum + (sc.course?.credit_units || 0), 0)}
+              </span>
+            </div>
           </div>
         </Card>
       )}
@@ -249,31 +265,40 @@ export default function CoursesPage() {
                 <p className="text-lg text-muted-foreground">No courses found for this session</p>
               </Card>
             ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Level</TableHead>
-                      <TableHead>Semester</TableHead>
-                      <TableHead>Credits</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedCourses.map((selectedCourse) => (
-                      <TableRow key={selectedCourse.id}>
-                        <TableCell className="font-medium">{selectedCourse.course.code}</TableCell>
-                        <TableCell>{selectedCourse.course.title}</TableCell>
-                        <TableCell>{selectedCourse.course.level}L</TableCell>
-                        <TableCell>{formatSemester(selectedCourse.course.semester)}</TableCell>
-                        <TableCell>{selectedCourse.course.credit_units}</TableCell>
-                        <TableCell>{getStatusBadge(selectedCourse.status)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="space-y-4">
+                {groupCoursesBySemester(selectedCourses).map((semesterGroup) => (
+                  <div key={semesterGroup.semester} className="rounded-lg border-2 border-primary/20 overflow-hidden">
+                    <div className="bg-primary/10 px-4 py-3 border-b border-primary/20">
+                      <h3 className="font-semibold text-primary">
+                        {formatSemester(semesterGroup.semester)}
+                      </h3>
+                    </div>
+                    <div className="rounded-md border-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Title</TableHead>
+                            <TableHead>Level</TableHead>
+                            <TableHead>Credits</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {semesterGroup.courses.map((selectedCourse) => (
+                            <TableRow key={selectedCourse.id}>
+                              <TableCell className="font-medium">{selectedCourse.course.code}</TableCell>
+                              <TableCell>{selectedCourse.course.title}</TableCell>
+                              <TableCell>{selectedCourse.course.level}L</TableCell>
+                              <TableCell>{selectedCourse.course.credit_units}</TableCell>
+                              <TableCell>{getStatusBadge(selectedCourse.status)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </TabsContent>
@@ -285,31 +310,40 @@ export default function CoursesPage() {
                 <p className="text-lg text-muted-foreground">No pending courses</p>
               </Card>
             ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Level</TableHead>
-                      <TableHead>Semester</TableHead>
-                      <TableHead>Credits</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedCourses.filter(sc => sc.status === 'pending').map((selectedCourse) => (
-                      <TableRow key={selectedCourse.id}>
-                        <TableCell className="font-medium">{selectedCourse.course.code}</TableCell>
-                        <TableCell>{selectedCourse.course.title}</TableCell>
-                        <TableCell>{selectedCourse.course.level}L</TableCell>
-                        <TableCell>{formatSemester(selectedCourse.course.semester)}</TableCell>
-                        <TableCell>{selectedCourse.course.credit_units}</TableCell>
-                        <TableCell>{getStatusBadge(selectedCourse.status)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="space-y-4">
+                {groupCoursesBySemester(selectedCourses.filter(sc => sc.status === 'pending')).map((semesterGroup) => (
+                  <div key={semesterGroup.semester} className="rounded-lg border-2 border-primary/20 overflow-hidden">
+                    <div className="bg-primary/10 px-4 py-3 border-b border-primary/20">
+                      <h3 className="font-semibold text-primary">
+                        {formatSemester(semesterGroup.semester)}
+                      </h3>
+                    </div>
+                    <div className="rounded-md border-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Title</TableHead>
+                            <TableHead>Level</TableHead>
+                            <TableHead>Credits</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {semesterGroup.courses.map((selectedCourse) => (
+                            <TableRow key={selectedCourse.id}>
+                              <TableCell className="font-medium">{selectedCourse.course.code}</TableCell>
+                              <TableCell>{selectedCourse.course.title}</TableCell>
+                              <TableCell>{selectedCourse.course.level}L</TableCell>
+                              <TableCell>{selectedCourse.course.credit_units}</TableCell>
+                              <TableCell>{getStatusBadge(selectedCourse.status)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </TabsContent>
@@ -321,31 +355,40 @@ export default function CoursesPage() {
                 <p className="text-lg text-muted-foreground">No approved courses</p>
               </Card>
             ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Level</TableHead>
-                      <TableHead>Semester</TableHead>
-                      <TableHead>Credits</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedCourses.filter(sc => sc.status === 'approved').map((selectedCourse) => (
-                      <TableRow key={selectedCourse.id}>
-                        <TableCell className="font-medium">{selectedCourse.course.code}</TableCell>
-                        <TableCell>{selectedCourse.course.title}</TableCell>
-                        <TableCell>{selectedCourse.course.level}L</TableCell>
-                        <TableCell>{formatSemester(selectedCourse.course.semester)}</TableCell>
-                        <TableCell>{selectedCourse.course.credit_units}</TableCell>
-                        <TableCell>{getStatusBadge(selectedCourse.status)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="space-y-4">
+                {groupCoursesBySemester(selectedCourses.filter(sc => sc.status === 'approved')).map((semesterGroup) => (
+                  <div key={semesterGroup.semester} className="rounded-lg border-2 border-primary/20 overflow-hidden">
+                    <div className="bg-primary/10 px-4 py-3 border-b border-primary/20">
+                      <h3 className="font-semibold text-primary">
+                        {formatSemester(semesterGroup.semester)}
+                      </h3>
+                    </div>
+                    <div className="rounded-md border-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Title</TableHead>
+                            <TableHead>Level</TableHead>
+                            <TableHead>Credits</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {semesterGroup.courses.map((selectedCourse) => (
+                            <TableRow key={selectedCourse.id}>
+                              <TableCell className="font-medium">{selectedCourse.course.code}</TableCell>
+                              <TableCell>{selectedCourse.course.title}</TableCell>
+                              <TableCell>{selectedCourse.course.level}L</TableCell>
+                              <TableCell>{selectedCourse.course.credit_units}</TableCell>
+                              <TableCell>{getStatusBadge(selectedCourse.status)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </TabsContent>
@@ -357,31 +400,40 @@ export default function CoursesPage() {
                 <p className="text-lg text-muted-foreground">No rejected courses</p>
               </Card>
             ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Level</TableHead>
-                      <TableHead>Semester</TableHead>
-                      <TableHead>Credits</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedCourses.filter(sc => sc.status === 'rejected').map((selectedCourse) => (
-                      <TableRow key={selectedCourse.id}>
-                        <TableCell className="font-medium">{selectedCourse.course.code}</TableCell>
-                        <TableCell>{selectedCourse.course.title}</TableCell>
-                        <TableCell>{selectedCourse.course.level}L</TableCell>
-                        <TableCell>{formatSemester(selectedCourse.course.semester)}</TableCell>
-                        <TableCell>{selectedCourse.course.credit_units}</TableCell>
-                        <TableCell>{getStatusBadge(selectedCourse.status)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="space-y-4">
+                {groupCoursesBySemester(selectedCourses.filter(sc => sc.status === 'rejected')).map((semesterGroup) => (
+                  <div key={semesterGroup.semester} className="rounded-lg border-2 border-primary/20 overflow-hidden">
+                    <div className="bg-primary/10 px-4 py-3 border-b border-primary/20">
+                      <h3 className="font-semibold text-primary">
+                        {formatSemester(semesterGroup.semester)}
+                      </h3>
+                    </div>
+                    <div className="rounded-md border-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Title</TableHead>
+                            <TableHead>Level</TableHead>
+                            <TableHead>Credits</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {semesterGroup.courses.map((selectedCourse) => (
+                            <TableRow key={selectedCourse.id}>
+                              <TableCell className="font-medium">{selectedCourse.course.code}</TableCell>
+                              <TableCell>{selectedCourse.course.title}</TableCell>
+                              <TableCell>{selectedCourse.course.level}L</TableCell>
+                              <TableCell>{selectedCourse.course.credit_units}</TableCell>
+                              <TableCell>{getStatusBadge(selectedCourse.status)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </TabsContent>

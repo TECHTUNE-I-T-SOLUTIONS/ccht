@@ -13,9 +13,9 @@ type Course = {
   code: string
   title: string
   description: string
-  credits: number
+  credit_units: number
   level: string
-  semester: string
+  semester: number
 }
 
 type SelectedCourse = {
@@ -131,17 +131,30 @@ export default function StudentCourseFormPage() {
     }
   }
 
-  const totalCreditUnits = selectedCourses.reduce((sum, sc) => sum + (sc.course?.credits || 0), 0)
+  const totalCreditUnits = selectedCourses.reduce((sum, sc) => sum + (sc.course?.credit_units || 0), 0)
 
   // Group courses by semester
-  const coursesBySemester = selectedCourses.reduce((acc, sc) => {
-    const semester = sc.semester
-    if (!acc[semester]) {
-      acc[semester] = []
-    }
-    acc[semester].push(sc)
-    return acc
-  }, {} as Record<string, SelectedCourse[]>)
+  const groupCoursesBySemester = (courses: SelectedCourse[]) => {
+    const grouped = courses.reduce((acc, sc) => {
+      // Use the semester from the courses table (1 or 2) instead of selected_courses
+      const semesterNum = sc.course?.semester || 0
+      const semester = semesterNum === 1 ? 'first' : semesterNum === 2 ? 'second' : 'unknown'
+      if (!acc[semester]) {
+        acc[semester] = []
+      }
+      acc[semester].push(sc)
+      return acc
+    }, {} as Record<string, SelectedCourse[]>)
+    
+    return Object.entries(grouped)
+      .map(([semester, courses]) => ({
+        semester: semester === 'first' ? 'First' : semester === 'second' ? 'Second' : semester,
+        courses: courses.sort((a, b) => a.course?.code?.localeCompare(b.course?.code || '') || 0)
+      }))
+      .sort((a, b) => a.semester.localeCompare(b.semester))
+  }
+
+  const coursesBySemester = groupCoursesBySemester(selectedCourses)
 
   const sessions = ['2031/2032', '2030/2031', '2029/2030', '2028/2029', '2027/2028', '2026/2027', '2025/2026', '2024/2025', '2023/2024', '2022/2023']
   const semesters = ['all', 'first', 'second']
@@ -304,15 +317,15 @@ export default function StudentCourseFormPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              {Object.entries(coursesBySemester).map(([semester, courses]) => (
-                <div key={semester}>
+              {coursesBySemester.map((semesterGroup) => (
+                <div key={semesterGroup.semester}>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-lg font-semibold capitalize flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-primary"></span>
-                      {semester} Semester
+                      {semesterGroup.semester} Semester
                     </h3>
                     <span className="text-sm text-muted-foreground">
-                      {courses.reduce((sum, sc) => sum + (sc.course?.credits || 0), 0)} Credit Units
+                      {semesterGroup.courses.reduce((sum, sc) => sum + (sc.course?.credit_units || 0), 0)} Credit Units
                     </span>
                   </div>
                   <div className="overflow-x-auto rounded-lg border">
@@ -328,12 +341,12 @@ export default function StudentCourseFormPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {courses.map((sc, index) => (
+                        {semesterGroup.courses.map((sc, index) => (
                           <tr key={sc.id} className="border-b border-border hover:bg-slate-50 dark:hover:bg-slate-800/50">
                             <td className="p-4 text-sm">{index + 1}</td>
                             <td className="p-4 text-sm font-semibold">{sc.course?.code}</td>
                             <td className="p-4 text-sm">{sc.course?.title}</td>
-                            <td className="p-4 text-sm font-semibold">{sc.course?.credits}</td>
+                            <td className="p-4 text-sm font-semibold">{sc.course?.credit_units}</td>
                             <td className="p-4 text-sm capitalize">{sc.course?.level}L</td>
                             <td className="p-4 text-sm">{sc.reviewed_at ? new Date(sc.reviewed_at).toLocaleDateString() : 'N/A'}</td>
                           </tr>

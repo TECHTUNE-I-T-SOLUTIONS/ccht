@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const courseData = courses.map((sc: any) => ({
       code: sc.course?.code || '',
       title: sc.course?.title || '',
-      credits: sc.course?.credits || 0,
+      credits: sc.course?.credit_units || 0,
       semester: sc.semester || '',
       level: sc.course?.level || '',
       reviewedAt: sc.reviewed_at || null,
