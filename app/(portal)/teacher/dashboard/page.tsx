@@ -9,23 +9,40 @@ import { BookOpen, Users, FileText, ClipboardCheck, Video, ArrowRight, UserRound
 
 export default function TeacherDashboard() {
   const [user, setUser] = useState<any>(null)
-  const [courses, setCourses] = useState<any[]>([])
+  const [assignments, setAssignments] = useState<any[]>([])
+  const [exams, setExams] = useState<any[]>([])
   const [notices, setNotices] = useState<any[]>([])
+  const [stats, setStats] = useState({ coursesCount: 0, noticesCount: 0, resultsCount: 0 })
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const [profileRes, coursesRes, noticesRes] = await Promise.all([
-          supabase.from('profiles').select('id, email, first_name, last_name, phone, role, avatar_url').eq('id', user.id).single(),
-          supabase.from('programs').select('id, title, slug').order('created_at', { ascending: false }).limit(3),
-          supabase.from('notices').select('*').eq('is_published', true).or('target_audience.eq.all,target_audience.eq.teachers').order('published_at', { ascending: false }).limit(3),
-        ])
-        setUser(profileRes.data)
-        setCourses(coursesRes.data || [])
-        setNotices(noticesRes.data || [])
+      const [meRes, dashboardRes] = await Promise.all([
+        fetch('/api/v1/auth/me').then((res) => res.json()),
+        fetch('/api/v1/teacher/dashboard').then((res) => res.json()),
+      ])
+
+      const me = meRes?.user || null
+      const dashboard = dashboardRes?.data || {}
+      if (me) {
+        setUser({
+          id: me.id,
+          email: me.email,
+          first_name: me.firstName,
+          last_name: me.lastName,
+          phone: me.phone,
+          role: me.role,
+          avatar_url: me.avatarUrl,
+        })
+        setAssignments(dashboard.assignments || [])
+        setExams(dashboard.exams || [])
+        setNotices(dashboard.notices || [])
+        setStats({
+          coursesCount: dashboard.coursesCount || 0,
+          noticesCount: dashboard.noticeCount || 0,
+          resultsCount: dashboard.resultsCount || 0,
+        })
       }
       setLoading(false)
     }
@@ -40,7 +57,7 @@ export default function TeacherDashboard() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-border bg-white">
-              {user?.avatar_url ? (
+              {typeof user?.avatar_url === 'string' && user.avatar_url.startsWith('http') ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={user.avatar_url} alt={user?.first_name || 'Lecturer'} className="h-full w-full object-cover" />
               ) : (
@@ -55,9 +72,9 @@ export default function TeacherDashboard() {
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { label: 'Courses', value: String(courses.length), icon: BookOpen },
-              { label: 'Assessments', value: '12', icon: FileText },
-              { label: 'Class sessions', value: '4', icon: CalendarDays },
+              { label: 'Courses', value: String(stats.coursesCount), icon: BookOpen },
+              { label: 'Assessments', value: String(exams.length), icon: FileText },
+              { label: 'Class sessions', value: String(exams.length), icon: CalendarDays },
             ].map((item) => {
               const Icon = item.icon
               return (
@@ -74,9 +91,9 @@ export default function TeacherDashboard() {
 
       <div className="grid gap-4 md:grid-cols-3">
         {[
-          { label: 'My courses', value: String(courses.length), icon: BookOpen },
-          { label: 'Students assigned', value: '24', icon: Users },
-          { label: 'Results uploaded', value: '12', icon: Award },
+          { label: 'My courses', value: String(stats.coursesCount), icon: BookOpen },
+          { label: 'Lecturer notices', value: String(stats.noticesCount), icon: Bell },
+          { label: 'Results uploaded', value: String(stats.resultsCount), icon: Award },
         ].map((item) => {
           const Icon = item.icon
           return (
@@ -128,19 +145,25 @@ export default function TeacherDashboard() {
                   View assigned students
                 </Link>
               </Button>
+              <Button asChild variant="outline" className="w-full justify-start rounded-2xl">
+                <Link href="/teacher/notifications">
+                  <Bell className="mr-2 h-4 w-4" />
+                  View notifications
+                </Link>
+              </Button>
             </div>
           </Card>
 
           <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
             <h2 className="text-2xl font-bold">Recent activity</h2>
             <div className="mt-4 space-y-3 text-sm text-muted-foreground">
-              {courses.length === 0 ? (
+              {assignments.length === 0 ? (
                 <p>No courses assigned yet.</p>
               ) : (
-                courses.map((course) => (
-                  <div key={course.id} className="rounded-2xl border border-border bg-slate-50 p-4 dark:bg-blue-800/20">
-                    <p className="font-semibold text-foreground">{course.title}</p>
-                    <p className="text-xs text-muted-foreground">{course.slug}</p>
+                assignments.map((assignment) => (
+                  <div key={assignment.id} className="rounded-2xl border border-border bg-slate-50 p-4 dark:bg-blue-800/20">
+                    <p className="font-semibold text-foreground">{assignment.title}</p>
+                    <p className="text-xs text-muted-foreground">{assignment.course_name || assignment.course?.code || 'Assigned course'}</p>
                   </div>
                 ))
               )}

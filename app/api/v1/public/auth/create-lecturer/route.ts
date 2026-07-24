@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server'
-import { AuthService } from '@/lib/services/auth.service'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { LecturerSignupService } from '@/lib/services/lecturer-signup.service'
 
 export const runtime = 'nodejs'
 
 export async function POST(request: Request) {
   try {
-    const admin = createAdminClient()
-
     const body = await request.json()
     const { 
       email, 
@@ -37,18 +34,9 @@ export async function POST(request: Request) {
       )
     }
 
-    // Use AuthService.register (same as admission page)
     const origin = new URL(request.url).origin
     
-    console.log('Calling AuthService.register with:', { 
-      email, 
-      passwordLength: password?.length, 
-      firstName, 
-      lastName, 
-      role: 'lecturer' 
-    })
-
-    const registerResult = await AuthService.register(
+    const result = await LecturerSignupService.register(
       {
         email,
         password,
@@ -56,44 +44,25 @@ export async function POST(request: Request) {
         lastName,
         middleName,
         phone,
-        role: 'lecturer',
+        employeeNumber,
+        staffNumber,
+        qualification,
+        specialization,
+        department,
+        departments,
+        employmentType,
+        dateJoined,
+        officeLocation,
+        officeHours,
       },
       origin
     )
 
-    const userId = registerResult.user.id
-    console.log('Auth user created successfully via AuthService, creating teacher profile...')
-
-    // Create teacher profile
-    const { error: teacherError } = await admin
-      .from('teacher_profiles')
-      .insert({
-        profile_id: userId,
-        employee_number: employeeNumber,
-        staff_number: staffNumber || employeeNumber,
-        qualification: qualification || null,
-        specialization: specialization || null,
-        department: department || null,
-        departments: departments || (department ? [department] : []),
-        employment_type: employmentType || 'full_time',
-        date_joined: dateJoined || null,
-        office_location: officeLocation || null,
-        office_hours: officeHours || null,
-        can_publish_results: false,
-        can_enter_scores: true,
-        employment_status: 'active',
-      })
-
-    if (teacherError) {
-      console.error('Teacher profile insert error:', teacherError)
-      throw teacherError
-    }
-
     return NextResponse.json({
       success: true,
       data: {
-        userId,
-        email,
+        userId: result.user.id,
+        email: result.user.email,
       }
     })
   } catch (error: any) {

@@ -236,6 +236,72 @@ export class AuthService {
       }
     }
 
+    // Create lecturer profile if role is lecturer
+    if (input.role === 'lecturer') {
+      const empNum = input.employeeNumber || input.employee_number || ''
+      const staffNumber = input.staffNumber || input.staff_number || `CCHT/L/${parseInt(empNum).toString().padStart(3, '0')}`
+      
+      const { error: teacherError } = await admin
+        .from('teacher_profiles')
+        .insert({
+          profile_id: data.user.id,
+          employee_number: empNum,
+          staff_number: staffNumber,
+          qualification: input.qualification || null,
+          specialization: input.specialization || null,
+          department: input.department || null,
+          departments: input.departments || (input.department ? [input.department] : []),
+          employment_type: input.employmentType || 'full_time',
+          date_joined: input.dateJoined || null,
+          office_location: input.officeLocation || null,
+          office_hours: input.officeHours || null,
+          can_publish_results: false,
+          can_enter_scores: true,
+          employment_status: 'active',
+        })
+
+      if (teacherError) {
+        console.error('[AuthService] Failed to create teacher profile:', teacherError)
+        // Cleanup auth user on failure
+        await admin.auth.admin.deleteUser(data.user.id)
+        throw new Error(`Failed to create teacher profile: ${teacherError.message}`)
+      }
+      console.log('[AuthService] Teacher profile created successfully')
+    }
+
+    // Create student profile if role is student
+    if (input.role === 'student') {
+      const { error: studentError } = await admin
+        .from('student_profiles')
+        .insert({
+          profile_id: data.user.id,
+          student_number: input.studentNumber || null,
+          matric_number: input.matricNumber || null,
+          date_of_birth: input.dateOfBirth || null,
+          gender: input.gender || null,
+          admission_session: null,
+          current_level: null,
+          admission_status: input.admissionStatus || 'active',
+          nationality: input.nationality || 'Nigerian',
+          state_of_origin: input.stateOfOrigin || null,
+          local_government_area: input.lga || null,
+          guardian_name: input.guardianName || null,
+          guardian_phone: input.guardianPhone || null,
+          guardian_email: input.guardianEmail || null,
+          address_line_1: input.address || null,
+          city: input.city || null,
+          state: input.state || null,
+        })
+
+      if (studentError) {
+        console.error('[AuthService] Failed to create student profile:', studentError)
+        // Cleanup auth user on failure
+        await admin.auth.admin.deleteUser(data.user.id)
+        throw new Error(`Failed to create student profile: ${studentError.message}`)
+      }
+      console.log('[AuthService] Student profile created successfully')
+    }
+
     return {
       user: {
         id: data.user.id,

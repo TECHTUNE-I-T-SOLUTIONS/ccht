@@ -238,7 +238,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild><Link href={ROUTES.home}>Home</Link></DropdownMenuItem>
-                <DropdownMenuItem asChild><Link href={role === 'student' ? '/student/profile' : role === 'teacher' ? '/teacher/courses' : role === 'admin' ? '/admin/settings' : '/aspirant/profile'}>Profile</Link></DropdownMenuItem>
+                <DropdownMenuItem asChild><Link href={role === 'student' ? '/student/profile' : role === 'teacher' ? '/teacher/profile' : role === 'admin' ? '/admin/settings' : '/aspirant/profile'}>Profile</Link></DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={handleLogout} className="text-red-600 focus:text-red-600">Logout</DropdownMenuItem>
               </DropdownMenuContent>

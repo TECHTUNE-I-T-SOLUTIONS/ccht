@@ -24,24 +24,26 @@ export default function WorkloadAnalyticsPage() {
         .select('lecturer_id, start_time, end_time')
 
       // Calculate workload by lecturer
-      const workloadMap = new Map()
-      (entries || []).forEach((entry: any) => {
+      const workloadMap: Record<string, { hours: number; classes: number }> = {}
+      ;(entries || []).forEach((entry: any) => {
         const start = new Date(`2000-01-01T${entry.start_time}`)
         const end = new Date(`2000-01-01T${entry.end_time}`)
         const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
         
-        if (!workloadMap.has(entry.lecturer_id)) {
-          workloadMap.set(entry.lecturer_id, { hours: 0, classes: 0 })
+        if (!workloadMap[entry.lecturer_id]) {
+          workloadMap[entry.lecturer_id] = { hours: 0, classes: 0 }
         }
-        const workload = workloadMap.get(entry.lecturer_id)!
+        const workload = workloadMap[entry.lecturer_id]
         workload.hours += hours
         workload.classes += 1
       })
 
+      const workloads = Object.values(workloadMap)
+
       setStats({
-        totalLecturers: workloadMap.size,
-        averageHours: Array.from(workloadMap.values()).reduce((sum: number, w: any) => sum + w.hours, 0) / (workloadMap.size || 1),
-        totalClasses: Array.from(workloadMap.values()).reduce((sum: number, w: any) => sum + w.classes, 0)
+        totalLecturers: workloads.length,
+        averageHours: workloads.reduce((sum, w) => sum + w.hours, 0) / (workloads.length || 1),
+        totalClasses: workloads.reduce((sum, w) => sum + w.classes, 0)
       })
     } catch (error) {
       console.error('Failed to load analytics:', error)

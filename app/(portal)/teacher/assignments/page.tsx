@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 import { Plus, Edit2, Trash2, Save, X, FileText, CalendarDays, Clock3, Users, Paperclip } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 
 type Assignment = {
   id: string
@@ -37,14 +38,22 @@ type Submission = {
   feedback: string | null
 }
 
+type Course = {
+  id: string
+  code: string
+  title: string
+}
+
 export default function TeacherAssignmentsPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
+  const [courses, setCourses] = useState<Course[]>([])
   const [isEditing, setIsEditing] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [assignmentToDelete, setAssignmentToDelete] = useState<string | null>(null)
+  const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false)
 
   const [assignmentForm, setAssignmentForm] = useState({
     title: '',
@@ -59,6 +68,7 @@ export default function TeacherAssignmentsPage() {
 
   useEffect(() => {
     loadAssignments()
+    loadCourses()
   }, [])
 
   useEffect(() => {
@@ -79,6 +89,21 @@ export default function TeacherAssignmentsPage() {
     } catch (error) {
       toast.error('Failed to load assignments')
       console.error(error)
+    }
+  }
+
+  const loadCourses = async () => {
+    try {
+      const res = await fetch('/api/v1/teacher/courses')
+      if (!res.ok) {
+        console.error('Failed to load courses:', res.status)
+        return
+      }
+      const data = await res.json()
+      console.log('Courses data:', data)
+      setCourses(data.data || [])
+    } catch (error) {
+      console.error('Error loading courses:', error)
     }
   }
 
@@ -110,6 +135,7 @@ export default function TeacherAssignmentsPage() {
       toast.success(isCreating ? 'Assignment created' : 'Assignment updated')
       setIsCreating(false)
       setIsEditing(false)
+      setAssignmentDialogOpen(false)
       loadAssignments()
     } catch (error) {
       toast.error('Failed to save assignment')
@@ -164,6 +190,8 @@ export default function TeacherAssignmentsPage() {
     })
     setIsEditing(true)
     setIsCreating(false)
+    setAssignmentDialogOpen(true)
+    loadCourses() // Reload courses when opening dialog
   }
 
   const startCreateAssignment = () => {
@@ -179,6 +207,8 @@ export default function TeacherAssignmentsPage() {
     })
     setIsCreating(true)
     setIsEditing(false)
+    setAssignmentDialogOpen(true)
+    loadCourses() // Reload courses when opening dialog
   }
 
   const confirmDelete = (id: string) => {
@@ -267,121 +297,7 @@ export default function TeacherAssignmentsPage() {
 
         {/* Assignment Editor */}
         <Card className="p-6 lg:col-span-2">
-          {(isEditing || isCreating) ? (
-            <div className="space-y-4">
-              <h3 className="text-xl font-bold">{isCreating ? 'Create New Assignment' : 'Edit Assignment'}</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="title">Assignment Title</Label>
-                  <Input
-                    id="title"
-                    value={assignmentForm.title}
-                    onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })}
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="course_id">Course</Label>
-                  <Select value={assignmentForm.course_id} onValueChange={(value) => setAssignmentForm({ ...assignmentForm, course_id: value })}>
-                    <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="Select a course" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="course1">Introduction to Computing</SelectItem>
-                      <SelectItem value="course2">Data Structures</SelectItem>
-                      <SelectItem value="course3">Database Systems</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={assignmentForm.description}
-                    onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })}
-                    className="rounded-xl"
-                    rows={6}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="due_date">Due Date</Label>
-                  <Input
-                    id="due_date"
-                    type="datetime-local"
-                    value={assignmentForm.due_date}
-                    onChange={(e) => setAssignmentForm({ ...assignmentForm, due_date: e.target.value })}
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="total_points">Total Points</Label>
-                    <Input
-                      id="total_points"
-                      type="number"
-                      value={assignmentForm.total_points}
-                      onChange={(e) => setAssignmentForm({ ...assignmentForm, total_points: parseInt(e.target.value) })}
-                      className="rounded-xl"
-                    />
-                  </div>
-
-                  {assignmentForm.allow_late_submission && (
-                    <div>
-                      <Label htmlFor="late_penalty">Late Penalty (%)</Label>
-                      <Input
-                        id="late_penalty"
-                        type="number"
-                        value={assignmentForm.late_penalty}
-                        onChange={(e) => setAssignmentForm({ ...assignmentForm, late_penalty: parseInt(e.target.value) })}
-                        className="rounded-xl"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="is_published"
-                    checked={assignmentForm.is_published}
-                    onCheckedChange={(checked) => setAssignmentForm({ ...assignmentForm, is_published: checked })}
-                  />
-                  <Label htmlFor="is_published">Publish immediately</Label>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="allow_late_submission"
-                    checked={assignmentForm.allow_late_submission}
-                    onCheckedChange={(checked) => setAssignmentForm({ ...assignmentForm, allow_late_submission: checked })}
-                  />
-                  <Label htmlFor="allow_late_submission">Allow late submissions</Label>
-                </div>
-
-                <div className="flex gap-3">
-                  <Button onClick={saveAssignment} className="flex-1 rounded-xl">
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Assignment
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setIsEditing(false)
-                      setIsCreating(false)
-                    }}
-                    className="rounded-xl"
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : selectedAssignment ? (
+          {selectedAssignment ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold">{selectedAssignment.title}</h3>
@@ -523,6 +439,135 @@ export default function TeacherAssignmentsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Assignment Editor Dialog */}
+      <Dialog open={assignmentDialogOpen} onOpenChange={setAssignmentDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-black" aria-describedby="assignment-dialog-description">
+          <DialogHeader>
+            <DialogTitle>{isCreating ? 'Create New Assignment' : 'Edit Assignment'}</DialogTitle>
+            <p id="assignment-dialog-description" className="text-sm text-muted-foreground">
+              {isCreating ? 'Create a new assignment for your students.' : 'Edit the assignment details below.'}
+            </p>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label htmlFor="title">Assignment Title</Label>
+              <Input
+                id="title"
+                value={assignmentForm.title}
+                onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="course_id">Course</Label>
+              <Select value={assignmentForm.course_id} onValueChange={(value) => setAssignmentForm({ ...assignmentForm, course_id: value })}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Select a course" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map((course) => (
+                    <SelectItem key={course.id} value={course.id}>
+                      {course.code} - {course.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={assignmentForm.description}
+                onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })}
+                className="rounded-xl"
+                rows={6}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="due_date">Due Date</Label>
+              <Input
+                id="due_date"
+                type="datetime-local"
+                value={assignmentForm.due_date}
+                onChange={(e) => setAssignmentForm({ ...assignmentForm, due_date: e.target.value })}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="total_points">Total Points</Label>
+                <Input
+                  id="total_points"
+                  type="number"
+                  value={assignmentForm.total_points}
+                  onChange={(e) => setAssignmentForm({ ...assignmentForm, total_points: parseInt(e.target.value) })}
+                  className="rounded-xl"
+                />
+              </div>
+
+              {assignmentForm.allow_late_submission && (
+                <div>
+                  <Label htmlFor="late_penalty">Late Penalty (%)</Label>
+                  <Input
+                    id="late_penalty"
+                    type="number"
+                    value={assignmentForm.late_penalty}
+                    onChange={(e) => setAssignmentForm({ ...assignmentForm, late_penalty: parseInt(e.target.value) })}
+                    className="rounded-xl"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_published"
+                checked={assignmentForm.is_published}
+                onChange={(e) => setAssignmentForm({ ...assignmentForm, is_published: e.target.checked })}
+                className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <Label htmlFor="is_published" className="cursor-pointer">Publish immediately</Label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="allow_late_submission"
+                checked={assignmentForm.allow_late_submission}
+                onChange={(e) => setAssignmentForm({ ...assignmentForm, allow_late_submission: e.target.checked })}
+                className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <Label htmlFor="allow_late_submission" className="cursor-pointer">Allow late submissions</Label>
+            </div>
+
+            <div className="flex gap-3">
+              <Button onClick={saveAssignment} className="flex-1 rounded-xl">
+                <Save className="mr-2 h-4 w-4" />
+                Save Assignment
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditing(false)
+                  setIsCreating(false)
+                  setAssignmentDialogOpen(false)
+                }}
+                className="rounded-xl"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

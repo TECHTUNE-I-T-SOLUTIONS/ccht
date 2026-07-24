@@ -70,6 +70,8 @@ export type AdmissionCandidate = {
 }
 
 function buildCloudinaryUrl(publicIdOrUrl?: string | null) {
+  if (!publicIdOrUrl) return null
+  if (/^https?:\/\//i.test(publicIdOrUrl)) return publicIdOrUrl
   const { cloudName } = getCloudinaryConfig()
   return buildCloudinaryPublicUrl(cloudName, publicIdOrUrl)
 }
@@ -98,6 +100,8 @@ function getFormatFromFileName(fileName?: string | null): string | null {
 
 export class AdmissionService {
   static async createSignedUrl(_: string, path: string) {
+    if (!path) return null
+    if (/^https?:\/\//i.test(path)) return path
     return buildCloudinaryUrl(path)
   }
 

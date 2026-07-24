@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
     // Validate input
     const validationResult = SignUpSchema.safeParse(body);
     if (!validationResult.success) {
+      console.error('[register route] Validation failed:', validationResult.error.flatten());
       return NextResponse.json(
         { error: 'Invalid input', details: validationResult.error.flatten() },
         { status: 400 }

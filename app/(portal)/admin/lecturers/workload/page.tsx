@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,31 +10,17 @@ import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, BookOpen, Clock, Calendar, Loader2, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 
-type WorkloadData = {
-  totalCourses: number
-  totalHours: number
-  totalClasses: number
-  courses: {
-    courseCode: string
-    courseTitle: string
-    level: string
-    semester: number
-    weeklyHours: number
-    classCount: number
-  }[]
-}
-
 export default function LecturerWorkloadPage() {
   const params = useParams()
+  const supabase = createClient()
   const [lecturer, setLecturer] = useState<any>(null)
-  const [workload, setWorkload] = useState<WorkloadData>({
+  const [workload, setWorkload] = useState({
     totalCourses: 0,
     totalHours: 0,
     totalClasses: 0,
-    courses: []
+    courses: [] as any[],
   })
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
     if (params.id) {
@@ -44,7 +30,6 @@ export default function LecturerWorkloadPage() {
 
   const loadLecturerWorkload = async (id: string) => {
     try {
-      // Load lecturer info
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*, teacher_profiles(*)')
@@ -53,7 +38,6 @@ export default function LecturerWorkloadPage() {
 
       setLecturer(profileData)
 
-      // Load timetable entries for this lecturer
       const { data: entriesData } = await supabase
         .from('timetable_entries')
         .select(`
@@ -65,45 +49,39 @@ export default function LecturerWorkloadPage() {
         `)
         .eq('lecturer_id', id)
 
-      // Calculate workload
-      const courseMap = new Map<string, any>()
+      const courseMap: any = {}
       let totalHours = 0
       let totalClasses = 0
 
-      (entriesData || []).forEach((entry: any) => {
+      ;(entriesData || []).forEach((entry: any) => {
         const courseId = entry.course_id
-        const startTime = entry.start_time
-        const endTime = entry.end_time
-        
-        // Calculate hours
-        const start = new Date(`2000-01-01T${startTime}`)
-        const end = new Date(`2000-01-01T${endTime}`)
-        const hours = Number((end.getTime() - start.getTime()) / (1000 * 60 * 60))
-        
-        totalHours = Number(totalHours) + hours
-        totalClasses = Number(totalClasses) + 1
+        const start = new Date(`2000-01-01T${entry.start_time}`)
+        const end = new Date(`2000-01-01T${entry.end_time}`)
+        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
 
-        if (!courseMap.has(courseId)) {
-          courseMap.set(courseId, {
+        totalHours += hours
+        totalClasses += 1
+
+        if (!courseMap[courseId]) {
+          courseMap[courseId] = {
             courseCode: entry.course.code,
             courseTitle: entry.course.title,
             level: entry.course.level,
             semester: entry.course.semester,
             weeklyHours: 0,
-            classCount: 0
-          })
+            classCount: 0,
+          }
         }
-        
-        const course = courseMap.get(courseId)!
-        course.weeklyHours += hours
-        course.classCount += 1
+
+        courseMap[courseId].weeklyHours += hours
+        courseMap[courseId].classCount += 1
       })
 
       setWorkload({
-        totalCourses: courseMap.size,
+        totalCourses: Object.keys(courseMap).length,
         totalHours: Math.round(totalHours * 100) / 100,
-        totalClasses: totalClasses,
-        courses: Array.from(courseMap.values())
+        totalClasses,
+        courses: Object.keys(courseMap).map((key) => courseMap[key]),
       })
     } catch (error) {
       console.error('Failed to load lecturer workload:', error)
@@ -150,7 +128,6 @@ export default function LecturerWorkloadPage() {
         </div>
       </div>
 
-      {/* Workload Summary */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="p-6">
           <div className="flex items-center justify-between">
@@ -183,7 +160,6 @@ export default function LecturerWorkloadPage() {
         </Card>
       </div>
 
-      {/* Workload Status */}
       <Card className="p-6">
         <div className="flex items-center gap-3">
           <TrendingUp className="h-6 w-6 text-primary" />
@@ -194,7 +170,6 @@ export default function LecturerWorkloadPage() {
         </div>
       </Card>
 
-      {/* Course Breakdown */}
       {workload.courses.length === 0 ? (
         <Card className="p-12 text-center">
           <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />

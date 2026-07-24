@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 import { Plus, Edit2, Trash2, Save, X, ClipboardList, CalendarDays, Clock3, Users, Award } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 
 type TeacherExam = {
   id: string
@@ -39,6 +40,12 @@ type ExamQuestion = {
   is_active: boolean
 }
 
+type CourseOption = {
+  id: string
+  code: string
+  title: string
+}
+
 export default function TeacherExamsPage() {
   const [exams, setExams] = useState<TeacherExam[]>([])
   const [questions, setQuestions] = useState<ExamQuestion[]>([])
@@ -49,6 +56,9 @@ export default function TeacherExamsPage() {
   const [isCreatingQuestion, setIsCreatingQuestion] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [examToDelete, setExamToDelete] = useState<string | null>(null)
+  const [examDialogOpen, setExamDialogOpen] = useState(false)
+  const [questionDialogOpen, setQuestionDialogOpen] = useState(false)
+  const [courses, setCourses] = useState<CourseOption[]>([])
 
   const [examForm, setExamForm] = useState({
     exam_name: '',
@@ -74,6 +84,7 @@ export default function TeacherExamsPage() {
 
   useEffect(() => {
     loadExams()
+    loadCourses()
   }, [])
 
   useEffect(() => {
@@ -94,6 +105,21 @@ export default function TeacherExamsPage() {
     } catch (error) {
       toast.error('Failed to load exams')
       console.error(error)
+    }
+  }
+
+  const loadCourses = async () => {
+    try {
+      const res = await fetch('/api/v1/teacher/courses')
+      if (!res.ok) {
+        console.error('Failed to load courses:', res.status)
+        return
+      }
+      const data = await res.json()
+      console.log('Courses data:', data)
+      setCourses(data.data || [])
+    } catch (error) {
+      console.error('Error loading courses:', error)
     }
   }
 
@@ -122,10 +148,21 @@ export default function TeacherExamsPage() {
 
       if (!res.ok) throw new Error('Failed to save exam')
       
+      const data = await res.json()
       toast.success(isCreating ? 'Exam created' : 'Exam updated')
       setIsCreating(false)
       setIsEditing(false)
-      loadExams()
+      setExamDialogOpen(false)
+      
+      // Reload exams and select the newly created/updated exam
+      await loadExams()
+      
+      if (isCreating && data.data) {
+        setSelectedExam(data.data)
+        loadQuestions(data.data.id)
+      } else if (selectedExam) {
+        loadQuestions(selectedExam.id)
+      }
     } catch (error) {
       toast.error('Failed to save exam')
       console.error(error)
@@ -168,6 +205,7 @@ export default function TeacherExamsPage() {
       toast.success(editingQuestion ? 'Question updated' : 'Question created')
       setEditingQuestion(null)
       setIsCreatingQuestion(false)
+      setQuestionDialogOpen(false)
       loadQuestions(selectedExam!.id)
     } catch (error) {
       toast.error('Failed to save question')
@@ -205,6 +243,8 @@ export default function TeacherExamsPage() {
     })
     setIsEditing(true)
     setIsCreating(false)
+    setExamDialogOpen(true)
+    loadCourses() // Reload courses when opening dialog
   }
 
   const startCreateExam = () => {
@@ -221,6 +261,8 @@ export default function TeacherExamsPage() {
     })
     setIsCreating(true)
     setIsEditing(false)
+    setExamDialogOpen(true)
+    loadCourses() // Reload courses when opening dialog
   }
 
   const startEditQuestion = (question: ExamQuestion) => {
@@ -235,6 +277,7 @@ export default function TeacherExamsPage() {
     })
     setEditingQuestion(question)
     setIsCreatingQuestion(false)
+    setQuestionDialogOpen(true)
   }
 
   const startCreateQuestion = () => {
@@ -249,6 +292,7 @@ export default function TeacherExamsPage() {
     })
     setIsCreatingQuestion(true)
     setEditingQuestion(null)
+    setQuestionDialogOpen(true)
   }
 
   const confirmDelete = (id: string) => {
@@ -334,131 +378,7 @@ export default function TeacherExamsPage() {
 
         {/* Exam Editor */}
         <Card className="p-6 lg:col-span-2">
-          {(isEditing || isCreating) ? (
-            <div className="space-y-4">
-              <h3 className="text-xl font-bold">{isCreating ? 'Create New Exam' : 'Edit Exam'}</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="exam_name">Exam Name</Label>
-                  <Input
-                    id="exam_name"
-                    value={examForm.exam_name}
-                    onChange={(e) => setExamForm({ ...examForm, exam_name: e.target.value })}
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="course_id">Course</Label>
-                  <Select value={examForm.course_id} onValueChange={(value) => setExamForm({ ...examForm, course_id: value })}>
-                    <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="Select a course" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="course1">Introduction to Computing</SelectItem>
-                      <SelectItem value="course2">Data Structures</SelectItem>
-                      <SelectItem value="course3">Database Systems</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="exam_description">Description</Label>
-                  <Textarea
-                    id="exam_description"
-                    value={examForm.exam_description}
-                    onChange={(e) => setExamForm({ ...examForm, exam_description: e.target.value })}
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="exam_date">Exam Date</Label>
-                  <Input
-                    id="exam_date"
-                    type="date"
-                    value={examForm.exam_date}
-                    onChange={(e) => setExamForm({ ...examForm, exam_date: e.target.value })}
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="duration_minutes">Duration (minutes)</Label>
-                    <Input
-                      id="duration_minutes"
-                      type="number"
-                      value={examForm.duration_minutes}
-                      onChange={(e) => setExamForm({ ...examForm, duration_minutes: parseInt(e.target.value) })}
-                      className="rounded-xl"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="total_questions">Total Questions</Label>
-                    <Input
-                      id="total_questions"
-                      type="number"
-                      value={examForm.total_questions}
-                      onChange={(e) => setExamForm({ ...examForm, total_questions: parseInt(e.target.value) })}
-                      className="rounded-xl"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="passing_score">Passing Score (%)</Label>
-                    <Input
-                      id="passing_score"
-                      type="number"
-                      value={examForm.passing_score}
-                      onChange={(e) => setExamForm({ ...examForm, passing_score: parseInt(e.target.value) })}
-                      className="rounded-xl"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="instructions">Instructions</Label>
-                  <Textarea
-                    id="instructions"
-                    value={examForm.instructions}
-                    onChange={(e) => setExamForm({ ...examForm, instructions: e.target.value })}
-                    className="rounded-xl"
-                    rows={4}
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="is_active"
-                    checked={examForm.is_active}
-                    onCheckedChange={(checked) => setExamForm({ ...examForm, is_active: checked })}
-                  />
-                  <Label htmlFor="is_active">Active</Label>
-                </div>
-
-                <div className="flex gap-3">
-                  <Button onClick={saveExam} className="flex-1 rounded-xl">
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Exam
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setIsEditing(false)
-                      setIsCreating(false)
-                    }}
-                    className="rounded-xl"
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : selectedExam ? (
+          {selectedExam ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold">{selectedExam.exam_name}</h3>
@@ -616,6 +536,7 @@ export default function TeacherExamsPage() {
                     onClick={() => {
                       setEditingQuestion(null)
                       setIsCreatingQuestion(false)
+                      setQuestionDialogOpen(false)
                     }}
                     className="rounded-xl"
                   >
@@ -698,6 +619,143 @@ export default function TeacherExamsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/*Exam Editor Dialog */}
+      <Dialog open={examDialogOpen} onOpenChange={setExamDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-black" aria-describedby="exam-dialog-description">
+          <DialogHeader>
+            <DialogTitle>{isCreating ? 'Create New Exam' : 'Edit Exam'}</DialogTitle>
+            <p id="exam-dialog-description" className="text-sm text-muted-foreground">
+              {isCreating ? 'Create a new exam for your students.' : 'Edit the exam details below.'}
+            </p>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label htmlFor="exam_name">Exam Name</Label>
+              <Input
+                id="exam_name"
+                value={examForm.exam_name}
+                onChange={(e) => setExamForm({ ...examForm, exam_name: e.target.value })}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="course_id">Course</Label>
+              <Select value={examForm.course_id} onValueChange={(value) => setExamForm({ ...examForm, course_id: value })}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Select a course" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map((course) => (
+                    <SelectItem key={course.id} value={course.id}>
+                      {course.code} - {course.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="exam_description">Description</Label>
+              <Textarea
+                id="exam_description"
+                value={examForm.exam_description}
+                onChange={(e) => setExamForm({ ...examForm, exam_description: e.target.value })}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="exam_date">Exam Date</Label>
+              <Input
+                id="exam_date"
+                type="date"
+                value={examForm.exam_date}
+                onChange={(e) => setExamForm({ ...examForm, exam_date: e.target.value })}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="duration_minutes">Duration (minutes)</Label>
+                <Input
+                  id="duration_minutes"
+                  type="number"
+                  value={examForm.duration_minutes}
+                  onChange={(e) => setExamForm({ ...examForm, duration_minutes: parseInt(e.target.value) })}
+                  className="rounded-xl"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="total_questions">Total Questions</Label>
+                <Input
+                  id="total_questions"
+                  type="number"
+                  value={examForm.total_questions}
+                  onChange={(e) => setExamForm({ ...examForm, total_questions: parseInt(e.target.value) })}
+                  className="rounded-xl"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="passing_score">Passing Score (%)</Label>
+                <Input
+                  id="passing_score"
+                  type="number"
+                  value={examForm.passing_score}
+                  onChange={(e) => setExamForm({ ...examForm, passing_score: parseInt(e.target.value) })}
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="instructions">Instructions</Label>
+              <Textarea
+                id="instructions"
+                value={examForm.instructions}
+                onChange={(e) => setExamForm({ ...examForm, instructions: e.target.value })}
+                className="rounded-xl"
+                rows={4}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_active"
+                checked={examForm.is_active}
+                onChange={(e) => setExamForm({ ...examForm, is_active: e.target.checked })}
+                className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <Label htmlFor="is_active" className="cursor-pointer">Active</Label>
+            </div>
+
+            <div className="flex gap-3">
+              <Button onClick={saveExam} className="flex-1 rounded-xl border border-primary hover:shadow-lg hover:shadow-blue-600">
+                <Save className="mr-2 h-4 w-4" />
+                Save Exam
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditing(false)
+                  setIsCreating(false)
+                  setExamDialogOpen(false)
+                }}
+                className="rounded-xl"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

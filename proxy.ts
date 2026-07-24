@@ -24,6 +24,8 @@ export async function proxy(request: NextRequest) {
     '/secure/admin/signup',
     '/secure/signup',
     '/sw.js',
+    '/lecturer-signup',
+    '/student-signup',
   ]
 
   const isPublicRoute = publicRoutes.some(

@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Search, CheckCircle, Clock, Loader2, Calendar, MapPin, Trash2, Edit } from 'lucide-react'
+import { Plus, Search, CheckCircle, Clock, Loader2, Calendar, MapPin, Trash2, Edit, UploadCloud, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { uploadFileToCloudinary } from '@/lib/cloudinary'
 
 type Event = {
   id: string
@@ -40,6 +41,8 @@ export default function EventsPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const supabase = createClient()
 
   const [formData, setFormData] = useState({
@@ -81,6 +84,45 @@ export default function EventsPage() {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '')
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB')
+      return
+    }
+
+    setUploadingImage(true)
+    try {
+      const result = await uploadFileToCloudinary(file, {
+        folder: 'events',
+        resourceType: 'image'
+      })
+      
+      setFormData({ ...formData, featured_image_url: result.secure_url })
+      setImagePreview(result.secure_url)
+      toast.success('Image uploaded successfully')
+    } catch (error) {
+      console.error('Image upload error:', error)
+      toast.error('Failed to upload image')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
+  const removeImage = () => {
+    setFormData({ ...formData, featured_image_url: '' })
+    setImagePreview(null)
   }
 
   const handleCreate = async () => {
@@ -213,6 +255,7 @@ export default function EventsPage() {
       registration_link: event.registration_link || '',
       is_published: event.is_published
     })
+    setImagePreview(event.featured_image_url || null)
     setIsEditModalOpen(true)
   }
 
@@ -228,6 +271,7 @@ export default function EventsPage() {
       registration_link: '',
       is_published: false
     })
+    setImagePreview(null)
   }
 
   const filteredEvents = events.filter(event => {
@@ -316,13 +360,52 @@ export default function EventsPage() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Featured Image URL</label>
-                <Input
-                  placeholder="https://example.com/image.jpg"
-                  value={formData.featured_image_url}
-                  onChange={(e) => setFormData({ ...formData, featured_image_url: e.target.value })}
-                  className="mt-1"
-                />
+                <label className="text-sm font-medium">Featured Image</label>
+                <div className="mt-1 space-y-3">
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-full h-48 object-cover rounded-lg border border-border"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={removeImage}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                      <input
+                        type="file"
+                        id="featured-image-upload"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        disabled={uploadingImage}
+                      />
+                      <label
+                        htmlFor="featured-image-upload"
+                        className="cursor-pointer flex flex-col items-center"
+                      >
+                        {uploadingImage ? (
+                          <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+                        ) : (
+                          <>
+                            <UploadCloud className="w-8 h-8 text-muted-foreground mb-2" />
+                            <p className="text-sm text-muted-foreground">Click to upload image</p>
+                            <p className="text-xs text-muted-foreground mt-1">JPG, PNG up to 5MB</p>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium">Registration Link</label>
@@ -339,7 +422,7 @@ export default function EventsPage() {
                   checked={formData.is_published}
                   onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })}
                 />
-                <label htmlFor="is_published" className="text-sm font-medium cursor-pointer">Publish immediately</label>
+                <label htmlFor="is_published" className="text-sm font-medium cursor-pointer select-none">Publish immediately</label>
               </div>
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
@@ -524,13 +607,52 @@ export default function EventsPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Featured Image URL</label>
-              <Input
-                placeholder="https://example.com/image.jpg"
-                value={formData.featured_image_url}
-                onChange={(e) => setFormData({ ...formData, featured_image_url: e.target.value })}
-                className="mt-1"
-              />
+              <label className="text-sm font-medium">Featured Image</label>
+              <div className="mt-1 space-y-3">
+                {imagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-full h-48 object-cover rounded-lg border border-border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={removeImage}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                    <input
+                      type="file"
+                      id="featured-image-upload-edit"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      disabled={uploadingImage}
+                    />
+                    <label
+                      htmlFor="featured-image-upload-edit"
+                      className="cursor-pointer flex flex-col items-center"
+                    >
+                      {uploadingImage ? (
+                        <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+                      ) : (
+                        <>
+                          <UploadCloud className="w-8 h-8 text-muted-foreground mb-2" />
+                          <p className="text-sm text-muted-foreground">Click to upload image</p>
+                          <p className="text-xs text-muted-foreground mt-1">JPG, PNG up to 5MB</p>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium">Registration Link</label>
@@ -547,7 +669,7 @@ export default function EventsPage() {
                 checked={formData.is_published}
                 onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })}
               />
-              <label htmlFor="is_published_edit" className="text-sm font-medium cursor-pointer">Published</label>
+              <label htmlFor="is_published_edit" className="text-sm font-medium cursor-pointer select-none">Published</label>
             </div>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>

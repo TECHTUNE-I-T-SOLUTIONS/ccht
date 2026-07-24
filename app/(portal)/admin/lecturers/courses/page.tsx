@@ -66,12 +66,12 @@ export default function LecturerCoursesPage() {
         .eq('lecturer_id', id)
 
       // Group by course
-      const courseMap = new Map<string, CourseAssignment>()
+      const courseMap = {} as Record<string, CourseAssignment>
       
       (entriesData || []).forEach((entry: any) => {
         const courseId = entry.course_id
-        if (!courseMap.has(courseId)) {
-          courseMap.set(courseId, {
+        if (!courseMap[courseId]) {
+          courseMap[courseId] = {
             id: courseId,
             courseId: courseId,
             courseCode: entry.course.code,
@@ -80,21 +80,18 @@ export default function LecturerCoursesPage() {
             level: entry.course.level,
             semester: entry.course.semester,
             timetableEntries: []
-          })
+          }
         }
-        const existingCourse = courseMap.get(courseId)
-        if (existingCourse) {
-          existingCourse.timetableEntries.push({
-            id: entry.id,
-            day_of_week: entry.day_of_week,
-            start_time: entry.start_time,
-            end_time: entry.end_time,
-            venue: entry.venue
-          })
-        }
+        courseMap[courseId].timetableEntries.push({
+          id: entry.id,
+          day_of_week: entry.day_of_week,
+          start_time: entry.start_time,
+          end_time: entry.end_time,
+          venue: entry.venue
+        })
       })
 
-      setCourses(Array.from(courseMap.values()))
+      setCourses(Object.keys(courseMap).map((key) => courseMap[key]))
     } catch (error) {
       console.error('Failed to load lecturer courses:', error)
       toast.error('Failed to load courses')

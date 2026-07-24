@@ -30,7 +30,7 @@ export default function StudentDashboard() {
           supabase.from('results').select('id, course_name, score, grade, semester, academic_year, created_at').eq('student_id', user.id).order('created_at', { ascending: false }).limit(4),
           supabase.from('enrollments').select('*, program:programs(title)').eq('student_id', user.id).eq('status', 'active'),
           supabase.from('announcements').select('*').eq('is_published', true).order('published_at', { ascending: false }).limit(3),
-          supabase.from('notices').select('*').eq('is_published', true).or('target_audience.eq.all,target_audience.eq.students').order('published_at', { ascending: false }).limit(3),
+          supabase.from('notices').select('*').eq('is_published', true).in('target_audience', ['all', 'students']).order('published_at', { ascending: false }).limit(3),
         ])
         setUser(profileRes.data)
         setStudentProfile(studentProfileRes.data)

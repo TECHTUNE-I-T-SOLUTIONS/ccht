@@ -7,12 +7,14 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Plus, MoreVertical, Trash2, Calendar, FileText, Globe } from 'lucide-react'
+import { Plus, MoreVertical, Trash2, Calendar, FileText, Globe, ArrowRight, UploadCloud, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { getBlogPostsAction, getEventsAction, createBlogPostAction, createEventAction, deleteBlogPostAction, deleteEventAction } from '@/app/actions/admin/content-actions'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { uploadFileToCloudinary } from '@/lib/cloudinary'
+import Link from 'next/link'
 
 export default function AdminContentPage() {
   const [activeTab, setActiveTab] = useState('blog')
@@ -24,6 +26,9 @@ export default function AdminContentPage() {
   const [isBlogModalOpen, setIsBlogModalOpen] = useState(false)
   const [isEventModalOpen, setIsEventModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [blogImagePreview, setBlogImagePreview] = useState<string | null>(null)
+  const [eventImagePreview, setEventImagePreview] = useState<string | null>(null)
 
   const [blogData, setBlogData] = useState({ title: '', slug: '', excerpt: '', content: '', featuredImage: '', isPublished: false })
   const [eventData, setEventData] = useState({ title: '', slug: '', description: '', eventDate: '', location: '', imageUrl: '', isPublished: false })
@@ -45,15 +50,98 @@ export default function AdminContentPage() {
     }
   }
 
+  const generateSlug = (title: string) => {
+    return title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')
+  }
+
+  const handleBlogImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB')
+      return
+    }
+
+    setUploadingImage(true)
+    try {
+      const result = await uploadFileToCloudinary(file, {
+        folder: 'blog-posts',
+        resourceType: 'image'
+      })
+      
+      setBlogData({ ...blogData, featuredImage: result.secure_url })
+      setBlogImagePreview(result.secure_url)
+      toast.success('Image uploaded successfully')
+    } catch (error) {
+      console.error('Image upload error:', error)
+      toast.error('Failed to upload image')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
+  const handleEventImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB')
+      return
+    }
+
+    setUploadingImage(true)
+    try {
+      const result = await uploadFileToCloudinary(file, {
+        folder: 'events',
+        resourceType: 'image'
+      })
+      
+      setEventData({ ...eventData, imageUrl: result.secure_url })
+      setEventImagePreview(result.secure_url)
+      toast.success('Image uploaded successfully')
+    } catch (error) {
+      console.error('Image upload error:', error)
+      toast.error('Failed to upload image')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
+  const removeBlogImage = () => {
+    setBlogData({ ...blogData, featuredImage: '' })
+    setBlogImagePreview(null)
+  }
+
+  const removeEventImage = () => {
+    setEventData({ ...eventData, imageUrl: '' })
+    setEventImagePreview(null)
+  }
+
   const handleCreateBlog = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      const res = await createBlogPostAction(blogData)
+      const slug = blogData.slug || generateSlug(blogData.title)
+      const res = await createBlogPostAction({ ...blogData, slug })
       if (res.success) {
         toast.success('Blog post created')
         setIsBlogModalOpen(false)
         setBlogData({ title: '', slug: '', excerpt: '', content: '', featuredImage: '', isPublished: false })
+        setBlogImagePreview(null)
         loadData()
       } else {
         toast.error(res.error || 'Failed to create blog')
@@ -67,11 +155,13 @@ export default function AdminContentPage() {
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      const res = await createEventAction(eventData)
+      const slug = eventData.slug || generateSlug(eventData.title)
+      const res = await createEventAction({ ...eventData, slug })
       if (res.success) {
         toast.success('Event created')
         setIsEventModalOpen(false)
         setEventData({ title: '', slug: '', description: '', eventDate: '', location: '', imageUrl: '', isPublished: false })
+        setEventImagePreview(null)
         loadData()
       } else {
         toast.error(res.error || 'Failed to create event')
@@ -102,8 +192,24 @@ export default function AdminContentPage() {
   return (
     <div className="space-y-8">
       <div className="rounded-[2.5rem] border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))] p-8 md:p-10">
-        <h1 className="mt-2 text-3xl font-extrabold md:text-5xl">Content Manager</h1>
-        <p className="mt-2 text-sm text-foreground/75">Publish updates, announcements, and school events to the public website.</p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="mt-2 text-3xl font-extrabold md:text-5xl">Content Manager</h1>
+            <p className="mt-2 text-sm text-foreground/75">Publish updates, announcements, and school events to the public website.</p>
+          </div>
+          <div className="flex gap-3">
+            <Link href="/admin/blog">
+              <Button variant="outline" className="rounded-xl gap-2">
+                Manage Blog <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/admin/management/events">
+              <Button variant="outline" className="rounded-xl gap-2">
+                Manage Events <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -128,11 +234,13 @@ export default function AdminContentPage() {
                   <form onSubmit={handleCreateBlog} className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Title</label>
-                      <Input required value={blogData.title} onChange={e => setBlogData({ ...blogData, title: e.target.value })} />
+                      <Input required value={blogData.title} onChange={e => {
+                        setBlogData({ ...blogData, title: e.target.value, slug: generateSlug(e.target.value) })
+                      }} />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Slug (URL)</label>
-                      <Input required value={blogData.slug} onChange={e => setBlogData({ ...blogData, slug: e.target.value })} />
+                      <Input value={blogData.slug} onChange={e => setBlogData({ ...blogData, slug: e.target.value })} placeholder="Auto-generated from title" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Excerpt</label>
@@ -143,11 +251,55 @@ export default function AdminContentPage() {
                       <Textarea required value={blogData.content} onChange={e => setBlogData({ ...blogData, content: e.target.value })} rows={6} />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Featured Image URL</label>
-                      <Input value={blogData.featuredImage} onChange={e => setBlogData({ ...blogData, featuredImage: e.target.value })} />
+                      <label className="text-sm font-medium">Featured Image</label>
+                      <div className="space-y-3">
+                        {blogImagePreview ? (
+                          <div className="relative">
+                            <img
+                              src={blogImagePreview}
+                              alt="Preview"
+                              className="w-full h-48 object-cover rounded-lg border border-border"
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute top-2 right-2"
+                              onClick={removeBlogImage}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                            <input
+                              type="file"
+                              id="blog-image-upload"
+                              accept="image/*"
+                              onChange={handleBlogImageUpload}
+                              className="hidden"
+                              disabled={uploadingImage}
+                            />
+                            <label
+                              htmlFor="blog-image-upload"
+                              className="cursor-pointer flex flex-col items-center"
+                            >
+                              {uploadingImage ? (
+                                <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+                              ) : (
+                                <>
+                                  <UploadCloud className="w-8 h-8 text-muted-foreground mb-2" />
+                                  <p className="text-sm text-muted-foreground">Click to upload image</p>
+                                  <p className="text-xs text-muted-foreground mt-1">JPG, PNG up to 5MB</p>
+                                </>
+                              )}
+                            </label>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
-                      <span className="text-sm font-medium">Publish Immediately</span>
+                      <span className="text-sm font-medium cursor-pointer select-none">Publish Immediately</span>
                       <Switch checked={blogData.isPublished} onCheckedChange={val => setBlogData({ ...blogData, isPublished: val })} />
                     </div>
                     <div className="flex justify-end pt-4"><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Publish Post'}</Button></div>
@@ -224,11 +376,13 @@ export default function AdminContentPage() {
                   <form onSubmit={handleCreateEvent} className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Event Title</label>
-                      <Input required value={eventData.title} onChange={e => setEventData({ ...eventData, title: e.target.value })} />
+                      <Input required value={eventData.title} onChange={e => {
+                        setEventData({ ...eventData, title: e.target.value, slug: generateSlug(e.target.value) })
+                      }} />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Slug (URL)</label>
-                      <Input required value={eventData.slug} onChange={e => setEventData({ ...eventData, slug: e.target.value })} />
+                      <Input value={eventData.slug} onChange={e => setEventData({ ...eventData, slug: e.target.value })} placeholder="Auto-generated from title" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -245,11 +399,55 @@ export default function AdminContentPage() {
                       <Textarea required value={eventData.description} onChange={e => setEventData({ ...eventData, description: e.target.value })} rows={3} />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Image URL</label>
-                      <Input value={eventData.imageUrl} onChange={e => setEventData({ ...eventData, imageUrl: e.target.value })} />
+                      <label className="text-sm font-medium">Featured Image</label>
+                      <div className="space-y-3">
+                        {eventImagePreview ? (
+                          <div className="relative">
+                            <img
+                              src={eventImagePreview}
+                              alt="Preview"
+                              className="w-full h-48 object-cover rounded-lg border border-border"
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute top-2 right-2"
+                              onClick={removeEventImage}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                            <input
+                              type="file"
+                              id="event-image-upload"
+                              accept="image/*"
+                              onChange={handleEventImageUpload}
+                              className="hidden"
+                              disabled={uploadingImage}
+                            />
+                            <label
+                              htmlFor="event-image-upload"
+                              className="cursor-pointer flex flex-col items-center"
+                            >
+                              {uploadingImage ? (
+                                <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+                              ) : (
+                                <>
+                                  <UploadCloud className="w-8 h-8 text-muted-foreground mb-2" />
+                                  <p className="text-sm text-muted-foreground">Click to upload image</p>
+                                  <p className="text-xs text-muted-foreground mt-1">JPG, PNG up to 5MB</p>
+                                </>
+                              )}
+                            </label>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
-                      <span className="text-sm font-medium">Publish Event</span>
+                      <span className="text-sm font-medium cursor-pointer select-none">Publish Event</span>
                       <Switch checked={eventData.isPublished} onCheckedChange={val => setEventData({ ...eventData, isPublished: val })} />
                     </div>
                     <div className="flex justify-end pt-4"><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Create Event'}</Button></div>
