@@ -19,27 +19,78 @@ export async function POST(request: Request) {
     const admin = createAdminClient()
     const body = await request.json()
 
-    if (!body.course_id || !body.exam_name) {
-      return NextResponse.json({ error: 'course_id and exam_name are required' }, { status: 400 })
+    if (!body.course_id || !body.exam_title || !body.session_id || !body.semester_id) {
+      return NextResponse.json({ error: 'course_id, exam_title, session_id, and semester_id are required' }, { status: 400 })
+    }
+
+    if (!body.start_date || !body.end_date) {
+      return NextResponse.json({ error: 'start_date and end_date are required' }, { status: 400 })
+    }
+
+    // Create proctoring config if proctoring is enabled
+    let proctoringConfigId = null
+    if (body.proctoring_enabled) {
+      const config = body.proctoring_config || {
+        exam_type: body.exam_type || 'regular',
+        max_violations: 5,
+        auto_submit_on_max_violations: true,
+        record_screen: true,
+        require_webcam: true,
+        require_microphone: false,
+        require_fullscreen: true,
+        block_copy_paste: true,
+        block_right_click: true,
+        block_devtools: true,
+        detect_tab_switch: true,
+        detect_visibility_change: true,
+      }
+      
+      const { data: configData, error: configError } = await admin
+        .from('exam_proctoring_config')
+        .insert({
+          exam_type: config.exam_type || body.exam_type || 'regular',
+          max_violations: config.max_violations ?? 5,
+          auto_submit_on_max_violations: config.auto_submit_on_max_violations ?? true,
+          record_screen: config.record_screen ?? true,
+          require_webcam: config.require_webcam ?? true,
+          require_microphone: config.require_microphone ?? false,
+          require_fullscreen: config.require_fullscreen ?? true,
+          block_copy_paste: config.block_copy_paste ?? true,
+          block_right_click: config.block_right_click ?? true,
+          block_devtools: config.block_devtools ?? true,
+          detect_tab_switch: config.detect_tab_switch ?? true,
+          detect_visibility_change: config.detect_visibility_change ?? true,
+        })
+        .select()
+        .single()
+
+      if (configError) throw configError
+      proctoringConfigId = configData.id
     }
 
     const { data, error } = await admin
       .from('student_exam_sessions')
       .insert({
         course_id: body.course_id,
-        session_id: body.session_id || null,
-        semester_id: body.semester_id || null,
-        exam_title: body.exam_name,
+        session_id: body.session_id,
+        semester_id: body.semester_id,
+        exam_title: body.exam_title,
         exam_description: body.exam_description || null,
-        start_date: body.exam_date || body.start_date || null,
-        end_date: body.end_date || body.exam_date || null,
+        exam_type: body.exam_type || 'regular',
+        start_date: body.start_date,
+        end_date: body.end_date,
         duration_minutes: body.duration_minutes ?? 60,
-        total_marks: body.total_questions ? body.total_questions * 10 : 100,
-        passing_marks: body.passing_score ?? 50,
+        total_marks: body.total_marks ?? 100,
+        passing_marks: body.passing_marks ?? 60,
         instructions: body.instructions || null,
-        is_published: body.is_active ?? false,
-        published_at: body.is_active ? new Date().toISOString() : null,
+        is_published: body.is_published ?? false,
+        published_at: body.is_published ? new Date().toISOString() : null,
         published_by: teacherId,
+        allow_review: body.allow_review ?? true,
+        review_start_date: body.review_start_date || null,
+        review_end_date: body.review_end_date || null,
+        proctoring_enabled: body.proctoring_enabled ?? true,
+        proctoring_config_id: proctoringConfigId,
       })
       .select()
       .single()
@@ -47,6 +98,7 @@ export async function POST(request: Request) {
     if (error) throw error
     return NextResponse.json({ success: true, data, message: 'Exam created successfully' })
   } catch (error: any) {
+    console.error('Exam creation error:', error)
     return NextResponse.json({ error: error?.message || 'Failed to create exam' }, { status: 500 })
   }
 }

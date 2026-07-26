@@ -590,6 +590,7 @@ CREATE TABLE public.teacher_profiles (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   departments jsonb DEFAULT '[]'::jsonb,
+  courses jsonb DEFAULT '[]'::jsonb,
   CONSTRAINT teacher_profiles_pkey PRIMARY KEY (profile_id),
   CONSTRAINT teacher_profiles_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
 );
@@ -1001,4 +1002,24 @@ CREATE TABLE public.signup_settings (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT signup_settings_pkey PRIMARY KEY (id),
   CONSTRAINT signup_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.online_classes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  course_id uuid NOT NULL,
+  teacher_id uuid NOT NULL,
+  day_of_week text NOT NULL CHECK (day_of_week = ANY (ARRAY['Monday'::text, 'Tuesday'::text, 'Wednesday'::text, 'Thursday'::text, 'Friday'::text, 'Saturday'::text, 'Sunday'::text])),
+  start_time time without time zone NOT NULL,
+  end_time time without time zone NOT NULL,
+  meet_link text NOT NULL,
+  meet_link_display_name text,
+  notes text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_by uuid,
+  class_date date,
+  CONSTRAINT online_classes_pkey PRIMARY KEY (id),
+  CONSTRAINT online_classes_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.courses(id),
+  CONSTRAINT online_classes_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.profiles(id),
+  CONSTRAINT online_classes_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
 );

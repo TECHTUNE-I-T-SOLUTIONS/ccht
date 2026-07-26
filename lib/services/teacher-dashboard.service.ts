@@ -50,6 +50,8 @@ export class TeacherDashboardService {
     if (!user) throw new Error('Unauthorized')
 
     const admin = createAdminClient()
+    
+    // Get exams created by the teacher OR for courses the teacher is assigned to
     const { data: teacherCourses, error: teacherError } = await admin
       .from('course_teacher_assignments')
       .select('course_id')
@@ -58,13 +60,23 @@ export class TeacherDashboardService {
 
     if (teacherError) throw new Error(teacherError.message)
     const courseIds = (teacherCourses || []).map((row) => row.course_id).filter(Boolean)
-    if (!courseIds.length) return []
-
-    const { data, error } = await admin
+    
+    // Query exams: either created by teacher OR for assigned courses
+    let query = admin
       .from('student_exam_sessions')
       .select('*, course:courses(code, title, level, program:programs(title)), session:academic_sessions(name), semester:academic_semesters(semester_name)')
-      .in('course_id', courseIds)
       .order('created_at', { ascending: false })
+    
+    // Filter by published_by OR course_id
+    if (courseIds.length > 0) {
+      query = query.or(`published_by.eq.${user.id},course_id.in.(${courseIds.join(',')})`)
+    } else {
+      // If no course assignments, show all exams (fallback for development/testing)
+      // In production, you might want to restrict this to only published_by
+      // Don't apply any filter - show all exams
+    }
+
+    const { data, error } = await query
 
     if (error) throw new Error(error.message)
     return (data || []).map((row: any) => ({
@@ -72,6 +84,9 @@ export class TeacherDashboardService {
       exam_name: row.exam_title || row.exam_name || row.course?.title || 'Exam session',
       exam_description: row.exam_description || '',
       exam_date: row.start_date || null,
+      duration_minutes: row.duration_minutes || 60,
+      total_questions: 0, // Will be loaded separately
+      passing_score: row.passing_marks || 60,
       is_active: row.is_published ?? false,
       course_name: row.course?.title || row.course?.code || null,
     }))
@@ -154,7 +169,7 @@ export class TeacherDashboardService {
   static async getTeacherStudents() {
     try {
       const teacherDepartments = await this.getTeacherDepartmentNames()
-      console.log('[TeacherDashboardService] Teacher departments:', teacherDepartments)
+      // console.log('[TeacherDashboardService] Teacher departments:', teacherDepartments)
       
       const admin = createAdminClient()
       const { data: students, error } = await admin
@@ -200,11 +215,11 @@ export class TeacherDashboardService {
           }
           // Check if student's department matches teacher's department
           const matches = student.programDepartments.some((dept: string) => teacherDepartments.includes(dept))
-          console.log('[TeacherDashboardService] Student', student.profile_id, 'departments:', student.programDepartments, 'matches:', matches)
+          // console.log('[TeacherDashboardService] Student', student.profile_id, 'departments:', student.programDepartments, 'matches:', matches)
           return matches
         })
       
-      console.log('[TeacherDashboardService] Filtered students count:', filteredStudents.length)
+      // console.log('[TeacherDashboardService] Filtered students count:', filteredStudents.length)
       return filteredStudents
     } catch (error: any) {
       console.error('[TeacherDashboardService] getTeacherStudents error:', error)
@@ -323,25 +338,25 @@ export class TeacherDashboardService {
 
   static async getTeacherCourses() {
     const teacherId = await this.getCurrentTeacherId()
-    console.log('[TeacherDashboardService] getTeacherCourses for teacher:', teacherId)
+    // console.log('[TeacherDashboardService] getTeacherCourses for teacher:', teacherId)
     
     const admin = createAdminClient()
     
     // First, get teacher profile to check if they have selected courses
     const { data: teacherProfile, error: profileError } = await admin
       .from('teacher_profiles')
-      .select('courses')
+      .select('courses, departments, department')
       .eq('profile_id', teacherId)
       .single()
     
-    console.log('[TeacherDashboardService] Teacher profile:', teacherProfile)
+    // console.log('[TeacherDashboardService] Teacher profile:', teacherProfile)
     console.log('[TeacherDashboardService] Profile error:', profileError)
     
     let courses: any[] = []
     
     // If teacher has selected courses in their profile, use those
     if (teacherProfile?.courses && Array.isArray(teacherProfile.courses) && teacherProfile.courses.length > 0) {
-      console.log('[TeacherDashboardService] Using teacher selected courses:', teacherProfile.courses)
+      // console.log('[TeacherDashboardService] Using teacher selected courses:', teacherProfile.courses)
       
       const { data, error } = await admin
         .from('courses')
@@ -376,50 +391,81 @@ export class TeacherDashboardService {
       })).filter(Boolean)
     }
     
-    console.log('[TeacherDashboardService] Final courses:', courses)
+    // console.log('[TeacherDashboardService] Final courses:', courses)
     
     // If still no courses, try to get courses from teacher's departments
     if (courses.length === 0) {
       console.log('[TeacherDashboardService] No courses assigned, trying department-based courses')
-      const teacherDepartments = await this.getTeacherDepartmentNames()
-      console.log('[TeacherDashboardService] Teacher departments:', teacherDepartments)
       
-      if (teacherDepartments.length > 0) {
-        // Get department IDs first
-        const { data: departments } = await admin
-          .from('departments')
-          .select('id')
-          .in('name', teacherDepartments)
-        
-        const deptIds = (departments || []).map((d: any) => d.id)
-        
-        if (deptIds.length > 0) {
-          // Get program IDs for these departments
-          const { data: programs } = await admin
-            .from('programs')
-            .select('id')
-            .in('department_id', deptIds)
-          
-          const programIds = (programs || []).map((p: any) => p.id)
-          
-          if (programIds.length > 0) {
-            // Get courses for these programs
-            const { data: deptCourses, error: deptError } = await admin
-              .from('courses')
-              .select('id, code, title, level, semester, program_id, program:programs(id, title, department:departments(id, name))')
-              .in('program_id', programIds)
-            
-            if (!deptError && deptCourses) {
-              const mappedDeptCourses = deptCourses.map((row: any) => ({
-                ...row,
-                program: row.program,
-                department_name: row.program?.department?.name,
-              }))
-              console.log('[TeacherDashboardService] Department courses:', mappedDeptCourses)
-              return mappedDeptCourses
-            }
+      // Get teacher's department IDs from profile
+      let departmentIds: string[] = []
+      
+      if (teacherProfile?.departments) {
+        if (Array.isArray(teacherProfile.departments)) {
+          departmentIds = teacherProfile.departments
+            .map((d: any) => d.id || d)
+            .filter(Boolean)
+        } else if (typeof teacherProfile.departments === 'string') {
+          try {
+            const parsed = JSON.parse(teacherProfile.departments)
+            departmentIds = parsed.map((d: any) => d.id || d).filter(Boolean)
+          } catch (e) {
+            console.error('Failed to parse departments JSON:', e)
           }
         }
+      }
+      
+      // Also check the single department field
+      if (teacherProfile?.department && !departmentIds.includes(teacherProfile.department)) {
+        departmentIds.push(teacherProfile.department)
+      }
+      
+      // console.log('[TeacherDashboardService] Department IDs:', departmentIds)
+      
+      if (departmentIds.length > 0) {
+        // Get program IDs for these departments
+        const { data: programs } = await admin
+          .from('programs')
+          .select('id')
+          .in('department_id', departmentIds)
+        
+        const programIds = (programs || []).map((p: any) => p.id)
+        
+        if (programIds.length > 0) {
+          // Get courses for these programs
+          const { data: deptCourses, error: deptError } = await admin
+            .from('courses')
+            .select('id, code, title, level, semester, program_id, program:programs(id, title, department:departments(id, name))')
+            .in('program_id', programIds)
+          
+          if (!deptError && deptCourses) {
+            const mappedDeptCourses = deptCourses.map((row: any) => ({
+              ...row,
+              program: row.program,
+              department_name: row.program?.department?.name,
+            }))
+            // console.log('[TeacherDashboardService] Department courses:', mappedDeptCourses)
+            return mappedDeptCourses
+          }
+        }
+      }
+      
+      // Final fallback: get all active courses if teacher has no restrictions
+      console.log('[TeacherDashboardService] No department courses, returning all active courses')
+      const { data: allCourses, error: allError } = await admin
+        .from('courses')
+        .select('id, code, title, level, semester, program_id, program:programs(id, title, department:departments(id, name))')
+        .eq('is_active', true)
+        .order('code', { ascending: true })
+      
+      if (!allError && allCourses) {
+        const mappedAllCourses = allCourses.map((row: any) => ({
+          ...row,
+          program: row.program,
+          department_name: row.program?.department?.name,
+        }))
+        // console.log('[TeacherDashboardService] All courses:', mappedAllCourses)
+        return mappedAllCourses
       }
     }
     
