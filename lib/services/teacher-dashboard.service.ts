@@ -266,9 +266,33 @@ export class TeacherDashboardService {
     const admin = createAdminClient()
     const { data, error } = await admin
       .from('timetable_entries')
-      .select('id, timetable_session_id, course_id, day_of_week, start_time, end_time, venue, lecturer_id, notes, course:courses(id, code, title)')
+      .select('id, timetable_session_id, course_id, day_of_week, start_time, end_time, venue, lecturer_id, notes, course:courses(id, code, title), timetable_session:timetable_sessions(id, title, level, session:academic_sessions(id, name), semester:academic_semesters(id, semester_name), program:programs(id, title, department:departments(id, name)))')
       .eq('lecturer_id', teacherId)
-      .order('day_of_week', { ascending: true })
+      .order('day_of_week, start_time', { ascending: true })
+    
+    if (error) throw new Error(error.message)
+    return data || []
+  }
+
+  static async getAllTimetableSessions() {
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from('timetable_sessions')
+      .select('id, session_id, semester_id, program_id, level, title, description, is_active, session:academic_sessions(id, name), semester:academic_semesters(id, semester_name), program:programs(id, title, department:departments(id, name))')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+    
+    if (error) throw new Error(error.message)
+    return data || []
+  }
+
+  static async getTimetableEntriesBySession(sessionId: string) {
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from('timetable_entries')
+      .select('id, timetable_session_id, course_id, day_of_week, start_time, end_time, venue, lecturer_id, notes, course:courses(id, code, title)')
+      .eq('timetable_session_id', sessionId)
+      .order('day_of_week, start_time', { ascending: true })
     
     if (error) throw new Error(error.message)
     return data || []
@@ -278,10 +302,10 @@ export class TeacherDashboardService {
     const teacherId = await this.getCurrentTeacherId()
     const admin = createAdminClient()
     const { data, error } = await admin
-      .from('student_exam_sessions')
-      .select('id, course_id, session_id, semester_id, exam_title, exam_description, exam_type, duration_minutes, total_marks, passing_marks, start_date, end_date, instructions, is_published, published_at, published_by, allow_review, review_start_date, review_end_date, proctoring_enabled, google_meet_link, google_meet_code, created_at, updated_at, course:courses(id, code, title), session:academic_sessions(id, name), semester:academic_semesters(id, semester_name)')
-      .eq('published_by', teacherId)
-      .order('created_at', { ascending: false })
+      .from('timetable_entries')
+      .select('id, timetable_session_id, course_id, day_of_week, start_time, end_time, venue, lecturer_id, notes, timetable_session:timetable_sessions(id, session_id, semester_id, program_id, level, title, description, is_active, session:academic_sessions(id, name), semester:academic_semesters(id, semester_name), program:programs(id, title, department:departments(id, name))), course:courses(id, code, title, level, semester)')
+      .eq('lecturer_id', teacherId)
+      .order('day_of_week, start_time', { ascending: true })
     if (error) throw new Error(error.message)
     return data || []
   }
@@ -289,8 +313,8 @@ export class TeacherDashboardService {
   static async getTeacherSessionById(id: string) {
     const admin = createAdminClient()
     const { data, error } = await admin
-      .from('student_exam_sessions')
-      .select('id, course_id, session_id, semester_id, exam_title, exam_description, exam_type, duration_minutes, total_marks, passing_marks, start_date, end_date, instructions, is_published, published_at, published_by, allow_review, review_start_date, review_end_date, proctoring_enabled, google_meet_link, google_meet_code, created_at, updated_at, course:courses(id, code, title), session:academic_sessions(id, name), semester:academic_semesters(id, semester_name)')
+      .from('timetable_entries')
+      .select('id, timetable_session_id, course_id, day_of_week, start_time, end_time, venue, lecturer_id, notes, timetable_session:timetable_sessions(id, session_id, semester_id, program_id, level, title, description, is_active, session:academic_sessions(id, name), semester:academic_semesters(id, semester_name), program:programs(id, title, department:departments(id, name))), course:courses(id, code, title, level, semester)')
       .eq('id', id)
       .single()
     if (error) throw new Error(error.message)
@@ -299,14 +323,107 @@ export class TeacherDashboardService {
 
   static async getTeacherCourses() {
     const teacherId = await this.getCurrentTeacherId()
+    console.log('[TeacherDashboardService] getTeacherCourses for teacher:', teacherId)
+    
     const admin = createAdminClient()
-    const { data, error } = await admin
-      .from('course_teacher_assignments')
-      .select('id, assigned_at, is_active, course_id, course:courses(id, code, title, level, semester)')
-      .eq('teacher_id', teacherId)
-      .order('assigned_at', { ascending: false })
-    if (error) throw new Error(error.message)
-    return (data || []).map((row: any) => row.course).filter(Boolean)
+    
+    // First, get teacher profile to check if they have selected courses
+    const { data: teacherProfile, error: profileError } = await admin
+      .from('teacher_profiles')
+      .select('courses')
+      .eq('profile_id', teacherId)
+      .single()
+    
+    console.log('[TeacherDashboardService] Teacher profile:', teacherProfile)
+    console.log('[TeacherDashboardService] Profile error:', profileError)
+    
+    let courses: any[] = []
+    
+    // If teacher has selected courses in their profile, use those
+    if (teacherProfile?.courses && Array.isArray(teacherProfile.courses) && teacherProfile.courses.length > 0) {
+      console.log('[TeacherDashboardService] Using teacher selected courses:', teacherProfile.courses)
+      
+      const { data, error } = await admin
+        .from('courses')
+        .select('id, code, title, level, semester, program_id, program:programs(id, title, department:departments(id, name))')
+        .in('id', teacherProfile.courses)
+        .eq('is_active', true)
+      
+      if (error) throw new Error(error.message)
+      
+      courses = (data || []).map((row: any) => ({
+        ...row,
+        program: row.program,
+        department_name: row.program?.department?.name,
+      }))
+    } else {
+      // Fallback to course_teacher_assignments if no courses selected in profile
+      console.log('[TeacherDashboardService] No courses in profile, using course_teacher_assignments')
+      
+      const { data, error } = await admin
+        .from('course_teacher_assignments')
+        .select('id, assigned_at, is_active, course_id, course:courses(id, code, title, level, semester, program_id, program:programs(id, title, department:departments(id, name)))')
+        .eq('teacher_id', teacherId)
+        .eq('is_active', true)
+        .order('assigned_at', { ascending: false })
+      
+      if (error) throw new Error(error.message)
+      
+      courses = (data || []).map((row: any) => ({
+        ...row.course,
+        program: row.course?.program,
+        department_name: row.course?.program?.department?.name,
+      })).filter(Boolean)
+    }
+    
+    console.log('[TeacherDashboardService] Final courses:', courses)
+    
+    // If still no courses, try to get courses from teacher's departments
+    if (courses.length === 0) {
+      console.log('[TeacherDashboardService] No courses assigned, trying department-based courses')
+      const teacherDepartments = await this.getTeacherDepartmentNames()
+      console.log('[TeacherDashboardService] Teacher departments:', teacherDepartments)
+      
+      if (teacherDepartments.length > 0) {
+        // Get department IDs first
+        const { data: departments } = await admin
+          .from('departments')
+          .select('id')
+          .in('name', teacherDepartments)
+        
+        const deptIds = (departments || []).map((d: any) => d.id)
+        
+        if (deptIds.length > 0) {
+          // Get program IDs for these departments
+          const { data: programs } = await admin
+            .from('programs')
+            .select('id')
+            .in('department_id', deptIds)
+          
+          const programIds = (programs || []).map((p: any) => p.id)
+          
+          if (programIds.length > 0) {
+            // Get courses for these programs
+            const { data: deptCourses, error: deptError } = await admin
+              .from('courses')
+              .select('id, code, title, level, semester, program_id, program:programs(id, title, department:departments(id, name))')
+              .in('program_id', programIds)
+            
+            if (!deptError && deptCourses) {
+              const mappedDeptCourses = deptCourses.map((row: any) => ({
+                ...row,
+                program: row.program,
+                department_name: row.program?.department?.name,
+              }))
+              console.log('[TeacherDashboardService] Department courses:', mappedDeptCourses)
+              return mappedDeptCourses
+            }
+          }
+        }
+      }
+    }
+    
+    return courses
   }
 
   static async getTeacherCourseAssignments() {

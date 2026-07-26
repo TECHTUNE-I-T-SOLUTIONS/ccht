@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Upload, UserRound, Edit2, Save, X } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Upload, UserRound, Edit2, Save, X, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
 
 const QUALIFICATIONS = [
@@ -42,6 +43,9 @@ export default function TeacherProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
   const [form, setForm] = useState<any>(null)
   const [uploading, setUploading] = useState(false)
+  const [allCourses, setAllCourses] = useState<any[]>([])
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([])
+  const [loadingCourses, setLoadingCourses] = useState(false)
 
   useEffect(() => {
     ;(async () => {
@@ -58,8 +62,30 @@ export default function TeacherProfilePage() {
         office_hours: data.data?.office_hours || '',
         employment_type: data.data?.employment_type || '',
       })
+      
+      // Load selected courses from teacher profile
+      if (data.data?.courses) {
+        setSelectedCourseIds(data.data.courses || [])
+      }
+      
       setLoading(false)
     })()
+  }, [])
+
+  useEffect(() => {
+    const loadCourses = async () => {
+      setLoadingCourses(true)
+      try {
+        const res = await fetch('/api/v1/courses')
+        const data = await res.json()
+        setAllCourses(data.data || [])
+      } catch (error) {
+        console.error('Failed to load courses:', error)
+      } finally {
+        setLoadingCourses(false)
+      }
+    }
+    loadCourses()
   }, [])
 
   const uploadPhoto = async (file: File) => {
@@ -103,6 +129,7 @@ export default function TeacherProfilePage() {
         body: JSON.stringify({
           ...form,
           avatar_url: profile?.profile?.avatar_url || null,
+          courses: selectedCourseIds,
         }),
       })
       const data = await res.json()
@@ -127,6 +154,7 @@ export default function TeacherProfilePage() {
       office_hours: profile?.office_hours || '',
       employment_type: profile?.employment_type || '',
     })
+    setSelectedCourseIds(profile?.courses || [])
     setIsEditing(false)
   }
 
@@ -282,6 +310,77 @@ export default function TeacherProfilePage() {
             />
           </div>
         </div>
+      </Card>
+
+      {/* Assigned Courses Section */}
+      <Card className="p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-primary" />
+            Assigned Courses
+          </h2>
+          {!isEditing ? (
+            <Button onClick={() => setIsEditing(true)} size="sm">
+              <Edit2 className="mr-2 h-4 w-4" />
+              Edit Courses
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button onClick={saveProfile} disabled={saving} size="sm">
+                <Save className="mr-2 h-4 w-4" />
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
+              <Button onClick={cancelEdit} variant="outline" size="sm">
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {loadingCourses ? (
+          <p className="text-sm text-muted-foreground">Loading courses...</p>
+        ) : (
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {allCourses.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No courses available</p>
+            ) : (
+              allCourses.map((course) => (
+                <div key={course.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50">
+                  <Checkbox
+                    id={`course-${course.id}`}
+                    checked={selectedCourseIds.includes(course.id)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedCourseIds([...selectedCourseIds, course.id])
+                      } else {
+                        setSelectedCourseIds(selectedCourseIds.filter(id => id !== course.id))
+                      }
+                    }}
+                    disabled={!isEditing}
+                  />
+                  <div className="flex-1">
+                    <label
+                      htmlFor={`course-${course.id}`}
+                      className={`font-medium cursor-pointer ${!isEditing ? 'text-muted-foreground' : ''}`}
+                    >
+                      {course.code} - {course.title}
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Level {course.level} • Semester {course.semester} • {course.program?.title}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {selectedCourseIds.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {selectedCourseIds.length} course{selectedCourseIds.length !== 1 ? 's' : ''} selected
+          </p>
+        )}
       </Card>
     </div>
   )

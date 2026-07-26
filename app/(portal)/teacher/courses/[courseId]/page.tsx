@@ -9,28 +9,34 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { ArrowLeft, Video, CalendarDays, Clock, Plus, Save, X, Edit2, ExternalLink, MapPin } from 'lucide-react'
+import { ArrowLeft, Video, CalendarDays, Clock, MapPin, Plus, Save, X, Edit2, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 
-type Session = {
+type Course = {
   id: string
-  timetable_session_id: string
+  code: string
+  title: string
+  level?: string
+  semester?: number
+  program_id?: string
+  program?: {
+    id: string
+    title: string
+    department?: {
+      id: string
+      name: string
+    }
+  }
+}
+
+type TimetableEntry = {
+  id: string
   course_id: string
   day_of_week: string
   start_time: string
   end_time: string
   venue?: string
-  lecturer_id: string
-  notes?: string
-  timetable_session?: {
-    id: string
-    title: string
-    level: number
-    session?: { id: string; name: string }
-    semester?: { id: string; semester_name: string }
-    program?: { id: string; title: string }
-  }
-  course?: { id: string; code: string; title: string; level?: number; semester?: number }
+  course?: { code: string; title: string }
 }
 
 type OnlineClass = {
@@ -44,40 +50,29 @@ type OnlineClass = {
   meet_link_display_name?: string
   notes?: string
   is_active: boolean
-  class_date?: string
   course?: { code: string; title: string }
-}
-
-type TimetableEntry = {
-  id: string
-  course_id: string
-  day_of_week: string
-  start_time: string
-  end_time: string
-  venue?: string
 }
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
-export default function TeacherSessionDetailPage() {
+export default function TeacherCourseDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const sessionId = params.id as string
+  const courseId = params.courseId as string
   
-  const [session, setSession] = useState<Session | null>(null)
-  const [onlineClasses, setOnlineClasses] = useState<OnlineClass[]>([])
+  const [course, setCourse] = useState<Course | null>(null)
   const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([])
+  const [onlineClasses, setOnlineClasses] = useState<OnlineClass[]>([])
   const [loading, setLoading] = useState(true)
   const [onlineClassDialogOpen, setOnlineClassDialogOpen] = useState(false)
   const [editingOnlineClass, setEditingOnlineClass] = useState<OnlineClass | null>(null)
   const [saving, setSaving] = useState(false)
   
   const [onlineClassForm, setOnlineClassForm] = useState({
-    course_id: '',
+    course_id: courseId,
     day_of_week: '',
     start_time: '',
     end_time: '',
-    class_date: '',
     meet_link: '',
     meet_link_display_name: '',
     notes: '',
@@ -86,44 +81,41 @@ export default function TeacherSessionDetailPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [sessionRes, onlineClassesRes, timetableRes] = await Promise.all([
-          fetch(`/api/v1/teacher/sessions/${sessionId}`),
-          fetch('/api/v1/teacher/online-classes'),
+        const [coursesRes, timetableRes, onlineClassesRes] = await Promise.all([
+          fetch('/api/v1/teacher/courses'),
           fetch('/api/v1/teacher/timetable'),
+          fetch('/api/v1/teacher/online-classes'),
         ])
         
-        const sessionData = await sessionRes.json()
-        const onlineClassesData = await onlineClassesRes.json()
+        const coursesData = await coursesRes.json()
         const timetableData = await timetableRes.json()
+        const onlineClassesData = await onlineClassesRes.json()
         
-        setSession(sessionData.data || null)
+        const foundCourse = coursesData.data?.find((c: Course) => c.id === courseId)
+        setCourse(foundCourse || null)
         
-        // Filter online classes for this session's course
-        const courseOnlineClasses = onlineClassesData.data?.filter((oc: OnlineClass) => oc.course_id === sessionData.data?.course_id) || []
-        setOnlineClasses(courseOnlineClasses)
-        
-        // Filter timetable entries for this session's course
-        const courseTimetable = timetableData.data?.filter((e: TimetableEntry) => e.course_id === sessionData.data?.course_id) || []
+        const courseTimetable = timetableData.data?.filter((e: TimetableEntry) => e.course_id === courseId) || []
         setTimetableEntries(courseTimetable)
+        
+        const courseOnlineClasses = onlineClassesData.data?.filter((oc: OnlineClass) => oc.course_id === courseId) || []
+        setOnlineClasses(courseOnlineClasses)
       } catch (error) {
         console.error('Failed to load data:', error)
-        toast.error('Failed to load session data')
+        toast.error('Failed to load course data')
       } finally {
         setLoading(false)
       }
     }
     loadData()
-  }, [sessionId])
+  }, [courseId])
 
   const openAddOnlineClassDialog = () => {
-    if (!session) return
     setEditingOnlineClass(null)
     setOnlineClassForm({
-      course_id: session.course_id,
+      course_id: courseId,
       day_of_week: '',
       start_time: '',
       end_time: '',
-      class_date: '',
       meet_link: '',
       meet_link_display_name: '',
       notes: '',
@@ -134,11 +126,10 @@ export default function TeacherSessionDetailPage() {
   const openEditOnlineClassDialog = (onlineClass: OnlineClass) => {
     setEditingOnlineClass(onlineClass)
     setOnlineClassForm({
-      course_id: onlineClass.course_id,
+      course_id: courseId,
       day_of_week: onlineClass.day_of_week,
       start_time: onlineClass.start_time,
       end_time: onlineClass.end_time,
-      class_date: onlineClass.class_date || '',
       meet_link: onlineClass.meet_link,
       meet_link_display_name: onlineClass.meet_link_display_name || '',
       notes: onlineClass.notes || '',
@@ -168,7 +159,7 @@ export default function TeacherSessionDetailPage() {
       // Reload online classes
       const onlineClassesRes = await fetch('/api/v1/teacher/online-classes')
       const onlineClassesData = await onlineClassesRes.json()
-      const courseOnlineClasses = onlineClassesData.data?.filter((oc: OnlineClass) => oc.course_id === session?.course_id) || []
+      const courseOnlineClasses = onlineClassesData.data?.filter((oc: OnlineClass) => oc.course_id === courseId) || []
       setOnlineClasses(courseOnlineClasses)
     } catch (error) {
       toast.error('Failed to save online class')
@@ -187,15 +178,15 @@ export default function TeacherSessionDetailPage() {
       // Reload online classes
       const onlineClassesRes = await fetch('/api/v1/teacher/online-classes')
       const onlineClassesData = await onlineClassesRes.json()
-      const courseOnlineClasses = onlineClassesData.data?.filter((oc: OnlineClass) => oc.course_id === session?.course_id) || []
+      const courseOnlineClasses = onlineClassesData.data?.filter((oc: OnlineClass) => oc.course_id === courseId) || []
       setOnlineClasses(courseOnlineClasses)
     } catch (error) {
       toast.error('Failed to delete online class')
     }
   }
 
-  if (loading) return <div className="p-8">Loading session details...</div>
-  if (!session) return <div className="p-8">Session not found</div>
+  if (loading) return <div className="p-8">Loading course details...</div>
+  if (!course) return <div className="p-8">Course not found</div>
 
   return (
     <div className="space-y-6">
@@ -204,43 +195,48 @@ export default function TeacherSessionDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">{session.timetable_session?.title || 'Class Session'}</h1>
+          <h1 className="text-2xl font-bold">{course.code} - {course.title}</h1>
           <p className="text-sm text-muted-foreground">
-            {session.course?.code} - {session.course?.title}
+            Level {course.level} • Semester {course.semester} • {course.program?.title}
           </p>
         </div>
       </div>
 
-      {/* Session Details */}
-      <Card className="p-6">
+      {/* Timetable Schedule */}
+      {timetableEntries.length > 0 && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-primary" />
-            <span className="text-sm">{session.day_of_week}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-primary" />
-            <span className="text-sm">{session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)}</span>
-          </div>
-          {session.venue && (
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-primary" />
-              <span className="text-sm">{session.venue}</span>
+          <h2 className="text-xl font-semibold">Physical Class Schedule</h2>
+          <Card className="p-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {timetableEntries.map((entry) => (
+                <Card key={entry.id} className="p-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <CalendarDays className="h-4 w-4 text-primary" />
+                      <span className="font-medium">{entry.day_of_week}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      <span>{entry.start_time.substring(0, 5)} - {entry.end_time.substring(0, 5)}</span>
+                    </div>
+                    {entry.venue && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <MapPin className="h-4 w-4" />
+                        <span>{entry.venue}</span>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              ))}
             </div>
-          )}
-          {session.notes && (
-            <div className="text-sm text-muted-foreground">
-              <p className="font-medium mb-1">Notes:</p>
-              <p>{session.notes}</p>
-            </div>
-          )}
+          </Card>
         </div>
-      </Card>
+      )}
 
       {/* Online Classes */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Online Classes for {session.course?.code}</h2>
+          <h2 className="text-xl font-semibold">Online Classes</h2>
           <Button onClick={openAddOnlineClassDialog}>
             <Plus className="mr-2 h-4 w-4" />
             Add Online Class
@@ -260,11 +256,6 @@ export default function TeacherSessionDetailPage() {
                     <div className="flex items-center gap-2 mb-2">
                       <Video className="h-4 w-4 text-primary" />
                       <p className="font-semibold">{onlineClass.day_of_week}</p>
-                      {onlineClass.class_date && (
-                        <span className="text-sm text-muted-foreground">
-                          ({new Date(onlineClass.class_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                       <Clock className="h-4 w-4" />
@@ -300,59 +291,29 @@ export default function TeacherSessionDetailPage() {
 
       {/* Online Class Dialog */}
       <Dialog open={onlineClassDialogOpen} onOpenChange={setOnlineClassDialogOpen}>
-        <DialogContent className="max-w-md bg-white dark:bg-black">
+        <DialogContent className="max-w-md bg-white dark:bg-black" aria-describedby="online-class-dialog-description">
           <DialogHeader>
             <DialogTitle>{editingOnlineClass ? 'Edit Online Class' : 'Schedule Online Class'}</DialogTitle>
-            <DialogDescription>
-              {editingOnlineClass ? 'Update the online class details' : `Schedule an online class for ${session.course?.code} - ${session.course?.title}`}
+            <DialogDescription id="online-class-dialog-description">
+              {editingOnlineClass ? 'Update the online class details' : `Schedule an online class for ${course.code} - ${course.title}`}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 mt-4">
             <div>
-              <Label htmlFor="day_of_week">Day of Week (from Timetable)</Label>
-              <Select value={onlineClassForm.day_of_week} onValueChange={(value) => {
-                setOnlineClassForm({ ...onlineClassForm, day_of_week: value })
-                // Pre-fill time from timetable entry for this day
-                const timetableEntry = timetableEntries.find(e => e.day_of_week === value)
-                if (timetableEntry) {
-                  setOnlineClassForm(prev => ({
-                    ...prev,
-                    start_time: timetableEntry.start_time.substring(0, 5),
-                    end_time: timetableEntry.end_time.substring(0, 5)
-                  }))
-                }
-              }}>
+              <Label htmlFor="day_of_week">Day of Week</Label>
+              <Select value={onlineClassForm.day_of_week} onValueChange={(value) => setOnlineClassForm({ ...onlineClassForm, day_of_week: value })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a day from timetable" />
+                  <SelectValue placeholder="Select a day" />
                 </SelectTrigger>
                 <SelectContent>
-                  {timetableEntries.length > 0 ? (
-                    timetableEntries.map((entry) => (
-                      <SelectItem key={entry.id} value={entry.day_of_week}>
-                        {entry.day_of_week} ({entry.start_time.substring(0, 5)} - {entry.end_time.substring(0, 5)})
-                      </SelectItem>
-                    ))
-                  ) : (
-                    DAYS_OF_WEEK.map((day) => (
-                      <SelectItem key={day} value={day}>
-                        {day}
-                      </SelectItem>
-                    ))
-                  )}
+                  {DAYS_OF_WEEK.map((day) => (
+                    <SelectItem key={day} value={day}>
+                      {day}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="class_date">Specific Date</Label>
-              <Input
-                id="class_date"
-                type="date"
-                value={onlineClassForm.class_date}
-                onChange={(e) => setOnlineClassForm({ ...onlineClassForm, class_date: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground mt-1">Select the specific date for this online class session</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -408,7 +369,7 @@ export default function TeacherSessionDetailPage() {
             </div>
 
             <div className="flex gap-3">
-              <Button onClick={saveOnlineClass} disabled={saving} className="flex-1 border border-primary hover:text-blue-600 hover:shadow-md hover:shadow-blue-600">
+              <Button onClick={saveOnlineClass} disabled={saving} className="flex-1">
                 <Save className="mr-2 h-4 w-4" />
                 {saving ? 'Saving...' : (editingOnlineClass ? 'Update' : 'Save Online Class')}
               </Button>

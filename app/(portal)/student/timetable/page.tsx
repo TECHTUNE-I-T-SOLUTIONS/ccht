@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Calendar, Clock, MapPin, User, Download, Loader2, BookOpen } from 'lucide-react'
+import { Calendar, Clock, MapPin, User, Download, Loader2, BookOpen, Video, ExternalLink } from 'lucide-react'
+import { generateTimetablePDF } from '@/lib/templates/timetable'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 
@@ -29,6 +30,21 @@ type TimetableEntry = {
   venue?: string
   course?: { code: string; title: string }
   lecturer?: { first_name: string; last_name: string }
+  course_id?: string
+}
+
+type OnlineClass = {
+  id: string
+  course_id: string
+  day_of_week: string
+  start_time: string
+  end_time: string
+  meet_link: string
+  meet_link_display_name?: string
+  notes?: string
+  class_date?: string
+  is_active: boolean
+  course?: { code: string; title: string }
 }
 
 type Enrollment = {
@@ -51,6 +67,7 @@ export default function StudentTimetablePage() {
   const [timetableSessions, setTimetableSessions] = useState<TimetableSession[]>([])
   const [selectedSession, setSelectedSession] = useState<TimetableSession | null>(null)
   const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([])
+  const [onlineClasses, setOnlineClasses] = useState<OnlineClass[]>([])
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -66,7 +83,7 @@ export default function StudentTimetablePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const [enrollmentRes, studentProfileRes, sessionsRes] = await Promise.all([
+      const [enrollmentRes, studentProfileRes, sessionsRes, onlineClassesRes] = await Promise.all([
         supabase
           .from('enrollments')
           .select('*, program:programs(title, department:departments(name))')
@@ -81,11 +98,17 @@ export default function StudentTimetablePage() {
         supabase
           .from('timetable_sessions')
           .select('*, session:academic_sessions(name), sem_info:academic_semesters(semester_name), program:programs(title)')
-          .order('created_at', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('online_classes')
+          .select('*, course:courses(code, title)')
+          .eq('is_active', true)
+          .order('class_date, day_of_week, start_time')
       ])
 
       setEnrollment(enrollmentRes.data)
       setStudentProfile(studentProfileRes.data)
+      setOnlineClasses(onlineClassesRes.data || [])
 
       // Filter sessions for student's program and level
       const filteredSessions = sessionsRes.data?.filter(
@@ -110,9 +133,9 @@ export default function StudentTimetablePage() {
 
   const loadTimetableEntries = async (sessionId: string) => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('timetable_entries')
-        .select('*, course:courses(code, title), lecturer:profiles(first_name, last_name)')
+        .select('*, course:courses(code, title), lecturer:profiles!timetable_entries_lecturer_id_fkey(first_name, last_name)')
         .eq('timetable_session_id', sessionId)
         .order('day_of_week, start_time')
 
@@ -120,6 +143,13 @@ export default function StudentTimetablePage() {
     } catch (error) {
       console.error('Failed to load entries:', error)
     }
+  }
+
+  // Filter online classes for student's enrolled courses
+  const getStudentOnlineClasses = () => {
+    if (!enrollment) return []
+    const studentCourseIds = timetableEntries.map(entry => entry.course_id).filter(Boolean)
+    return onlineClasses.filter(oc => studentCourseIds.includes(oc.course_id))
   }
 
   const handleSessionChange = async (sessionId: string) => {
@@ -130,27 +160,30 @@ export default function StudentTimetablePage() {
     }
   }
 
-  const handleDownloadPDF = async () => {
-    if (!selectedSession) return
+  const handleDownloadPDF = () => {
+    if (!selectedSession || !enrollment || !studentProfile) return
 
     try {
-      const response = await fetch('/api/v1/student/timetable/pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timetable_session_id: selectedSession.id })
-      })
+      const timetableData = {
+        title: selectedSession.title || `${selectedSession.program?.title} - ${selectedSession.level}L`,
+        session: selectedSession.session?.name || 'N/A',
+        semester: selectedSession.sem_info?.semester_name || 'N/A',
+        program: enrollment.program?.title || 'N/A',
+        level: studentProfile.current_level || 'N/A',
+        entries: timetableEntries.map(entry => ({
+          id: entry.id,
+          course_code: entry.course?.code || 'N/A',
+          course_title: entry.course?.title || 'N/A',
+          day_of_week: entry.day_of_week,
+          start_time: entry.start_time.substring(0, 5),
+          end_time: entry.end_time.substring(0, 5),
+          venue: entry.venue || 'TBA',
+          lecturer_name: entry.lecturer ? `${entry.lecturer.first_name} ${entry.lecturer.last_name}` : 'TBA'
+        }))
+      }
 
-      if (!response.ok) throw new Error('Failed to generate PDF')
-
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `timetable-${selectedSession.program?.title}-${selectedSession.level}L.pdf`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      const doc = generateTimetablePDF(timetableData)
+      doc.save(`timetable-${selectedSession.program?.title}-${selectedSession.level}L.pdf`)
       toast.success('Timetable downloaded successfully')
     } catch (error: any) {
       console.error(error)
@@ -233,7 +266,7 @@ export default function StudentTimetablePage() {
             </p>
           </div>
 
-          {timetableEntries.length === 0 ? (
+          {timetableEntries.length === 0 && getStudentOnlineClasses().length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No classes scheduled yet</p>
@@ -242,7 +275,9 @@ export default function StudentTimetablePage() {
             <div className="space-y-6">
               {DAYS.map((day) => {
                 const dayEntries = entriesByDay[day] || []
-                if (dayEntries.length === 0) return null
+                const dayOnlineClasses = getStudentOnlineClasses().filter(oc => oc.day_of_week === day)
+                
+                if (dayEntries.length === 0 && dayOnlineClasses.length === 0) return null
 
                 return (
                   <div key={day}>
@@ -251,12 +286,13 @@ export default function StudentTimetablePage() {
                       {day}
                     </h3>
                     <div className="space-y-2">
+                      {/* Timetable Entries */}
                       {dayEntries.map((entry) => (
                         <div key={entry.id} className="flex items-center justify-between p-4 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
                           <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Clock className="h-4 w-4" />
-                              <span className="font-medium">{entry.start_time} - {entry.end_time}</span>
+                              <span className="font-medium">{entry.start_time.substring(0, 5)} - {entry.end_time.substring(0, 5)}</span>
                             </div>
                             <div className="h-8 w-px bg-border" />
                             <div>
@@ -278,7 +314,46 @@ export default function StudentTimetablePage() {
                             </div>
                           </div>
                           <Badge variant="outline" className="hidden sm:inline-flex">
-                            {entry.day_of_week}
+                            Physical
+                          </Badge>
+                        </div>
+                      ))}
+                      
+                      {/* Online Classes */}
+                      {dayOnlineClasses.map((onlineClass) => (
+                        <div key={onlineClass.id} className="flex items-center justify-between p-4 rounded-lg border bg-blue-50 dark:bg-blue-900/20">
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Video className="h-4 w-4 text-blue-600" />
+                              <span className="font-medium">{onlineClass.start_time.substring(0, 5)} - {onlineClass.end_time.substring(0, 5)}</span>
+                            </div>
+                            <div className="h-8 w-px bg-border" />
+                            <div>
+                              <p className="font-semibold">{onlineClass.course?.code} - {onlineClass.course?.title}</p>
+                              <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                                {onlineClass.class_date && (
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    <span>{new Date(onlineClass.class_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                  </div>
+                                )}
+                                <a 
+                                  href={onlineClass.meet_link} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-blue-600 hover:underline"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  {onlineClass.meet_link_display_name || 'Join Meeting'}
+                                </a>
+                              </div>
+                              {onlineClass.notes && (
+                                <p className="text-xs text-muted-foreground mt-1 italic">{onlineClass.notes}</p>
+                              )}
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="hidden sm:inline-flex bg-blue-100 text-blue-800 border-blue-200">
+                            Online
                           </Badge>
                         </div>
                       ))}

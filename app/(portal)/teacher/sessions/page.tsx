@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -14,22 +15,23 @@ import { toast } from 'sonner'
 
 type Session = {
   id: string
+  timetable_session_id: string
   course_id: string
-  session_id: string
-  semester_id: string
-  exam_title: string
-  exam_description: string
-  exam_type: string
-  duration_minutes: number
-  start_date: string
-  end_date: string
-  instructions: string
-  is_published: boolean
-  google_meet_link?: string
-  google_meet_code?: string
-  course?: { id: string; code: string; title: string }
-  session?: { id: string; name: string }
-  semester?: { id: string; semester_name: string }
+  day_of_week: string
+  start_time: string
+  end_time: string
+  venue?: string
+  lecturer_id: string
+  notes?: string
+  timetable_session?: {
+    id: string
+    title: string
+    level: number
+    session?: { id: string; name: string }
+    semester?: { id: string; semester_name: string }
+    program?: { id: string; title: string }
+  }
+  course?: { id: string; code: string; title: string; level?: number; semester?: number }
 }
 
 type Course = {
@@ -49,6 +51,7 @@ type AcademicSemester = {
 }
 
 export default function TeacherSessionsPage() {
+  const router = useRouter()
   const [sessions, setSessions] = useState<Session[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [academicSessions, setAcademicSessions] = useState<AcademicSession[]>([])
@@ -64,19 +67,13 @@ export default function TeacherSessionsPage() {
   const [isEditing, setIsEditing] = useState(false)
 
   const [form, setForm] = useState({
+    timetable_session_id: '',
     course_id: '',
-    session_id: '',
-    semester_id: '',
-    exam_title: '',
-    exam_description: '',
-    exam_type: 'online_class',
-    duration_minutes: 60,
-    start_date: '',
-    end_date: '',
-    instructions: '',
-    is_published: true,
-    google_meet_link: '',
-    google_meet_code: '',
+    day_of_week: '',
+    start_time: '',
+    end_time: '',
+    venue: '',
+    notes: '',
   })
 
   useEffect(() => {
@@ -109,19 +106,13 @@ export default function TeacherSessionsPage() {
 
   const startCreate = () => {
     setForm({
+      timetable_session_id: '',
       course_id: '',
-      session_id: '',
-      semester_id: '',
-      exam_title: '',
-      exam_description: '',
-      exam_type: 'online_class',
-      duration_minutes: 60,
-      start_date: '',
-      end_date: '',
-      instructions: '',
-      is_published: true,
-      google_meet_link: '',
-      google_meet_code: '',
+      day_of_week: '',
+      start_time: '',
+      end_time: '',
+      venue: '',
+      notes: '',
     })
     setIsEditing(false)
     setSelectedSession(null)
@@ -130,19 +121,13 @@ export default function TeacherSessionsPage() {
 
   const startEdit = (session: Session) => {
     setForm({
+      timetable_session_id: session.timetable_session_id,
       course_id: session.course_id,
-      session_id: session.session_id,
-      semester_id: session.semester_id,
-      exam_title: session.exam_title,
-      exam_description: session.exam_description,
-      exam_type: session.exam_type,
-      duration_minutes: session.duration_minutes,
-      start_date: session.start_date,
-      end_date: session.end_date,
-      instructions: session.instructions,
-      is_published: session.is_published,
-      google_meet_link: session.google_meet_link || '',
-      google_meet_code: session.google_meet_code || '',
+      day_of_week: session.day_of_week,
+      start_time: session.start_time,
+      end_time: session.end_time,
+      venue: session.venue || '',
+      notes: session.notes || '',
     })
     setIsEditing(true)
     setSelectedSession(session)
@@ -190,7 +175,7 @@ export default function TeacherSessionsPage() {
   }
 
   const filtered = sessions.filter((s) => 
-    `${s.course?.code || ''} ${s.course?.title || ''} ${s.session?.name || ''} ${s.exam_title || ''}`.toLowerCase().includes(search.toLowerCase())
+    `${s.course?.code || ''} ${s.course?.title || ''} ${s.timetable_session?.title || ''} ${s.day_of_week || ''}`.toLowerCase().includes(search.toLowerCase())
   )
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
   const paged = filtered.slice((page - 1) * perPage, page * perPage)
@@ -202,63 +187,43 @@ export default function TeacherSessionsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Video className="h-5 w-5 text-primary" />
-          <h1 className="text-2xl font-bold">Online Class Sessions</h1>
+          <h1 className="text-2xl font-bold">Timetable Sessions</h1>
         </div>
         <Button onClick={startCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          Create Session
+          Add Entry
         </Button>
       </div>
       
-      <Input placeholder="Search sessions..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
+      <Input placeholder="Search timetable entries..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
       
       <div className="grid gap-4 md:grid-cols-2">
         {paged.map((session) => (
-          <Card key={session.id} className="p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <p className="font-semibold">{session.exam_title || 'Class Session'}</p>
-                <p className="text-sm text-muted-foreground">{session.course?.code} - {session.course?.title}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => startEdit(session)}>
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => confirmDelete(session.id)}>
-                  <Trash2 className="h-4 w-4 text-red-600" />
-                </Button>
-              </div>
+          <Card 
+            key={session.id} 
+            className="p-5 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => router.push(`/teacher/sessions/${session.id}`)}
+          >
+            <div className="mb-3">
+              <p className="font-semibold">{session.timetable_session?.title || 'Class Session'}</p>
+              <p className="text-sm text-muted-foreground">{session.course?.code} - {session.course?.title}</p>
             </div>
             
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <CalendarDays className="h-4 w-4" />
-                <span>{new Date(session.start_date).toLocaleDateString()}</span>
+                <span>{session.day_of_week}</span>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Clock className="h-4 w-4" />
-                <span>{session.duration_minutes} minutes</span>
+                <span>{session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)}</span>
               </div>
-              {session.google_meet_link && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <LinkIcon className="h-4 w-4" />
-                  <a href={session.google_meet_link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    Join Meeting
-                  </a>
-                </div>
-              )}
-              {session.google_meet_code && (
+              {session.venue && (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <MapPin className="h-4 w-4" />
-                  <span>Code: {session.google_meet_code}</span>
+                  <span>{session.venue}</span>
                 </div>
               )}
-            </div>
-            
-            <div className="mt-3 flex items-center gap-2">
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${session.is_published ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                {session.is_published ? 'Published' : 'Draft'}
-              </span>
             </div>
           </Card>
         ))}
@@ -274,21 +239,27 @@ export default function TeacherSessionsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-black">
           <DialogHeader>
-            <DialogTitle>{isEditing ? 'Edit Session' : 'Create New Session'}</DialogTitle>
+            <DialogTitle>{isEditing ? 'Edit Timetable Entry' : 'Add Timetable Entry'}</DialogTitle>
             <p className="text-sm text-muted-foreground">
-              {isEditing ? 'Update the session details below.' : 'Create a new online class session for your students.'}
+              {isEditing ? 'Update the timetable entry details below.' : 'Add a new timetable entry for your class.'}
             </p>
           </DialogHeader>
           
           <div className="space-y-4 mt-4">
             <div>
-              <Label htmlFor="exam_title">Session Title</Label>
-              <Input
-                id="exam_title"
-                value={form.exam_title}
-                onChange={(e) => setForm({ ...form, exam_title: e.target.value })}
-                className="rounded-xl"
-              />
+              <Label htmlFor="timetable_session_id">Timetable Session</Label>
+              <Select value={form.timetable_session_id} onValueChange={(value) => setForm({ ...form, timetable_session_id: value })}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Select a session" />
+                </SelectTrigger>
+                <SelectContent>
+                  {academicSessions.map((session) => (
+                    <SelectItem key={session.id} value={session.id}>
+                      {session.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -307,136 +278,73 @@ export default function TeacherSessionsPage() {
               </Select>
             </div>
 
+            <div>
+              <Label htmlFor="day_of_week">Day of Week</Label>
+              <Select value={form.day_of_week} onValueChange={(value) => setForm({ ...form, day_of_week: value })}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Select a day" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                    <SelectItem key={day} value={day}>
+                      {day}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="session_id">Academic Session</Label>
-                <Select value={form.session_id} onValueChange={(value) => setForm({ ...form, session_id: value })}>
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="Select session" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {academicSessions.map((session) => (
-                      <SelectItem key={session.id} value={session.id}>
-                        {session.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="start_time">Start Time</Label>
+                <Input
+                  id="start_time"
+                  type="time"
+                  value={form.start_time}
+                  onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+                  className="rounded-xl"
+                />
               </div>
 
               <div>
-                <Label htmlFor="semester_id">Semester</Label>
-                <Select value={form.semester_id} onValueChange={(value) => setForm({ ...form, semester_id: value })}>
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="Select semester" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {semesters.map((semester) => (
-                      <SelectItem key={semester.id} value={semester.id}>
-                        {semester.semester_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="end_time">End Time</Label>
+                <Input
+                  id="end_time"
+                  type="time"
+                  value={form.end_time}
+                  onChange={(e) => setForm({ ...form, end_time: e.target.value })}
+                  className="rounded-xl"
+                />
               </div>
             </div>
 
             <div>
-              <Label htmlFor="exam_description">Description</Label>
+              <Label htmlFor="venue">Venue</Label>
+              <Input
+                id="venue"
+                value={form.venue}
+                onChange={(e) => setForm({ ...form, venue: e.target.value })}
+                className="rounded-xl"
+                placeholder="e.g., Room 101, Lab A"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="notes">Notes</Label>
               <Textarea
-                id="exam_description"
-                value={form.exam_description}
-                onChange={(e) => setForm({ ...form, exam_description: e.target.value })}
+                id="notes"
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 className="rounded-xl"
                 rows={3}
+                placeholder="Any additional notes..."
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="start_date">Start Date & Time</Label>
-                <Input
-                  id="start_date"
-                  type="datetime-local"
-                  value={form.start_date}
-                  onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                  className="rounded-xl"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="end_date">End Date & Time</Label>
-                <Input
-                  id="end_date"
-                  type="datetime-local"
-                  value={form.end_date}
-                  onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                  className="rounded-xl"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="duration_minutes">Duration (minutes)</Label>
-              <Input
-                id="duration_minutes"
-                type="number"
-                value={form.duration_minutes}
-                onChange={(e) => setForm({ ...form, duration_minutes: parseInt(e.target.value) })}
-                className="rounded-xl"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="google_meet_link">Google Meet Link</Label>
-              <Input
-                id="google_meet_link"
-                type="url"
-                value={form.google_meet_link}
-                onChange={(e) => setForm({ ...form, google_meet_link: e.target.value })}
-                className="rounded-xl"
-                placeholder="https://meet.google.com/xxx-xxxx-xxx"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="google_meet_code">Google Meet Code</Label>
-              <Input
-                id="google_meet_code"
-                value={form.google_meet_code}
-                onChange={(e) => setForm({ ...form, google_meet_code: e.target.value })}
-                className="rounded-xl"
-                placeholder="xxx-xxxx-xxx"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="instructions">Instructions</Label>
-              <Textarea
-                id="instructions"
-                value={form.instructions}
-                onChange={(e) => setForm({ ...form, instructions: e.target.value })}
-                className="rounded-xl"
-                rows={4}
-                placeholder="Add any instructions for students joining the session..."
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="is_published"
-                checked={form.is_published}
-                onChange={(e) => setForm({ ...form, is_published: e.target.checked })}
-                className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-              />
-              <Label htmlFor="is_published" className="cursor-pointer">Publish immediately</Label>
             </div>
 
             <div className="flex gap-3">
               <Button onClick={saveSession} className="flex-1 rounded-xl border border-primary hover:shadow-lg hover:shadow-blue-600">
                 <Save className="mr-2 h-4 w-4" />
-                Save Session
+                Save Entry
               </Button>
               <Button
                 variant="outline"

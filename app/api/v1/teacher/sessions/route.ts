@@ -23,11 +23,10 @@ export async function POST(request: Request) {
 
     const admin = createAdminClient()
     const { data, error } = await admin
-      .from('student_exam_sessions')
+      .from('timetable_entries')
       .insert({
         ...body,
-        published_by: user.id,
-        exam_type: body.exam_type || 'online_class',
+        lecturer_id: user.id,
       })
       .select()
       .single()
