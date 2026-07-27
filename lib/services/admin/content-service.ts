@@ -102,4 +102,19 @@ export class AdminContentService {
     if (error) throw new Error('Failed to update message: ' + error.message);
     return true;
   }
+
+  static async updateContactMessageStatus(id: string, status: string, handledBy: string) {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from('contact_messages')
+      .update({ 
+        status,
+        handled_by: handledBy,
+        handled_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (error) throw new Error('Failed to update message status: ' + error.message);
+    return true;
+  }
 }

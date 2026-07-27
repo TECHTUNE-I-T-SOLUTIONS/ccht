@@ -209,7 +209,7 @@ export default function StudentCourseFormPage() {
             <Download className="mr-2 h-4 w-4" />
             Download PDF
           </Button>
-          <Button onClick={handlePrint} disabled={printing} className="rounded-xl">
+          <Button onClick={handlePrint} disabled={printing} className="rounded-xl border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-800">
             <Printer className="mr-2 h-4 w-4" />
             {printing ? 'Printing...' : 'Print'}
           </Button>

@@ -61,7 +61,7 @@ export function AdmissionsGuide() {
             ))}
           </div>
           
-          <Button size="lg" className="rounded-full px-12 h-16 text-lg" asChild>
+          <Button size="lg" className="rounded-full px-12 h-16 text-lg border border-primary hover:shadow-lg hover:shadow-blue-700" asChild>
             <Link href={ROUTES.admissions}>Start Admission Now</Link>
           </Button>
         </div>

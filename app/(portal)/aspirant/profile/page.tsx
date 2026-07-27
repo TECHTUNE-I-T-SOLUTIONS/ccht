@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { BadgeCheck, Mail, Phone, UserRound } from 'lucide-react'
+import { PasswordResetDialog } from '@/components/portal/password-reset-dialog'
 
 type PortalUser = {
   firstName: string
@@ -71,7 +72,9 @@ export default function AspirantProfilePage() {
           })}
         </div>
 
-        <Button className="mt-6 rounded-2xl">Update profile</Button>
+        <div className="mt-6">
+          <PasswordResetDialog />
+        </div>
       </Card>
     </div>
   )

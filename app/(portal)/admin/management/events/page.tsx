@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,7 +14,6 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
-import { uploadFileToCloudinary } from '@/lib/cloudinary'
 
 type Event = {
   id: string
@@ -90,31 +90,29 @@ export default function EventsPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file')
-      return
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be less than 5MB')
-      return
-    }
-
     setUploadingImage(true)
     try {
-      const result = await uploadFileToCloudinary(file, {
-        folder: 'events',
-        resourceType: 'image'
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', file)
+      uploadFormData.append('folder', 'events')
+
+      const response = await fetch('/api/v1/admin/upload-image', {
+        method: 'POST',
+        body: uploadFormData
       })
-      
-      setFormData({ ...formData, featured_image_url: result.secure_url })
-      setImagePreview(result.secure_url)
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to upload image')
+      }
+
+      setFormData({ ...formData, featured_image_url: result.data.url })
+      setImagePreview(result.data.url)
       toast.success('Image uploaded successfully')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Image upload error:', error)
-      toast.error('Failed to upload image')
+      toast.error(error.message || 'Failed to upload image')
     } finally {
       setUploadingImage(false)
     }
@@ -289,14 +287,13 @@ export default function EventsPage() {
           <h1 className="text-3xl font-bold">Events</h1>
           <p className="mt-1 text-sm text-muted-foreground">Create and manage events for the institution</p>
         </div>
-        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Create Event
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+        <Link href="/admin/management/events/new">
+          <Button className="gap-2">
+            <Plus className="h-4 w-4" />
+            Create Event
+          </Button>
+        </Link>
+          {/* <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Create Event</DialogTitle>
               <DialogDescription>Create a new event to share with the community</DialogDescription>
@@ -416,13 +413,14 @@ export default function EventsPage() {
                   className="mt-1"
                 />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
+                <label htmlFor="is_published" className="text-sm font-medium cursor-pointer select-none">Publish immediately</label>
                 <Switch
                   id="is_published"
                   checked={formData.is_published}
                   onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })}
+                  className="scale-110"
                 />
-                <label htmlFor="is_published" className="text-sm font-medium cursor-pointer select-none">Publish immediately</label>
               </div>
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
@@ -434,7 +432,7 @@ export default function EventsPage() {
               </div>
             </div>
           </DialogContent>
-        </Dialog>
+        </Dialog> */}
       </div>
 
       <Card className="p-6">
@@ -499,12 +497,10 @@ export default function EventsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openEditModal(event)}
-                        >
-                          <Edit className="h-4 w-4" />
+                        <Button size="sm" variant="ghost" asChild>
+                          <Link href={`/admin/management/events/${event.id}/edit`}>
+                            <Edit className="h-4 w-4" />
+                          </Link>
                         </Button>
                         {!event.is_published ? (
                           <Button
@@ -663,13 +659,14 @@ export default function EventsPage() {
                 className="mt-1"
               />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between p-4 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
+              <label htmlFor="is_published_edit" className="text-sm font-medium cursor-pointer select-none">Publish immediately</label>
               <Switch
                 id="is_published_edit"
                 checked={formData.is_published}
                 onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })}
+                className="scale-110"
               />
-              <label htmlFor="is_published_edit" className="text-sm font-medium cursor-pointer select-none">Published</label>
             </div>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
@@ -685,3 +682,5 @@ export default function EventsPage() {
     </div>
   )
 }
+
+

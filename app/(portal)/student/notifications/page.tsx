@@ -25,6 +25,8 @@ export default function StudentNotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const [markingAsRead, setMarkingAsRead] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 20
 
   useEffect(() => {
     loadNotifications()
@@ -122,6 +124,17 @@ export default function StudentNotificationsPage() {
 
   const unreadCount = notifications.filter(n => !n.is_read).length
 
+  // Pagination logic
+  const totalPages = Math.ceil(notifications.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedNotifications = notifications.slice(startIndex, endIndex)
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   if (loading) return <div className="p-8">Loading notifications...</div>
 
   return (
@@ -164,8 +177,9 @@ export default function StudentNotificationsPage() {
           <p className="mt-2 text-muted-foreground">You'll see your notifications here when they arrive.</p>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {notifications.map((notification) => (
+        <>
+          <div className="space-y-4">
+            {paginatedNotifications.map((notification) => (
             <Card 
               key={notification.id} 
               className={`p-6 transition-all hover:shadow-md ${
@@ -229,7 +243,52 @@ export default function StudentNotificationsPage() {
               </div>
             </Card>
           ))}
-        </div>
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Showing {startIndex + 1} to {Math.min(endIndex, notifications.length)} of {notifications.length} notifications
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="rounded-xl"
+                  >
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => goToPage(page)}
+                        className="rounded-xl min-w-[40px]"
+                      >
+                        {page}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="rounded-xl"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
+        </>
       )}
     </div>
   )

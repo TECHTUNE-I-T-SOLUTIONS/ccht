@@ -76,10 +76,10 @@ export default function ContactPage() {
                     GET IN TOUCH
                  </Badge>
                  <TypographyH1 className="text-muted-foreground text-5xl md:text-7xl max-w-4xl leading-[1.1]">
-                    We're here to <span className="text-primary-foreground/50 italic">support</span> your journey.
+                    We're here to <span className="text-primary-foreground/50 italic">support</span> you.
                  </TypographyH1>
                  <TypographyLead className="mt-8 text-muted-foreground/70 max-w-2xl text-lg md:text-xl">
-                    Have questions about admissions, programs, or student life? Our team is ready to provide the guidance you need.
+                    Have questions about admissions, programs, or academics? Our team is ready to provide the guidance you need.
                  </TypographyLead>
               </motion.div>
            </div>
@@ -96,7 +96,7 @@ export default function ContactPage() {
            <div className="grid lg:grid-cols-12 gap-12 max-w-7xl mx-auto">
               {/* Contact Form */}
               <div className="lg:col-span-7 bg-background rounded-[3rem] p-8 md:p-12 shadow-2xl shadow-primary/5 border border-border/50">
-                 <TypographyH2 className="text-3xl mb-10">Send us a Message</TypographyH2>
+                 <TypographyH2 className="text-3xl mb-10 flex justify-center items-center">Send us a Message</TypographyH2>
                  
                  <form onSubmit={handleSubmit} className="space-y-8">
                     <div className="grid md:grid-cols-2 gap-8">
@@ -159,7 +159,7 @@ export default function ContactPage() {
                     <Button 
                       type="submit" 
                       disabled={loading}
-                      className="w-full rounded-full h-14 font-bold shadow-xl shadow-primary/20 text-lg"
+                      className="w-full rounded-full h-14 font-bold shadow-xl shadow-primary/20 text-lg border border-primary/20 hover:bg-primary/90 transition-all flex items-center justify-center hover:shadow-lg hover:shadow-gray-400"
                     >
                        {loading ? 'SENDING...' : <>SEND MESSAGE <Send className="ml-2 h-4 w-4" /></>}
                     </Button>
@@ -198,7 +198,7 @@ export default function ContactPage() {
                        <TypographyP className="text-muted-foreground/70 text-sm mt-4">
                           Don't wait for answers to start your journey. You can begin your application process right now.
                        </TypographyP>
-                       <Button variant="secondary" className="mt-8 rounded-full px-8 h-12 font-bold" asChild>
+                       <Button variant="secondary" className="mt-8 rounded-full px-8 h-12 font-bold border border-primary/20 hover:bg-primary/90 hover:shadow-lg hover:shadow-gray-400" asChild>
                           <Link href={ROUTES.admissions}>Apply Now</Link>
                        </Button>
                     </div>
@@ -220,7 +220,7 @@ export default function ContactPage() {
            <div className="max-w-4xl mx-auto">
               <Accordion type="single" collapsible className="w-full space-y-4">
                  {[
-                   { q: 'What are the admission requirements?', a: 'You need a high school diploma or equivalent and meet program-specific prerequisites. Visit the Programs page for detailed info.' },
+                   { q: 'What are the admission requirements?', a: 'You need a primary, secondary and any other O-level certifications or equivalent and meet program-specific prerequisites. Visit the Programs page for detailed info.' },
                    { q: 'Is financial aid available?', a: 'Yes, we offer flexible payment plans and merit-based scholarships for qualified students.' },
                    { q: 'Do you offer online classes?', a: 'Most of our programs are practical-based and require on-campus attendance, though some theory components may be available online.' },
                    { q: 'What is the student-to-lecturer ratio?', a: 'We maintain a favorable ratio of approximately 15:1 to ensure personalized attention and quality education.' },

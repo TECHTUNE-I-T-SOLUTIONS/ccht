@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { nigeriaStates, getStateLGAs, getStateNames } from '@/lib/data/nigeria-states'
+import { PasswordResetDialog } from '@/components/portal/password-reset-dialog'
 
 type StudentProfile = {
   id: string
@@ -151,12 +152,15 @@ export default function ProfilePage() {
           <h1 className="text-3xl font-bold">My Profile</h1>
           <p className="mt-1 text-sm text-muted-foreground">Manage your personal information and academic details</p>
         </div>
-        {!editing && (
-          <Button onClick={() => setEditing(true)} className="rounded-xl">
-            <Edit2 className="mr-2 h-4 w-4" />
-            Edit Profile
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {!editing && (
+            <Button onClick={() => setEditing(true)} className="rounded-xl">
+              <Edit2 className="mr-2 h-4 w-4" />
+              Edit Profile
+            </Button>
+          )}
+          <PasswordResetDialog />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

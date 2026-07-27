@@ -84,3 +84,17 @@ export async function markMessageReadAction(id: string, isRead: boolean) {
     return { success: false, error: error.message };
   }
 }
+
+export async function updateContactMessageStatusAction(id: string, status: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Unauthorized');
+
+    const data = await AdminContentService.updateContactMessageStatus(id, status, user.id);
+    revalidatePath('/admin/messages');
+    return { success: true, data };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}

@@ -61,29 +61,29 @@ export default function AdminContentPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file')
-      return
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be less than 5MB')
-      return
-    }
-
     setUploadingImage(true)
     try {
-      const result = await uploadFileToCloudinary(file, {
-        folder: 'blog-posts',
-        resourceType: 'image'
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', file)
+      uploadFormData.append('folder', 'blog-posts')
+
+      const response = await fetch('/api/v1/admin/upload-image', {
+        method: 'POST',
+        body: uploadFormData
       })
-      
-      setBlogData({ ...blogData, featuredImage: result.secure_url })
-      setBlogImagePreview(result.secure_url)
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to upload image')
+      }
+
+      setBlogData({ ...blogData, featuredImage: result.data.url })
+      setBlogImagePreview(result.data.url)
       toast.success('Image uploaded successfully')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Image upload error:', error)
-      toast.error('Failed to upload image')
+      toast.error(error.message || 'Failed to upload image')
     } finally {
       setUploadingImage(false)
     }
@@ -93,29 +93,29 @@ export default function AdminContentPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file')
-      return
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be less than 5MB')
-      return
-    }
-
     setUploadingImage(true)
     try {
-      const result = await uploadFileToCloudinary(file, {
-        folder: 'events',
-        resourceType: 'image'
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', file)
+      uploadFormData.append('folder', 'events')
+
+      const response = await fetch('/api/v1/admin/upload-image', {
+        method: 'POST',
+        body: uploadFormData
       })
-      
-      setEventData({ ...eventData, imageUrl: result.secure_url })
-      setEventImagePreview(result.secure_url)
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to upload image')
+      }
+
+      setEventData({ ...eventData, imageUrl: result.data.url })
+      setEventImagePreview(result.data.url)
       toast.success('Image uploaded successfully')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Image upload error:', error)
-      toast.error('Failed to upload image')
+      toast.error(error.message || 'Failed to upload image')
     } finally {
       setUploadingImage(false)
     }

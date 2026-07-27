@@ -42,11 +42,11 @@ export function CampusLife() {
           <div className="bg-primary flex flex-col justify-center p-12 text-muted-foreground">
             <TypographyTechnical className="text-muted-foreground/70 font-bold">Student Voice</TypographyTechnical>
             <p className="mt-6 text-2xl md:text-3xl font-display font-medium italic leading-snug">
-              "The environment here isn't just about books; it's about finding your purpose in the health sector."
+              "The environment here isn't just about books; it's more about finding your purpose in the health sector."
             </p>
             <div className="mt-8 flex items-center gap-4">
-              <div className="w-12 h-[2px] bg-white/30" />
-              <span className="font-bold text-sm tracking-widest uppercase font-technical">CHIDERA A.</span>
+              <div className="w-12 h-[2px] bg-black/30 dark:bg-white/30" />
+              <span className="font-bold text-sm tracking-widest uppercase font-technical">PATIENCE A.</span>
             </div>
           </div>
         </div>

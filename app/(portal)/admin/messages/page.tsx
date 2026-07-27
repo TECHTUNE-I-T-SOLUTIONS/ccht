@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Mail, CheckCircle2, Circle, MoreVertical, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import { getContactMessagesAction, markMessageReadAction } from '@/app/actions/admin/content-actions'
+import { getContactMessagesAction, updateContactMessageStatusAction } from '@/app/actions/admin/content-actions'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 
 export default function AdminMessagesPage() {
   const [messages, setMessages] = useState<any[]>([])
@@ -17,6 +18,8 @@ export default function AdminMessagesPage() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const [selectedMessage, setSelectedMessage] = useState<any>(null)
+  const [replyText, setReplyText] = useState('')
+  const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -38,24 +41,37 @@ export default function AdminMessagesPage() {
     }
   }
 
-  const handleMarkRead = async (id: string, isRead: boolean) => {
-    const res = await markMessageReadAction(id, isRead)
-    if (res.success) {
-      loadData()
-    } else {
-      toast.error('Failed to update status')
+  const handleStatusUpdate = async (id: string, status: string) => {
+    setUpdating(true)
+    try {
+      const res = await updateContactMessageStatusAction(id, status)
+      if (res.success) {
+        toast.success('Status updated')
+        loadData()
+        if (selectedMessage?.id === id) {
+          setSelectedMessage({ ...selectedMessage, status })
+        }
+      } else {
+        toast.error('Failed to update status')
+      }
+    } catch (err) {
+      toast.error('An error occurred')
+    } finally {
+      setUpdating(false)
     }
   }
 
   const viewMessage = (msg: any) => {
     setSelectedMessage(msg)
-    if (!msg.is_read) {
-      handleMarkRead(msg.id, true)
+    setReplyText('')
+    // Mark as in_progress when viewed
+    if (msg.status === 'new') {
+      handleStatusUpdate(msg.id, 'in_progress')
     }
   }
 
   const filtered = messages.filter(m =>
-    m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    m.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     m.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     m.subject.toLowerCase().includes(searchQuery.toLowerCase())
   )
@@ -98,12 +114,12 @@ export default function AdminMessagesPage() {
                 <TableRow><TableCell colSpan={5} className="text-center py-8">No messages found.</TableCell></TableRow>
               ) : (
                 filtered.map((msg) => (
-                  <TableRow key={msg.id} className={!msg.is_read ? 'bg-primary/5 font-semibold' : ''}>
+                  <TableRow key={msg.id} className={msg.status === 'new' ? 'bg-primary/5 font-semibold' : ''}>
                     <TableCell>
-                      {!msg.is_read ? <Circle className="h-3 w-3 fill-primary text-primary" /> : null}
+                      {msg.status === 'new' ? <Circle className="h-3 w-3 fill-primary text-primary" /> : null}
                     </TableCell>
                     <TableCell>
-                      <div>{msg.name}</div>
+                      <div>{msg.full_name}</div>
                       <div className="text-xs text-muted-foreground font-normal">{msg.email}</div>
                     </TableCell>
                     <TableCell className="max-w-xs truncate">{msg.subject}</TableCell>
@@ -111,14 +127,20 @@ export default function AdminMessagesPage() {
                       {new Date(msg.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => viewMessage(msg)} className="rounded-xl">Read</Button>
+                      <Button variant="ghost" size="sm" onClick={() => viewMessage(msg)} className="rounded-xl">View</Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8 ml-2"><MoreVertical className="h-4 w-4" /></Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleMarkRead(msg.id, !msg.is_read)}>
-                            <CheckCircle2 className="mr-2 h-4 w-4" /> Mark as {msg.is_read ? 'Unread' : 'Read'}
+                        <DropdownMenuContent align="end" className="bg-white dark:bg-black">
+                          <DropdownMenuItem onClick={() => handleStatusUpdate(msg.id, 'in_progress')}>
+                            <CheckCircle2 className="mr-2 h-4 w-4" /> Mark In Progress
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleStatusUpdate(msg.id, 'resolved')}>
+                            <CheckCircle2 className="mr-2 h-4 w-4" /> Mark Resolved
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleStatusUpdate(msg.id, 'archived')}>
+                            <CheckCircle2 className="mr-2 h-4 w-4" /> Archive
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -132,20 +154,49 @@ export default function AdminMessagesPage() {
       </Card>
 
       <Dialog open={!!selectedMessage} onOpenChange={(open) => !open && setSelectedMessage(null)}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[600px] bg-white dark:bg-black">
           <DialogHeader>
             <DialogTitle>{selectedMessage?.subject}</DialogTitle>
             <DialogDescription className="pt-2 flex flex-col gap-1">
-              <span className="font-semibold text-foreground">From: {selectedMessage?.name} ({selectedMessage?.email})</span>
+              <span className="font-semibold text-foreground">From: {selectedMessage?.full_name} ({selectedMessage?.email})</span>
               <span>Date: {selectedMessage && new Date(selectedMessage.created_at).toLocaleString()}</span>
+              <span className="text-xs">Status: <span className="font-semibold capitalize">{selectedMessage?.status}</span></span>
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 text-sm whitespace-pre-wrap leading-relaxed">
+          <div className="mt-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 text-sm whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
             {selectedMessage?.message}
           </div>
-          <div className="flex justify-end pt-4 gap-2">
-            <Button variant="outline" onClick={() => setSelectedMessage(null)}>Close</Button>
-            <Button asChild><a href={`mailto:${selectedMessage?.email}?subject=Re: ${selectedMessage?.subject}`}>Reply via Email</a></Button>
+          <div className="flex justify-between pt-4 gap-2">
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => handleStatusUpdate(selectedMessage?.id, 'in_progress')}
+                disabled={updating || selectedMessage?.status === 'in_progress'}
+              >
+                In Progress
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => handleStatusUpdate(selectedMessage?.id, 'resolved')}
+                disabled={updating || selectedMessage?.status === 'resolved'}
+              >
+                Resolved
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => handleStatusUpdate(selectedMessage?.id, 'archived')}
+                disabled={updating || selectedMessage?.status === 'archived'}
+              >
+                Archive
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setSelectedMessage(null)}>Close</Button>
+              <Button asChild><a href={`mailto:${selectedMessage?.email}?subject=Re: ${selectedMessage?.subject}`}>Reply via Email</a></Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

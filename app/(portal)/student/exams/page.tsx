@@ -59,7 +59,23 @@ export default function StudentExamsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Fetch published exam sessions - RLS filters to enrolled courses only
+      // Get student's enrolled courses first
+      const { data: selectedCourses } = await supabase
+        .from('selected_courses')
+        .select('course_id')
+        .eq('student_id', user.id)
+        .eq('status', 'approved')
+
+      const enrolledCourseIds = selectedCourses?.map(sc => sc.course_id) || []
+      console.log('Enrolled course IDs:', enrolledCourseIds)
+
+      if (enrolledCourseIds.length === 0) {
+        console.log('No enrolled courses found')
+        setExams([])
+        return
+      }
+
+      // Fetch published exam sessions for enrolled courses only
       const { data: examsData, error: examsError } = await supabase
         .from('student_exam_sessions')
         .select(`
@@ -80,7 +96,10 @@ export default function StudentExamsPage() {
           review_end_date
         `)
         .eq('is_published', true)
+        .in('course_id', enrolledCourseIds)
         .order('start_date', { ascending: true })
+
+      console.log('Exams query result:', { examsData, examsError })
 
       if (examsError) {
         console.error('Query error:', examsError)
@@ -90,17 +109,21 @@ export default function StudentExamsPage() {
       }
 
       if (!examsData || examsData.length === 0) {
-        console.log('No published exams found')
+        console.log('No published exams found for your courses')
         setExams([])
         return
       }
 
       // Fetch course details separately
       const courseIds = [...new Set(examsData.map(e => e.course_id))]
+      console.log('Fetching courses for IDs:', courseIds)
+      
       const { data: coursesData } = await supabase
         .from('courses')
         .select('id, code, title, credit_units, level, semester')
         .in('id', courseIds)
+
+      console.log('Courses fetched:', coursesData?.length || 0)
 
       const coursesMap = new Map((coursesData || []).map(c => [c.id, c]))
 
@@ -120,7 +143,7 @@ export default function StudentExamsPage() {
         attempt: attemptsMap.get(exam.id) || null
       }))
 
-      console.log('Exams loaded:', formatted.length)
+      console.log('Exams loaded:', formatted.length, formatted)
       setExams(formatted)
     } catch (error: any) {
       console.error('Failed to load exams:', error)

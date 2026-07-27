@@ -70,7 +70,6 @@ export function Footer() {
                 <li><FooterLink href={ROUTES.login}>Applicant</FooterLink></li>
                 <li><FooterLink href={ROUTES.studentDashboard}>Student</FooterLink></li>
                 <li><FooterLink href={ROUTES.lecturerDashboard}>Lecturer</FooterLink></li>
-                <li><FooterLink href={ROUTES.adminDashboard}>Admin</FooterLink></li>
               </ul>
             </div>
           </div>

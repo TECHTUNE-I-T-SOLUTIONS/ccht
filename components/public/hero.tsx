@@ -30,12 +30,12 @@ export function Hero() {
               We merge the discipline of medical science with modern practical education. Preparing the next generation of health service leaders.
             </TypographyLead>
             <div className="mt-12 flex flex-wrap gap-4">
-              <Button size="lg" className="rounded-full px-10 h-14 text-base font-semibold transition-all hover:scale-105" asChild>
+              <Button size="lg" className="rounded-full px-10 h-14 text-base font-semibold transition-all hover:scale-105 border border-primary hover:shadow-lg hover:shadow-blue-700" asChild>
                 <Link href={ROUTES.admissions}>
                   Start Your Journey <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" className="rounded-full px-10 h-14 text-base font-semibold border-white/20 text-muted-foreground hover:bg-white/10" asChild>
+              <Button size="lg" variant="outline" className="rounded-full px-10 h-14 text-base font-semibold border-primary/20 text-muted-foreground hover:bg-white/10 hover:shadow-lg hover:shadow-black dark:hover:shadow-white" asChild>
                 <Link href={ROUTES.programs}>Explore Programs</Link>
               </Button>
             </div>

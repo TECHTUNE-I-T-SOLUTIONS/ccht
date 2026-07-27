@@ -185,8 +185,8 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-[70] border-b border-border/70 bg-background/90 backdrop-blur">
-        <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
-          <div className="flex items-center gap-4">
+        <div className="flex h-16 items-center justify-between gap-2 px-4 sm:px-6">
+          <div className="flex items-center gap-2">
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="rounded-lg p-2 transition-colors hover:bg-accent xl:hidden" aria-label="Toggle sidebar">
               {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
@@ -300,7 +300,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
               {role === 'aspirant' && passportUploaded && <div className="mt-3 inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">Passport uploaded</div>}
             </div>
           </div>
-          <nav className="flex h-[calc(100vh-12rem)] flex-col gap-2 overflow-y-auto p-2">
+          <nav className="flex h-[calc(100vh-12rem)] flex-col gap-1 overflow-y-auto p-2">
             {navItems.map((item: NavItem) => {
               const Icon = item.icon
               const isLocked = role === 'aspirant' && item.stage && 

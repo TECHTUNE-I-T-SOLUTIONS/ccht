@@ -11,22 +11,30 @@ export type BlogPost = {
   excerpt: string;
   author_id?: string;
   featured_image_url?: string;
+  tags?: string[];
+  seo_title?: string;
+  seo_description?: string;
   status: string;
   published_at?: string;
   created_at: string;
   updated_at: string;
+  author?: {
+    first_name?: string;
+    last_name?: string;
+    avatar_url?: string;
+  };
 };
 
 export class BlogService {
   static async getAllBlogPosts(limit?: number): Promise<BlogPost[]> {
     const supabase = createPublicClient();
-    
+
     let query = supabase
       .from('blog_posts')
-      .select('*')
+      .select('id, title, slug, excerpt, featured_image_url, tags, seo_title, seo_description, status, published_at, created_at, updated_at, author_id, author:profiles(first_name, last_name, avatar_url)')
       .eq('status', 'published')
       .order('published_at', { ascending: false });
-    
+
     if (limit) {
       query = query.limit(limit);
     }
@@ -46,7 +54,7 @@ export class BlogService {
 
     const { data, error } = await supabase
       .from('blog_posts')
-      .select('*')
+      .select('id, title, slug, content, excerpt, featured_image_url, tags, seo_title, seo_description, status, published_at, created_at, updated_at, author_id, author:profiles(first_name, last_name, avatar_url)')
       .eq('slug', slug)
       .eq('status', 'published')
       .single();

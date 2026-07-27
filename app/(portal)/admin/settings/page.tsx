@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Settings, User, Mail, Phone, Building, Briefcase, Shield, Save, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
+import { PasswordResetDialog } from '@/components/portal/password-reset-dialog'
 
 type AdminProfile = {
   id: string
@@ -120,11 +121,16 @@ export default function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="rounded-[2.5rem] border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))] p-8 md:p-10">
-        <div className="flex items-center gap-3">
-          <Settings className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-extrabold md:text-5xl">Admin Profile & Settings</h1>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <Settings className="h-6 w-6 text-primary" />
+              <h1 className="text-3xl font-extrabold md:text-5xl">Admin Profile & Settings</h1>
+            </div>
+            <p className="mt-2 text-sm text-foreground/75">Manage your admin profile and system preferences.</p>
+          </div>
+          <PasswordResetDialog />
         </div>
-        <p className="mt-2 text-sm text-foreground/75">Manage your admin profile and system preferences.</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

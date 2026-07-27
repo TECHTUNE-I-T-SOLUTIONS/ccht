@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Upload, UserRound, Edit2, Save, X, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
+import { PasswordResetDialog } from '@/components/portal/password-reset-dialog'
 
 const QUALIFICATIONS = [
   'PhD',
@@ -194,23 +195,28 @@ export default function TeacherProfilePage() {
       <Card className="p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Personal Information</h2>
-          {!isEditing ? (
-            <Button onClick={() => setIsEditing(true)} size="sm">
-              <Edit2 className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button onClick={saveProfile} disabled={saving} size="sm">
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? 'Saving...' : 'Save'}
-              </Button>
-              <Button onClick={cancelEdit} variant="outline" size="sm">
-                <X className="mr-2 h-4 w-4" />
-                Cancel
-              </Button>
-            </div>
-          )}
+          <div className="flex gap-2">
+            {!isEditing ? (
+              <>
+                <Button onClick={() => setIsEditing(true)} size="sm">
+                  <Edit2 className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+                <PasswordResetDialog />
+              </>
+            ) : (
+              <div className="flex gap-2">
+                <Button onClick={saveProfile} disabled={saving} size="sm">
+                  <Save className="mr-2 h-4 w-4" />
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+                <Button onClick={cancelEdit} variant="outline" size="sm">
+                  <X className="mr-2 h-4 w-4" />
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
         
         <div className="grid gap-4 md:grid-cols-2">

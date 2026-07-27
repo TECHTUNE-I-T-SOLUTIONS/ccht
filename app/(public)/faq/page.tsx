@@ -23,7 +23,7 @@ const faqGroups = [
       },
       {
         q: 'Can I apply for more than one program?',
-        a: 'Yes. You may indicate alternate program options during application so admissions can guide you to the best fit.',
+        a: 'No. You may indicate alternate program preferences by contacting the admissions office so they can guide you to the best fit.',
       },
     ],
   },
@@ -66,11 +66,11 @@ const faqGroups = [
     items: [
       {
         q: 'Who can access the portal?',
-        a: 'Students, lecturers, and administrators each have role-based access to their own dashboard and features.',
+        a: 'Students, lecturers, and aspirants each have secure access to their own dashboard and features.',
       },
       {
         q: 'I forgot my password. What should I do?',
-        a: 'Use the password reset option on the login page. A secure reset link will be sent to your registered email.',
+        a: 'Use the password reset option on the login page (also available in your dashboard). A secure reset link will be sent to your registered email.',
       },
       {
         q: 'How can I get help quickly?',

@@ -1,4 +1,6 @@
 import jsPDF from 'jspdf'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 export async function generateCourseFormPDF(data: {
   student: {
@@ -26,7 +28,7 @@ export async function generateCourseFormPDF(data: {
   const pdf = new jsPDF('p', 'mm', 'a4')
   const pw = pdf.internal.pageSize.getWidth()
   const ph = pdf.internal.pageSize.getHeight()
-  const margin = 14
+  const margin = 10
   const usableW = pw - margin * 2
   let y = margin
 
@@ -40,18 +42,18 @@ export async function generateCourseFormPDF(data: {
   const addNewPage = () => {
     // Footer on current page
     pdf.setFillColor(...primary)
-    pdf.rect(0, ph - 8, pw, 8, 'F')
-    pdf.setFontSize(6)
+    pdf.rect(0, ph - 6, pw, 6, 'F')
+    pdf.setFontSize(5)
     pdf.setFont('helvetica', 'italic')
     pdf.setTextColor(...white)
-    pdf.text('Covenant College of Health Technology | Official Document', pw / 2, ph - 3, { align: 'center' })
+    pdf.text('Covenant College of Health Technology | Official Document', pw / 2, ph - 2.5, { align: 'center' })
 
     pdf.addPage()
     y = margin
   }
 
   const checkPageBreak = (needed: number) => {
-    if (y + needed > ph - margin - 10) {
+    if (y + needed > ph - margin - 8) {
       addNewPage()
       return true
     }
@@ -60,38 +62,67 @@ export async function generateCourseFormPDF(data: {
 
   const drawFooterOnLastPage = () => {
     pdf.setFillColor(...primary)
-    pdf.rect(0, ph - 8, pw, 8, 'F')
-    pdf.setFontSize(6)
+    pdf.rect(0, ph - 6, pw, 6, 'F')
+    pdf.setFontSize(5)
     pdf.setFont('helvetica', 'italic')
     pdf.setTextColor(...white)
-    pdf.text('Covenant College of Health Technology | Official Document', pw / 2, ph - 3, { align: 'center' })
+    pdf.text('Covenant College of Health Technology | Official Document', pw / 2, ph - 2.5, { align: 'center' })
   }
 
   // ══════════════════════════════════════════════════
-  // HEADER
+  // HEADER WITH LOGO
   // ══════════════════════════════════════════════════
-
-  // Top bar
+  
+  // Top accent bar
   pdf.setFillColor(...primary)
-  pdf.rect(0, 0, pw, 3, 'F')
+  pdf.rect(0, 0, pw, 2, 'F')
 
-  pdf.setFontSize(13)
+  y += 2
+
+  // Load and add school logo
+  try {
+    const logoPath = join(process.cwd(), 'public', 'apple-icon.png')
+    const logoData = readFileSync(logoPath)
+    const logoBase64 = `data:image/png;base64,${logoData.toString('base64')}`
+    const logoSize = 10
+    const logoX = pw / 2
+    const logoY = y + logoSize / 2
+    
+    pdf.addImage(logoBase64, 'PNG', logoX - logoSize / 2, logoY - logoSize / 2, logoSize, logoSize)
+    y += logoSize + 2
+  } catch (error) {
+    // Fallback to text if logo not found
+    const logoSize = 8
+    const logoX = pw / 2
+    const logoY = y + logoSize / 2
+    
+    pdf.setFillColor(...primary)
+    pdf.circle(logoX, logoY, logoSize / 2, 'F')
+    pdf.setFontSize(6)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(...white)
+    pdf.text('CCHT', logoX, logoY + 1, { align: 'center' })
+    y += logoSize + 2
+  }
+
+  // School name
+  pdf.setFontSize(11)
   pdf.setFont('helvetica', 'bold')
   pdf.setTextColor(...primary)
-  pdf.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', pw / 2, y + 8, { align: 'center' })
-  y += 11
+  pdf.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', pw / 2, y + 4, { align: 'center' })
+  y += 6
 
-  pdf.setFontSize(9)
+  pdf.setFontSize(8)
   pdf.setFont('helvetica', 'normal')
   pdf.setTextColor(80, 80, 80)
-  pdf.text('OFFICIAL COURSE REGISTRATION FORM', pw / 2, y, { align: 'center' })
-  y += 7
+  pdf.text('OFFICIAL COURSE REGISTRATION FORM', pw / 2, y + 3, { align: 'center' })
+  y += 5
 
   // Decorative line
   pdf.setDrawColor(...primary)
-  pdf.setLineWidth(0.4)
+  pdf.setLineWidth(0.3)
   pdf.line(margin, y, pw - margin, y)
-  y += 6
+  y += 3
 
   // ══════════════════════════════════════════════════
   // SESSION INFO
@@ -100,24 +131,23 @@ export async function generateCourseFormPDF(data: {
     ? data.semester.charAt(0).toUpperCase() + data.semester.slice(1) + ' Semester'
     : 'All Semesters'
 
-  pdf.setFontSize(8)
+  pdf.setFontSize(7)
   pdf.setFont('helvetica', 'bold')
   pdf.setTextColor(...dark)
   
-  // Session info in a simple line
   pdf.text(`Academic Session: ${data.session}     Semester: ${semesterLabel}`, margin, y)
-  y += 8
+  y += 4
 
   // ══════════════════════════════════════════════════
   // STUDENT INFORMATION
   // ══════════════════════════════════════════════════
-  pdf.setFontSize(9)
+  pdf.setFontSize(8)
   pdf.setFont('helvetica', 'bold')
   pdf.setTextColor(...primary)
   pdf.text('STUDENT INFORMATION', margin, y)
-  y += 5
+  y += 3
 
-  // Student info in a 2-col grid
+  // Student info in a 2-col grid - no truncation
   const studentFields = [
     { label: 'Name', value: `${data.student.firstName} ${data.student.lastName}` },
     { label: 'Email', value: data.student.email },
@@ -129,57 +159,50 @@ export async function generateCourseFormPDF(data: {
     { label: 'Admission', value: data.student.admissionSession || 'N/A' },
   ]
 
-  const cellH = 6
-  const colW = (usableW - 4) / 2 // 2 columns with 4mm gap
+  const cellH = 5
+  const colW = (usableW - 3) / 2
 
-  checkPageBreak(studentFields.length * cellH / 2 + 10)
-
-  pdf.setFontSize(7)
+  pdf.setFontSize(6.5)
   studentFields.forEach((field, idx) => {
     const col = idx % 2
     const row = Math.floor(idx / 2)
-    const cx = margin + col * (colW + 4)
+    const cx = margin + col * (colW + 3)
     const cy = y + row * cellH
 
     pdf.setFillColor(...lightGray)
     pdf.rect(cx, cy, colW, cellH, 'F')
     pdf.setDrawColor(200, 200, 200)
-    pdf.setLineWidth(0.2)
+    pdf.setLineWidth(0.15)
     pdf.rect(cx, cy, colW, cellH, 'S')
 
     pdf.setFont('helvetica', 'bold')
     pdf.setTextColor(80, 80, 80)
-    pdf.text(field.label, cx + 2, cy + 4)
+    pdf.text(field.label, cx + 1.5, cy + 3.2)
 
     pdf.setFont('helvetica', 'normal')
     pdf.setTextColor(...dark)
-    const valWidth = colW - 30
-    let val = field.value
-    if (val.length > Math.floor(valWidth / 2)) val = val.substring(0, Math.floor(valWidth / 2) - 2) + '..'
-    pdf.text(val, cx + 28, cy + 4)
+    pdf.text(field.value, cx + 28, cy + 3.2)
   })
 
-  y += Math.ceil(studentFields.length / 2) * cellH + 8
+  y += Math.ceil(studentFields.length / 2) * cellH + 3
 
   // ══════════════════════════════════════════════════
   // REGISTERED COURSES
   // ══════════════════════════════════════════════════
-  checkPageBreak(30)
-
-  pdf.setFontSize(9)
+  pdf.setFontSize(8)
   pdf.setFont('helvetica', 'bold')
   pdf.setTextColor(...primary)
   pdf.text('REGISTERED COURSES', margin, y)
-  y += 5
+  y += 3
 
   const totalCredits = data.courses.reduce((sum, c) => sum + c.credits, 0)
 
-  pdf.setFontSize(7)
+  pdf.setFontSize(6.5)
   pdf.setFont('helvetica', 'normal')
   pdf.setTextColor(80, 80, 80)
   pdf.text(`Total Credit Units: ${totalCredits}`, pw - margin, y, { align: 'right' })
   pdf.setTextColor(...dark)
-  y += 7
+  y += 4
 
   // Group courses by semester - ensure semester is string
   const semesterOrder = data.semester === 'all' 
@@ -194,12 +217,11 @@ export async function generateCourseFormPDF(data: {
   }, {} as Record<string, typeof data.courses>)
 
   // Table column widths
-  const tableX = margin
-  const snW = 10
-  const codeW = 22
-  const titleW = usableW - snW - codeW - 18 - 16 - 20 // remaining for title
-  const credW = 14
-  const levelW = 14
+  const snW = 8
+  const codeW = 20
+  const titleW = usableW - snW - codeW - 16 - 14 - 18
+  const credW = 12
+  const levelW = 12
   const dateW = 18
 
   // Render each semester
@@ -211,55 +233,55 @@ export async function generateCourseFormPDF(data: {
     const semesterLabel = sem === '1' ? 'First Semester' : sem === '2' ? 'Second Semester' : `${sem} Semester`
 
     // Semester header
-    checkPageBreak(12 + courses.length * 5 + 10)
+    checkPageBreak(8 + courses.length * 4 + 8)
 
     pdf.setFillColor(235, 242, 255)
-    pdf.rect(margin, y, usableW, 7, 'F')
+    pdf.rect(margin, y, usableW, 6, 'F')
     pdf.setDrawColor(200, 215, 240)
-    pdf.setLineWidth(0.3)
-    pdf.rect(margin, y, usableW, 7, 'S')
+    pdf.setLineWidth(0.2)
+    pdf.rect(margin, y, usableW, 6, 'S')
 
-    pdf.setFontSize(8)
+    pdf.setFontSize(7)
     pdf.setFont('helvetica', 'bold')
     pdf.setTextColor(...primary)
-    pdf.text(semesterLabel, margin + 3, y + 4.5)
-    pdf.setFontSize(7)
-    pdf.text(`${semCredits} CU`, pw - margin - 3, y + 4.5, { align: 'right' })
-    y += 9
+    pdf.text(semesterLabel, margin + 2, y + 4)
+    pdf.setFontSize(6.5)
+    pdf.text(`${semCredits} CU`, pw - margin - 2, y + 4, { align: 'right' })
+    y += 7
 
     // Table header
     pdf.setFillColor(245, 245, 248)
-    pdf.rect(margin, y, usableW, 6, 'F')
+    pdf.rect(margin, y, usableW, 5, 'F')
     pdf.setDrawColor(200, 200, 200)
-    pdf.setLineWidth(0.2)
-    pdf.rect(margin, y, usableW, 6, 'S')
+    pdf.setLineWidth(0.15)
+    pdf.rect(margin, y, usableW, 5, 'S')
 
     pdf.setFontSize(6)
     pdf.setFont('helvetica', 'bold')
     pdf.setTextColor(80, 80, 80)
-    pdf.text('S/N', margin + 2, y + 4)
-    pdf.text('Code', margin + snW + 2, y + 4)
-    pdf.text('Course Title', margin + snW + codeW + 2, y + 4)
-    pdf.text('Credits', margin + snW + codeW + titleW + 2, y + 4)
-    pdf.text('Level', margin + snW + codeW + titleW + credW + 2, y + 4)
-    pdf.text('Approved', margin + snW + codeW + titleW + credW + levelW + 2, y + 4)
-    y += 6
+    pdf.text('S/N', margin + 1.5, y + 3.2)
+    pdf.text('Code', margin + snW + 1.5, y + 3.2)
+    pdf.text('Course Title', margin + snW + codeW + 1.5, y + 3.2)
+    pdf.text('Credits', margin + snW + codeW + titleW + 1.5, y + 3.2)
+    pdf.text('Level', margin + snW + codeW + titleW + credW + 1.5, y + 3.2)
+    pdf.text('Approved', margin + snW + codeW + titleW + credW + levelW + 1.5, y + 3.2)
+    y += 5
 
     // Course rows
     courses.forEach((course, idx) => {
-      checkPageBreak(5)
+      checkPageBreak(4)
 
       // Row background
       if (idx % 2 === 0) {
         pdf.setFillColor(252, 252, 255)
-        pdf.rect(margin, y, usableW, 5, 'F')
+        pdf.rect(margin, y, usableW, 4, 'F')
       }
 
       pdf.setDrawColor(220, 220, 225)
-      pdf.setLineWidth(0.15)
+      pdf.setLineWidth(0.1)
       pdf.line(margin, y, margin + usableW, y)
 
-      pdf.setFontSize(6.5)
+      pdf.setFontSize(6)
       pdf.setFont('helvetica', 'normal')
       pdf.setTextColor(...dark)
 
@@ -272,52 +294,46 @@ export async function generateCourseFormPDF(data: {
         ? new Date(course.reviewedAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
         : 'N/A'
 
-      // Truncate long text
-      const titleMaxChars = Math.floor(titleW / 2.2)
-      if (title.length > titleMaxChars) title = title.substring(0, titleMaxChars - 2) + '..'
-      const codeMaxChars = Math.floor(codeW / 2.5)
-      if (code.length > codeMaxChars) code = code.substring(0, codeMaxChars - 2) + '..'
+      pdf.text(sn, margin + snW / 2, y + 3, { align: 'center' })
+      pdf.text(code, margin + snW + 1, y + 3)
+      pdf.text(title, margin + snW + codeW + 1, y + 3)
+      pdf.text(creditStr, margin + snW + codeW + titleW + credW / 2, y + 3, { align: 'center' })
+      pdf.text(levelStr, margin + snW + codeW + titleW + credW + levelW / 2, y + 3, { align: 'center' })
+      pdf.text(dateStr, margin + snW + codeW + titleW + credW + levelW + 1, y + 3)
 
-      pdf.text(sn, margin + snW / 2, y + 3.5, { align: 'center' })
-      pdf.text(code, margin + snW + 1, y + 3.5)
-      pdf.text(title, margin + snW + codeW + 1, y + 3.5)
-      pdf.text(creditStr, margin + snW + codeW + titleW + credW / 2, y + 3.5, { align: 'center' })
-      pdf.text(levelStr, margin + snW + codeW + titleW + credW + levelW / 2, y + 3.5, { align: 'center' })
-      pdf.text(dateStr, margin + snW + codeW + titleW + credW + levelW + 1, y + 3.5)
-
-      y += 5
+      y += 4
     })
 
     // Bottom line
     pdf.setDrawColor(200, 200, 200)
-    pdf.setLineWidth(0.2)
+    pdf.setLineWidth(0.15)
     pdf.line(margin, y, margin + usableW, y)
-    y += 7
+    y += 4
   })
 
   // ══════════════════════════════════════════════════
   // SUMMARY BOX
   // ══════════════════════════════════════════════════
-  checkPageBreak(15)
+  checkPageBreak(10)
 
   pdf.setFillColor(240, 248, 255)
   pdf.setDrawColor(0, 70, 150)
-  pdf.setLineWidth(0.4)
-  pdf.rect(margin, y, usableW, 8, 'FD')
+  pdf.setLineWidth(0.3)
+  pdf.rect(margin, y, usableW, 7, 'FD')
 
-  pdf.setFontSize(8)
+  pdf.setFontSize(7)
   pdf.setFont('helvetica', 'bold')
   pdf.setTextColor(...dark)
-  pdf.text(`Total Courses: ${data.courses.length}`, margin + 4, y + 5)
-  pdf.text(`Total Credit Units: ${totalCredits}`, pw / 2, y + 5, { align: 'center' })
+  pdf.text(`Total Courses: ${data.courses.length}`, margin + 3, y + 4.2)
+  pdf.text(`Total Credit Units: ${totalCredits}`, pw / 2, y + 4.2, { align: 'center' })
   pdf.setTextColor(0, 120, 50)
-  pdf.text('Status: Approved', pw - margin - 4, y + 5, { align: 'right' })
-  y += 12
+  pdf.text('Status: Approved', pw - margin - 3, y + 4.2, { align: 'right' })
+  y += 9
 
   // ══════════════════════════════════════════════════
   // FOOTER
   // ══════════════════════════════════════════════════
-  if (y + 20 > ph - 8) {
+  if (y + 15 > ph - 6) {
     addNewPage()
   }
 
@@ -325,17 +341,17 @@ export async function generateCourseFormPDF(data: {
   const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
   pdf.setDrawColor(200, 200, 200)
-  pdf.setLineWidth(0.3)
-  pdf.line(margin, ph - 22, pw - margin, ph - 22)
+  pdf.setLineWidth(0.2)
+  pdf.line(margin, ph - 14, pw - margin, ph - 14)
 
-  pdf.setFontSize(7)
+  pdf.setFontSize(6)
   pdf.setFont('helvetica', 'normal')
   pdf.setTextColor(80, 80, 80)
-  pdf.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', pw / 2, ph - 16, { align: 'center' })
+  pdf.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', pw / 2, ph - 10, { align: 'center' })
   pdf.setFont('helvetica', 'italic')
-  pdf.text('Excellence in Health Education', pw / 2, ph - 12, { align: 'center' })
+  pdf.text('Excellence in Health Education', pw / 2, ph - 7, { align: 'center' })
   pdf.setFont('helvetica', 'normal')
-  pdf.text(`Generated: ${dateStr}`, pw / 2, ph - 8.5, { align: 'center' })
+  pdf.text(`Generated: ${dateStr}`, pw / 2, ph - 4.5, { align: 'center' })
 
   drawFooterOnLastPage()
 
@@ -343,10 +359,10 @@ export async function generateCourseFormPDF(data: {
   const pc = pdf.getNumberOfPages()
   for (let i = 1; i <= pc; i++) {
     pdf.setPage(i)
-    pdf.setFontSize(6)
+    pdf.setFontSize(5.5)
     pdf.setFont('helvetica', 'normal')
     pdf.setTextColor(150, 150, 150)
-    pdf.text(`Page ${i} of ${pc}`, pw - margin, 6, { align: 'right' })
+    pdf.text(`Page ${i} of ${pc}`, pw - margin, 5, { align: 'right' })
   }
 
   return pdf.output('arraybuffer')
