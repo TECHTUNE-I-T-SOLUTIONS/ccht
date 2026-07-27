@@ -183,20 +183,9 @@ export default function TeacherDashboard() {
                 <p className="text-sm text-muted-foreground">No notices yet.</p>
               ) : (
                 notices.map((notice) => (
-                  <div key={notice.id} className={`rounded-2xl border border-border p-4 ${
-                    notice.priority === 'urgent' ? 'bg-red-50 dark:bg-red-900/10' :
-                    notice.priority === 'high' ? 'bg-orange-50 dark:bg-orange-900/10' :
-                    'bg-slate-50'
-                  }`}>
+                  <div key={notice.id} className="rounded-2xl border border-border p-4 bg-slate-50">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-semibold text-foreground">{notice.title}</p>
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        notice.priority === 'urgent' ? 'bg-red-100 text-red-700' :
-                        notice.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                        'bg-slate-100 text-slate-700'
-                      }`}>
-                        {notice.priority}
-                      </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{notice.content}</p>
                     <p className="mt-2 text-xs text-muted-foreground">

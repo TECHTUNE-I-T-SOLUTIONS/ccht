@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 import Image from 'next/image'
+import { AnnouncementBanner } from './announcement-banner'
 
 interface PortalLayoutProps {
   children: React.ReactNode
@@ -133,6 +134,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
         { label: 'Students', href: '/admin/management/students', icon: Users },
         { label: 'Lecturers', href: '/admin/management/lecturers', icon: UserCheck },
         { label: 'Admins', href: '/admin/management/admins', icon: Shield },
+        { label: 'Exams', href: '/admin/management/exams', icon: ClipboardList },
         { label: 'Programs', href: '/admin/programs', icon: BookOpen },
         { label: 'Timetable', href: '/admin/timetable', icon: CalendarDays },
         { label: 'Finance', href: '/admin/finance/fees', icon: CreditCard },
@@ -265,11 +267,13 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
         </div>
       </header>
 
+      <AnnouncementBanner sidebarCollapsed={sidebarCollapsed} />
+
       <div className="flex min-h-[calc(100vh-64px)]">
         {showSidebar && (
           <aside
-            className={`fixed left-0 z-40 border-r border-border bg-white/95 backdrop-blur transition-all duration-300 dark:bg-slate-950/95 h-[calc(100vh-4rem)] xl:h-[calc(100vh-4rem)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'} ${sidebarCollapsed ? 'w-[4.75rem]' : 'w-[18rem]'}`}
-            style={{ top: '64px' }}
+            className={`fixed left-0 z-40 border-r border-border bg-white/95 backdrop-blur transition-all duration-300 dark:bg-slate-950/95 h-[calc(100vh-8rem)] xl:h-[calc(100vh-8rem)] h-full xl:h-full ${sidebarOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'} ${sidebarCollapsed ? 'w-[4.75rem]' : 'w-[18rem]'}`}
+            style={{ top: '65px' }}
           >
           <button type="button" onClick={() => setSidebarCollapsed((value) => !value)} className={`absolute -right-3 top-4 z-50 flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-white shadow-md transition-all hover:border-primary hover:text-primary dark:bg-slate-900 xl:flex sm:hidden md:hidden xs:hidden hidden`} aria-label="Collapse sidebar">
             {sidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}

@@ -98,7 +98,7 @@ export default function StudentManagementPage() {
       links: [
         { label: 'Academic Records', href: '/admin/analytics/performance', description: 'View academic transcripts' },
         { label: 'Course Registration', href: '/admin/management/students/course-registrations', description: 'Manage course enrollments' },
-        { label: 'Student Exams', href: '/admin/management/students/exams', description: 'Manage student examinations' },
+        { label: 'Student Exams', href: '/admin/management/exams', description: 'Manage student examinations' },
         { label: 'Student Results', href: '/admin/management/students/results', description: 'View and manage grades' },
       ],
     },

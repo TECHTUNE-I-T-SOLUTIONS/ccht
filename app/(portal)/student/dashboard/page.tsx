@@ -30,7 +30,7 @@ export default function StudentDashboard() {
           supabase.from('results').select('id, course_name, score, grade, semester, academic_year, created_at').eq('student_id', user.id).order('created_at', { ascending: false }).limit(4),
           supabase.from('enrollments').select('*, program:programs(title)').eq('student_id', user.id).eq('status', 'active'),
           supabase.from('announcements').select('*').eq('is_published', true).order('published_at', { ascending: false }).limit(3),
-          supabase.from('notices').select('*').eq('is_published', true).in('target_audience', ['all', 'students']).order('published_at', { ascending: false }).limit(3),
+          supabase.from('notices').select('*').eq('is_published', true).in('audience', ['all', 'students']).order('published_at', { ascending: false }).limit(3),
         ])
         setUser(profileRes.data)
         setStudentProfile(studentProfileRes.data)
@@ -158,7 +158,7 @@ export default function StudentDashboard() {
               <p className="text-sm text-muted-foreground">No announcements yet.</p>
             ) : (
               announcements.map((announcement) => (
-                <div key={announcement.id} className="rounded-2xl border border-border bg-slate-50 p-4">
+                <div key={announcement.id} className="rounded-2xl border border-border bg-background p-4">
                   <p className="font-semibold text-foreground">{announcement.title}</p>
                   <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{announcement.content}</p>
                   <p className="mt-2 text-xs text-muted-foreground">
@@ -183,20 +183,9 @@ export default function StudentDashboard() {
               <p className="text-sm text-muted-foreground">No notices yet.</p>
             ) : (
               notices.map((notice) => (
-                <div key={notice.id} className={`rounded-2xl border border-border p-4 ${
-                  notice.priority === 'urgent' ? 'bg-red-50 dark:bg-red-900/10' :
-                  notice.priority === 'high' ? 'bg-orange-50 dark:bg-orange-900/10' :
-                  'bg-slate-50'
-                }`}>
+                <div key={notice.id} className="rounded-2xl border border-border p-4 bg-background">
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-semibold text-foreground">{notice.title}</p>
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      notice.priority === 'urgent' ? 'bg-red-100 text-red-700' :
-                      notice.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                      'bg-slate-100 text-slate-700'
-                    }`}>
-                      {notice.priority}
-                    </span>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{notice.content}</p>
                   <p className="mt-2 text-xs text-muted-foreground">

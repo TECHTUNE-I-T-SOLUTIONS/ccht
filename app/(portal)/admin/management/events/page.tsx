@@ -288,7 +288,7 @@ export default function EventsPage() {
           <p className="mt-1 text-sm text-muted-foreground">Create and manage events for the institution</p>
         </div>
         <Link href="/admin/management/events/new">
-          <Button className="gap-2">
+          <Button className="gap-2 rounded-xl border border-primary hover:text-blue-400 hover:shadow-lg hover:shadow-blue-400">
             <Plus className="h-4 w-4" />
             Create Event
           </Button>

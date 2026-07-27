@@ -31,6 +31,7 @@ export default function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const supabase = createClient()
 
@@ -69,6 +70,7 @@ export default function AnnouncementsPage() {
     }
 
     try {
+      setIsSubmitting(true)
       const { error } = await supabase.from('announcements').insert({
         title: formData.title,
         content: formData.content,
@@ -85,6 +87,8 @@ export default function AnnouncementsPage() {
     } catch (error) {
       console.error('Failed to create announcement:', error)
       toast.error('Failed to create announcement')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -165,12 +169,12 @@ export default function AnnouncementsPage() {
         </div>
         <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2 rounded-xl border border-primary hover:text-blue-400 hover:shadow-lg hover:shadow-blue-400">
               <Plus className="h-4 w-4" />
               Create Announcement
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl bg-white dark:bg-black">
             <DialogHeader>
               <DialogTitle>Create Announcement</DialogTitle>
               <DialogDescription>Create a new announcement to share with the community</DialogDescription>
@@ -204,10 +208,12 @@ export default function AnnouncementsPage() {
                 <label htmlFor="is_published" className="text-sm font-medium cursor-pointer">Publish immediately</label>
               </div>
               <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+                <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} disabled={isSubmitting}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreate}>
+                <Button onClick={handleCreate} disabled={isSubmitting}
+                className="gap-2 rounded-xl border border-primary hover:text-blue-400 hover:shadow-lg hover:shadow-blue-400">
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   Create Announcement
                 </Button>
               </div>

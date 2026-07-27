@@ -19,8 +19,7 @@ type Notice = {
   title: string
   slug: string
   content: string
-  target_audience: 'all' | 'students' | 'teachers' | 'admins'
-  priority: 'low' | 'normal' | 'high' | 'urgent'
+  audience: 'all' | 'students' | 'teachers' | 'admins'
   is_published: boolean
   published_at?: string
   created_at: string
@@ -35,6 +34,7 @@ export default function NoticesPage() {
   const [notices, setNotices] = useState<Notice[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const supabase = createClient()
 
@@ -42,8 +42,7 @@ export default function NoticesPage() {
     title: '',
     slug: '',
     content: '',
-    target_audience: 'all' as 'all' | 'students' | 'teachers' | 'admins',
-    priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
+    audience: 'all' as 'all' | 'students' | 'teachers' | 'admins',
     is_published: false
   })
 
@@ -85,12 +84,12 @@ export default function NoticesPage() {
     const slug = formData.slug || generateSlug(formData.title)
 
     try {
+      setIsSubmitting(true)
       const { error } = await supabase.from('notices').insert({
         title: formData.title,
         slug,
         content: formData.content,
-        target_audience: formData.target_audience,
-        priority: formData.priority,
+        audience: formData.audience,
         is_published: formData.is_published,
         published_at: formData.is_published ? new Date().toISOString() : null
       })
@@ -104,6 +103,8 @@ export default function NoticesPage() {
     } catch (error) {
       console.error('Failed to create notice:', error)
       toast.error('Failed to create notice')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -111,7 +112,7 @@ export default function NoticesPage() {
     try {
       const { error } = await supabase
         .from('notices')
-        .update({ 
+        .update({
           is_published: true,
           published_at: new Date().toISOString()
         })
@@ -130,7 +131,7 @@ export default function NoticesPage() {
     try {
       const { error } = await supabase
         .from('notices')
-        .update({ 
+        .update({
           is_published: false,
           published_at: null
         })
@@ -165,31 +166,19 @@ export default function NoticesPage() {
       title: '',
       slug: '',
       content: '',
-      target_audience: 'all',
-      priority: 'normal',
+      audience: 'all',
       is_published: false
     })
   }
 
   const filteredNotices = notices.filter(notice => {
-    const matchesSearch = 
+    const matchesSearch =
       notice.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       notice.content?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesSearch
   })
 
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case 'urgent':
-        return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"><AlertTriangle className="h-3 w-3 mr-1" /> Urgent</Badge>
-      case 'high':
-        return <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">High</Badge>
-      case 'low':
-        return <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">Low</Badge>
-      default:
-        return <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Normal</Badge>
-    }
-  }
+
 
   const getAudienceBadge = (audience: string) => {
     switch (audience) {
@@ -213,12 +202,12 @@ export default function NoticesPage() {
         </div>
         <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2 border border-primary hover:text-blue-500 hover:shadow-xl hover:shadow-blue-400">
               <Plus className="h-4 w-4" />
               Create Notice
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl bg-white dark:bg-black">
             <DialogHeader>
               <DialogTitle>Create Notice</DialogTitle>
               <DialogDescription>Create a new notice to display on dashboards</DialogDescription>
@@ -252,10 +241,10 @@ export default function NoticesPage() {
                   rows={6}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4">
                 <div>
-                  <label className="text-sm font-medium">Target Audience</label>
-                  <Select value={formData.target_audience} onValueChange={(value: any) => setFormData({ ...formData, target_audience: value })}>
+                  <label className="text-sm font-medium">Audience</label>
+                  <Select value={formData.audience} onValueChange={(value: any) => setFormData({ ...formData, audience: value })}>
                     <SelectTrigger className="mt-1">
                       <SelectValue />
                     </SelectTrigger>
@@ -264,20 +253,6 @@ export default function NoticesPage() {
                       <SelectItem value="students">Students Only</SelectItem>
                       <SelectItem value="teachers">Teachers Only</SelectItem>
                       <SelectItem value="admins">Admins Only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Priority</label>
-                  <Select value={formData.priority} onValueChange={(value: any) => setFormData({ ...formData, priority: value })}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="normal">Normal</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -291,10 +266,12 @@ export default function NoticesPage() {
                 <label htmlFor="is_published" className="text-sm font-medium cursor-pointer">Publish immediately</label>
               </div>
               <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+                <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} disabled={isSubmitting}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreate}>
+                <Button onClick={handleCreate} disabled={isSubmitting}
+                  className="gap-2 border border-primary hover:text-blue-500 hover:shadow-xl hover:shadow-blue-400">
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   Create Notice
                 </Button>
               </div>
@@ -330,7 +307,6 @@ export default function NoticesPage() {
                   <TableHead>Title</TableHead>
                   <TableHead>Content Preview</TableHead>
                   <TableHead>Audience</TableHead>
-                  <TableHead>Priority</TableHead>
                   <TableHead>Created By</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -343,8 +319,7 @@ export default function NoticesPage() {
                     <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
                       {notice.content}
                     </TableCell>
-                    <TableCell>{getAudienceBadge(notice.target_audience)}</TableCell>
-                    <TableCell>{getPriorityBadge(notice.priority)}</TableCell>
+                    <TableCell>{getAudienceBadge(notice.audience)}</TableCell>
                     <TableCell>
                       {notice.creator ? `${notice.creator.first_name} ${notice.creator.last_name}` : 'System'}
                     </TableCell>

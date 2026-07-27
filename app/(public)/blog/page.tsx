@@ -107,12 +107,12 @@ export default async function BlogPage() {
                 </Link>
               ))}
             </div>
-          ) : (
+          ) : posts.length === 0 ? (
             <div className="rounded-[2rem] border border-dashed border-border/70 bg-card/60 p-12 text-center">
               <FileText className="mx-auto h-12 w-12 text-primary/40" />
               <p className="mt-4 text-lg text-muted-foreground">No blog posts yet</p>
             </div>
-          )}
+          ) : null}
         </section>
       </main>
       <Footer />

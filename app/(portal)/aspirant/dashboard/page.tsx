@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { BadgeCheck, CreditCard, FileDown, FileUp, HelpCircle, Sparkles, UploadCloud, UserRound, Award, Clock3, CheckCircle2, Lock, ChevronRight, X, AlertTriangle, Trash2, Phone, Calendar, MapPin, User } from 'lucide-react'
 import { toast } from 'sonner'
@@ -103,6 +104,8 @@ export default function AspirantDashboard() {
   const [documents, setDocuments] = useState<UploadedDocument[]>([])
   const [photos, setPhotos] = useState<UploadedPhoto[]>([])
   const [examResults, setExamResults] = useState<ExamResult[]>([])
+  const [announcements, setAnnouncements] = useState<any[]>([])
+  const [notices, setNotices] = useState<any[]>([])
   const [latestExamResult, setLatestExamResult] = useState<ExamResult | null>(null)
   const [appFeePaid, setAppFeePaid] = useState(false)
   const [adminFeePaid, setAdminFeePaid] = useState(false)
@@ -172,6 +175,14 @@ export default function AspirantDashboard() {
       fetchWithRetry('/api/v1/admissions/results').catch(() => null),
       fetchWithRetry('/api/v1/aspirant/payments/status').catch(() => null),
     ])
+
+    const supabase = createClient()
+    const [announcementsRes, noticesRes] = await Promise.all([
+      supabase.from('announcements').select('*').eq('is_published', true).order('published_at', { ascending: false }).limit(3),
+      supabase.from('notices').select('*').eq('is_published', true).in('audience', ['all', 'aspirants']).order('published_at', { ascending: false }).limit(3),
+    ])
+    setAnnouncements(announcementsRes.data || [])
+    setNotices(noticesRes.data || [])
 
     const me = meRes ? await meRes.json().catch(() => null) : null
     const docs = docsRes ? await docsRes.json().catch(() => null) : null

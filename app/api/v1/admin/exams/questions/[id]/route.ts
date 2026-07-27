@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+export const runtime = 'nodejs'
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -10,7 +12,7 @@ export async function GET(
     const admin = createAdminClient()
     
     const { data: question, error } = await admin
-      .from('exam_questions')
+      .from('student_exam_questions')
       .select('*')
       .eq('id', id)
       .single()
@@ -19,7 +21,7 @@ export async function GET(
       return NextResponse.json({ error: 'Question not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ data: question })
+    return NextResponse.json({ success: true, data: question })
   } catch (error) {
     console.error('[admin/exams/questions] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -34,17 +36,19 @@ export async function PUT(
     const { id } = await params
     const admin = createAdminClient()
     const body = await request.json()
+    const options = Array.isArray(body.options) ? body.options : []
     
     const { data: question, error } = await admin
-      .from('exam_questions')
+      .from('student_exam_questions')
       .update({
         question_text: body.question_text,
         question_type: body.question_type,
-        options: body.options,
+        options,
         correct_answer: body.correct_answer,
-        points: body.points,
-        question_order: body.question_order,
+        marks: body.points,
+        question_number: body.question_order,
         is_active: body.is_active,
+        explanation: body.explanation,
       })
       .eq('id', id)
       .select()
@@ -55,7 +59,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Failed to update question' }, { status: 500 })
     }
 
-    return NextResponse.json({ data: question })
+    return NextResponse.json({ success: true, data: question })
   } catch (error) {
     console.error('[admin/exams/questions] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -71,7 +75,7 @@ export async function DELETE(
     const admin = createAdminClient()
     
     const { error } = await admin
-      .from('exam_questions')
+      .from('student_exam_questions')
       .delete()
       .eq('id', id)
 
@@ -80,7 +84,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Failed to delete question' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, message: 'Question deleted successfully' })
   } catch (error) {
     console.error('[admin/exams/questions] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

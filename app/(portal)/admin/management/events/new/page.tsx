@@ -172,7 +172,9 @@ export default function NewEventPage() {
 
             <div className="flex justify-end gap-3">
               <Button type="button" variant="outline" onClick={() => router.push('/admin/management/events')}>Cancel</Button>
-              <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Create Event'}</Button>
+              <Button type="submit"
+              className="border border-primary hover:text-blue-400 hover:shadow-lg hover:shadow-blue-400 gap-2 rounded-xl"
+              disabled={saving}>{saving ? 'Saving...' : 'Create Event'}</Button>
             </div>
           </Card>
         </div>

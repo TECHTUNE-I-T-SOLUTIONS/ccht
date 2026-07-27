@@ -197,7 +197,7 @@ export default function AdminContentPage() {
             <h1 className="mt-2 text-3xl font-extrabold md:text-5xl">Content Manager</h1>
             <p className="mt-2 text-sm text-foreground/75">Publish updates, announcements, and school events to the public website.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap justify-end gap-3 max-w-xl">
             <Link href="/admin/blog">
               <Button variant="outline" className="rounded-xl gap-2">
                 Manage Blog <ArrowRight className="h-4 w-4" />
@@ -206,6 +206,16 @@ export default function AdminContentPage() {
             <Link href="/admin/management/events">
               <Button variant="outline" className="rounded-xl gap-2">
                 Manage Events <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/admin/management/notices">
+              <Button variant="outline" className="rounded-xl gap-2">
+                Manage Notices <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/admin/management/announcements">
+              <Button variant="outline" className="rounded-xl gap-2">
+                Manage Announcements <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </div>
@@ -222,90 +232,11 @@ export default function AdminContentPage() {
           <Card className="rounded-[2rem] border bg-white dark:bg-slate-900 shadow-sm p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold">Latest Posts</h2>
-              <Dialog open={isBlogModalOpen} onOpenChange={setIsBlogModalOpen}>
-                <DialogTrigger asChild>
-                  <Button className="rounded-xl"><Plus className="mr-2 h-4 w-4" /> New Post</Button>
-                </DialogTrigger>
-                <DialogContent className="bg-white dark:bg-black sm:max-w-[600px]">
-                  <DialogHeader>
-                    <DialogTitle>Create Blog Post</DialogTitle>
-                    <DialogDescription>Create a new blog post to publish on the school website.</DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleCreateBlog} className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Title</label>
-                      <Input required value={blogData.title} onChange={e => {
-                        setBlogData({ ...blogData, title: e.target.value, slug: generateSlug(e.target.value) })
-                      }} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Slug (URL)</label>
-                      <Input value={blogData.slug} onChange={e => setBlogData({ ...blogData, slug: e.target.value })} placeholder="Auto-generated from title" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Excerpt</label>
-                      <Textarea required value={blogData.excerpt} onChange={e => setBlogData({ ...blogData, excerpt: e.target.value })} rows={2} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Content</label>
-                      <Textarea required value={blogData.content} onChange={e => setBlogData({ ...blogData, content: e.target.value })} rows={6} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Featured Image</label>
-                      <div className="space-y-3">
-                        {blogImagePreview ? (
-                          <div className="relative">
-                            <img
-                              src={blogImagePreview}
-                              alt="Preview"
-                              className="w-full h-48 object-cover rounded-lg border border-border"
-                            />
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              className="absolute top-2 right-2"
-                              onClick={removeBlogImage}
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-                            <input
-                              type="file"
-                              id="blog-image-upload"
-                              accept="image/*"
-                              onChange={handleBlogImageUpload}
-                              className="hidden"
-                              disabled={uploadingImage}
-                            />
-                            <label
-                              htmlFor="blog-image-upload"
-                              className="cursor-pointer flex flex-col items-center"
-                            >
-                              {uploadingImage ? (
-                                <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
-                              ) : (
-                                <>
-                                  <UploadCloud className="w-8 h-8 text-muted-foreground mb-2" />
-                                  <p className="text-sm text-muted-foreground">Click to upload image</p>
-                                  <p className="text-xs text-muted-foreground mt-1">JPG, PNG up to 5MB</p>
-                                </>
-                              )}
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
-                      <span className="text-sm font-medium cursor-pointer select-none">Publish Immediately</span>
-                      <Switch checked={blogData.isPublished} onCheckedChange={val => setBlogData({ ...blogData, isPublished: val })} />
-                    </div>
-                    <div className="flex justify-end pt-4"><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Publish Post'}</Button></div>
-                  </form>
-                </DialogContent>
-              </Dialog>
+                <Link href="/admin/blog/new">
+                  <Button className="rounded-xl border border-primary hover:text-blue-400 hover:shadow-lg hover:shadow-blue-400">
+                    <Plus className="mr-2 h-4 w-4" /> New Post
+                  </Button>
+                </Link>
             </div>
 
             <div className="rounded-xl border overflow-hidden">
@@ -327,17 +258,22 @@ export default function AdminContentPage() {
                     blogs.map(blog => (
                       <TableRow key={blog.id}>
                         <TableCell className="font-medium">
-                          <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary"><FileText className="h-4 w-4" /></div>
+                          <div className="flex items-center gap-4">
+                            {blog.featured_image_url ? (
+                              <img src={blog.featured_image_url} alt="" className="h-12 w-12 rounded-lg object-cover bg-muted" />
+                            ) : (
+                              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary"><FileText className="h-5 w-5" /></div>
+                            )}
                             <div>
-                              <div>{blog.title}</div>
-                              <div className="text-xs text-muted-foreground">{new Date(blog.created_at).toLocaleDateString()}</div>
+                              <div className="font-bold text-base mb-1">{blog.title}</div>
+                              {blog.excerpt && <div className="text-xs text-muted-foreground line-clamp-1 mb-1 max-w-[400px]">{blog.excerpt}</div>}
+                              <div className="text-xs font-medium text-slate-500">{new Date(blog.created_at).toLocaleDateString()}</div>
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>{blog.author?.first_name} {blog.author?.last_name}</TableCell>
+                        <TableCell>{blog.author?.first_name ? `${blog.author.first_name} ${blog.author.last_name}` : 'Admin'}</TableCell>
                         <TableCell>
-                          {blog.is_published ? (
+                          {blog.status === 'published' ? (
                             <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Published</span>
                           ) : (
                             <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">Draft</span>
@@ -364,106 +300,22 @@ export default function AdminContentPage() {
           <Card className="rounded-[2rem] border bg-white dark:bg-slate-900 shadow-sm p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold">Upcoming Events</h2>
-              <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
-                <DialogTrigger asChild>
-                  <Button className="rounded-xl"><Plus className="mr-2 h-4 w-4" /> New Event</Button>
-                </DialogTrigger>
-                <DialogContent className="bg-white dark:bg-black sm:max-w-[500px]">
-                  <DialogHeader>
-                    <DialogTitle>Create Event</DialogTitle>
-                    <DialogDescription>Create a new school event to publish on the website.</DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleCreateEvent} className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Event Title</label>
-                      <Input required value={eventData.title} onChange={e => {
-                        setEventData({ ...eventData, title: e.target.value, slug: generateSlug(e.target.value) })
-                      }} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Slug (URL)</label>
-                      <Input value={eventData.slug} onChange={e => setEventData({ ...eventData, slug: e.target.value })} placeholder="Auto-generated from title" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Event Date & Time</label>
-                        <Input type="datetime-local" required value={eventData.eventDate} onChange={e => setEventData({ ...eventData, eventDate: e.target.value })} />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Location</label>
-                        <Input required value={eventData.location} onChange={e => setEventData({ ...eventData, location: e.target.value })} />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Description</label>
-                      <Textarea required value={eventData.description} onChange={e => setEventData({ ...eventData, description: e.target.value })} rows={3} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Featured Image</label>
-                      <div className="space-y-3">
-                        {eventImagePreview ? (
-                          <div className="relative">
-                            <img
-                              src={eventImagePreview}
-                              alt="Preview"
-                              className="w-full h-48 object-cover rounded-lg border border-border"
-                            />
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              className="absolute top-2 right-2"
-                              onClick={removeEventImage}
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-                            <input
-                              type="file"
-                              id="event-image-upload"
-                              accept="image/*"
-                              onChange={handleEventImageUpload}
-                              className="hidden"
-                              disabled={uploadingImage}
-                            />
-                            <label
-                              htmlFor="event-image-upload"
-                              className="cursor-pointer flex flex-col items-center"
-                            >
-                              {uploadingImage ? (
-                                <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
-                              ) : (
-                                <>
-                                  <UploadCloud className="w-8 h-8 text-muted-foreground mb-2" />
-                                  <p className="text-sm text-muted-foreground">Click to upload image</p>
-                                  <p className="text-xs text-muted-foreground mt-1">JPG, PNG up to 5MB</p>
-                                </>
-                              )}
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50">
-                      <span className="text-sm font-medium cursor-pointer select-none">Publish Event</span>
-                      <Switch checked={eventData.isPublished} onCheckedChange={val => setEventData({ ...eventData, isPublished: val })} />
-                    </div>
-                    <div className="flex justify-end pt-4"><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Create Event'}</Button></div>
-                  </form>
-                </DialogContent>
-              </Dialog>
+                <Link href="/admin/management/events/new">
+                  <Button className="rounded-xl border border-primary hover:text-blue-400 hover:shadow-lg hover:shadow-blue-400"><Plus className="mr-2 h-4 w-4" /> New Event</Button>
+                </Link>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {loading ? <p>Loading events...</p> : events.length === 0 ? <p>No events found.</p> : events.map(event => (
                 <Card key={event.id} className="overflow-hidden border group">
                   <div className="aspect-video w-full bg-slate-100 dark:bg-slate-800 relative">
-                    {event.image_url ? (
-                      <img src={event.image_url} className="w-full h-full object-cover" />
+                    {event.featured_image_url ? (
+                      <img src={event.featured_image_url} className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-300"><Calendar className="h-10 w-10" /></div>
+                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50 dark:bg-slate-800/50">
+                        <Calendar className="h-10 w-10 mb-2 opacity-50" />
+                        <span className="text-xs font-medium uppercase tracking-wider">No Image</span>
+                      </div>
                     )}
                     <div className="absolute top-3 right-3">
                       {event.is_published ? (
