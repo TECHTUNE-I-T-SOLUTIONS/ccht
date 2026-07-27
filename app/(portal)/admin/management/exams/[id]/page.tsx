@@ -10,8 +10,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { ArrowLeft, Plus, Edit2, Trash2, Save, X, Upload, FileSpreadsheet, FileText, Shield, User } from 'lucide-react'
+import { ArrowLeft, Plus, Edit2, Trash2, Save, X, Upload, FileSpreadsheet, FileText, Shield, User, Sparkles, Download, FileUp } from 'lucide-react'
 
 type ExamQuestion = {
   id: string
@@ -37,6 +38,10 @@ export default function AdminExamDetailPage() {
   const [isCreatingQuestion, setIsCreatingQuestion] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [questionToDelete, setQuestionToDelete] = useState<ExamQuestion | null>(null)
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  const [uploadingFile, setUploadingFile] = useState(false)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [activeTab, setActiveTab] = useState('manual')
 
   const [questionForm, setQuestionForm] = useState({
     question_text: '',
@@ -172,6 +177,77 @@ export default function AdminExamDetailPage() {
     )
   }
 
+  const handleFileUpload = async () => {
+    if (!uploadedFile) {
+      toast.error('Please select a file first')
+      return
+    }
+
+    setUploadingFile(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', uploadedFile)
+      formData.append('examId', params.id as string)
+
+      const res = await fetch('/api/v1/admin/exams/upload-questions', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to upload questions')
+      }
+
+      toast.success(`Successfully imported ${data.data.inserted} questions`)
+      setUploadDialogOpen(false)
+      setUploadedFile(null)
+      loadData()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to upload questions')
+      console.error(error)
+    } finally {
+      setUploadingFile(false)
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setUploadedFile(file)
+    }
+  }
+
+  const downloadTemplate = () => {
+    const template = `1. What is the capital of France?
+A. London
+B. Paris
+C. Berlin
+D. Madrid
+Answer: Paris
+Points: 1
+Explanation: Paris is the capital and largest city of France.
+
+2. Which planet is known as the Red Planet?
+A. Venus
+B. Mars
+C. Jupiter
+D. Saturn
+Answer: Mars
+Points: 1
+Explanation: Mars appears red due to iron oxide on its surface.`
+
+    const blob = new Blob([template], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'questions-template.txt'
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Template downloaded')
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -192,10 +268,16 @@ export default function AdminExamDetailPage() {
             {exam?.course?.code} - {exam?.course?.title}
           </p>
         </div>
-        <Button onClick={startCreateQuestion} className="rounded-xl">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Question
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setUploadDialogOpen(true)} variant="outline" className="rounded-xl">
+            <Upload className="mr-2 h-4 w-4" />
+            Import Questions
+          </Button>
+          <Button onClick={startCreateQuestion} className="rounded-xl">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Question
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -307,7 +389,7 @@ export default function AdminExamDetailPage() {
       </Card>
 
       <Dialog open={questionDialogOpen} onOpenChange={setQuestionDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-black">
           <DialogHeader>
             <DialogTitle>
               {editingQuestion ? 'Edit Question' : 'Create Question'}
@@ -460,6 +542,93 @@ export default function AdminExamDetailPage() {
             </Button>
             <Button onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <DialogContent className="max-w-2xl bg-white dark:bg-black">
+          <DialogHeader>
+            <DialogTitle>Import Questions</DialogTitle>
+            <DialogDescription>
+              Upload a file to import questions. Supports plain text files with formatted questions.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="manual">Manual Upload</TabsTrigger>
+              <TabsTrigger value="ai">AI-Powered Parse</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="manual" className="space-y-4 mt-4">
+              <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="text-sm font-medium">Download Template</p>
+                    <p className="text-xs text-muted-foreground">Get a sample format for your questions</p>
+                  </div>
+                </div>
+                <Button onClick={downloadTemplate} variant="outline" size="sm">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
+              </div>
+
+              <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                <FileUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  Drag and drop your file here, or click to browse
+                </p>
+                <Input
+                  type="file"
+                  accept=".txt,.pdf,.doc,.docx,.xlsx,.xls"
+                  onChange={handleFileChange}
+                  className="max-w-xs mx-auto"
+                />
+                {uploadedFile && (
+                  <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                    <p className="text-sm text-green-700 dark:text-green-400">
+                      ✓ {uploadedFile.name}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-xs text-muted-foreground">
+                <p className="font-medium mb-1">Supported file types:</p>
+                <p>Plain text (.txt) - Currently supported</p>
+                <p>PDF, Word, Excel - Coming soon</p>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="ai" className="space-y-4 mt-4">
+              <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                <Sparkles className="h-12 w-12 mx-auto text-purple-600 mb-4" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  AI-powered question parsing coming soon
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Upload any document and let AI automatically extract and format questions
+                </p>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setUploadDialogOpen(false)
+              setUploadedFile(null)
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleFileUpload} 
+              disabled={!uploadedFile || uploadingFile || activeTab === 'ai'}
+            >
+              {uploadingFile ? 'Uploading...' : 'Import Questions'}
             </Button>
           </DialogFooter>
         </DialogContent>

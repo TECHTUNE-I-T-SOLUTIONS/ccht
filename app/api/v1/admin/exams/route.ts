@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const runtime = 'nodejs'
@@ -35,6 +36,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const admin = createAdminClient()
     const body = await request.json()
 
@@ -44,12 +52,6 @@ export async function POST(request: Request) {
 
     if (!body.start_date || !body.end_date) {
       return NextResponse.json({ error: 'start_date and end_date are required' }, { status: 400 })
-    }
-
-    // Get current admin ID
-    const { data: { user } } = await admin.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Create proctoring config if proctoring is enabled
