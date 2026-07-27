@@ -11,6 +11,15 @@ export interface TimetableEntry {
   lecturer_name?: string
 }
 
+export interface OnlineClassInfo {
+  course_code: string
+  day_of_week: string
+  start_time: string
+  end_time: string
+  meet_link: string
+  class_date?: string
+}
+
 export interface TimetableData {
   title: string
   session: string
@@ -18,127 +27,334 @@ export interface TimetableData {
   program: string
   level: string
   entries: TimetableEntry[]
+  onlineClasses?: OnlineClassInfo[]
 }
 
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const DAYS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const TIME_SLOTS = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
+
+const PRIMARY: [number, number, number] = [0, 70, 150]
+const LIGHT_GRAY: [number, number, number] = [245, 245, 245]
+const BORDER: [number, number, number] = [200, 200, 200]
+const WHITE: [number, number, number] = [255, 255, 255]
+const DARK: [number, number, number] = [30, 30, 30]
+
 export function generateTimetablePDF(data: TimetableData): jsPDF {
-  const doc = new jsPDF()
-  const pageWidth = doc.internal.pageSize.width
-  const pageHeight = doc.internal.pageSize.height
-  const margin = 20
+  const doc = new jsPDF('l', 'mm', 'a4')
+  const pw = doc.internal.pageSize.width
+  const ph = doc.internal.pageSize.height
+  const margin = 15
+  const usableW = pw - margin * 2
   let y = margin
 
-  // Add school logo placeholder (you'll replace this with actual logo)
-  // doc.addImage(logoData, 'PNG', margin, y, 30, 30)
-  // y += 35
+  const timeColW = 22
+  const dayColW = (usableW - timeColW) / DAYS.length
+  const headerH = 10
+  const rowH = 10
 
-  // Header
-  doc.setFontSize(18)
-  doc.setFont('helvetica', 'bold')
-  doc.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', pageWidth / 2, y, { align: 'center' })
-  y += 10
-  doc.setFontSize(14)
-  doc.text('WEEKLY CLASS TIMETABLE', pageWidth / 2, y, { align: 'center' })
-  y += 15
+  // Track page number for header/footer
+  let pageNum = 1
 
-  // Session info
-  doc.setFontSize(11)
-  doc.setFont('helvetica', 'normal')
-  const sessionInfo = [
-    `Academic Session: ${data.session}`,
-    `Semester: ${data.semester}`,
-    `Program: ${data.program}`,
-    `Level: ${data.level}L`
-  ]
-  
-  sessionInfo.forEach((info, index) => {
-    doc.text(info, pageWidth / 2, y, { align: 'center' })
-    y += 6
-  })
-  y += 10
-
-  // Group entries by day
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-  const entriesByDay = days.reduce((acc, day) => {
-    acc[day] = data.entries.filter(entry => entry.day_of_week === day)
-    return acc
-  }, {} as Record<string, TimetableEntry[]>)
-
-  // Table settings
-  const tableStartY = y
-  const colWidths = {
-    time: 25,
-    course: 50,
-    venue: 30,
-    lecturer: 45
+  const getEntryForSlot = (day: string, hourSlot: string) => {
+    const slotHour = parseInt(hourSlot.split(':')[0])
+    return data.entries.find(e => {
+      if (e.day_of_week !== day) return false
+      const sH = parseInt(e.start_time.split(':')[0])
+      const eH = parseInt(e.end_time.split(':')[0])
+      return slotHour >= sH && slotHour < eH
+    })
   }
-  const rowHeight = 8
-  const tableWidth = pageWidth - (margin * 2)
 
-  // Draw table for each day
-  days.forEach(day => {
-    const dayEntries = entriesByDay[day]
-    
-    // Check if we need a new page
-    if (y + 20 + (dayEntries.length * rowHeight) > pageHeight - margin) {
-      doc.addPage()
-      y = margin
-    }
+  const placedEntries = new Set<string>()
 
-    // Day header
+  const shouldRenderEntry = (day: string, hourSlot: string) => {
+    const entry = getEntryForSlot(day, hourSlot)
+    if (!entry) return null
+    const key = `${day}|${entry.id}`
+    if (placedEntries.has(key)) return null
+    return entry
+  }
+
+  // ── Header at top of each page (small, compact) ──
+  const drawPageHeader = () => {
+    // School name and timetable title
+    doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
-    doc.text(day, margin, y)
-    y += 8
+    doc.setTextColor(...PRIMARY)
+    doc.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY', pw / 2, y + 6, { align: 'center' })
 
-    if (dayEntries.length === 0) {
-      doc.setFont('helvetica', 'italic')
-      doc.setFontSize(10)
-      doc.text('No classes scheduled', margin + 5, y)
-      y += 10
-      return
-    }
-
-    // Table header
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setFillColor(240, 240, 240)
-    doc.rect(margin, y, tableWidth, rowHeight, 'F')
-    
-    doc.text('Time', margin + 2, y + 5)
-    doc.text('Course', margin + colWidths.time + 2, y + 5)
-    doc.text('Venue', margin + colWidths.time + colWidths.course + 2, y + 5)
-    doc.text('Lecturer', margin + colWidths.time + colWidths.course + colWidths.venue + 2, y + 5)
-    y += rowHeight
-
-    // Table rows
+    doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
-    dayEntries.forEach(entry => {
-      // Alternate row background
-      const rowY = y - rowHeight
-      if ((dayEntries.indexOf(entry) % 2) === 0) {
-        doc.setFillColor(250, 250, 250)
-        doc.rect(margin, rowY, tableWidth, rowHeight, 'F')
+    doc.setTextColor(80, 80, 80)
+    doc.text('WEEKLY CLASS TIMETABLE', pw / 2, y + 11, { align: 'center' })
+
+    // Compact session info - one line
+    doc.setFontSize(7)
+    doc.setTextColor(...DARK)
+    const infoStr = `${data.session} | ${data.semester} | ${data.program} | Level ${data.level}L`
+    doc.text(infoStr, pw / 2, y + 16, { align: 'center' })
+
+    // Top bar accent line
+    doc.setDrawColor(...PRIMARY)
+    doc.setLineWidth(0.4)
+    doc.line(margin, y + 18, pw - margin, y + 18)
+    
+    // Generation date and page
+    doc.setFontSize(6)
+    doc.setTextColor(150, 150, 150)
+    const now = new Date()
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+    doc.text(`Generated: ${dateStr}`, margin, y + 4, { align: 'left' })
+
+    y += 22
+  }
+
+  // ── Table header row (dark blue bg, white text) ──
+  const drawTableHeader = () => {
+    const headerColor: [number, number, number] = [0, 50, 110]
+    doc.setFillColor(...headerColor)
+
+    // Time cell
+    doc.rect(margin, y, timeColW, headerH, 'F')
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...WHITE)
+    doc.text('TIME', margin + timeColW / 2, y + headerH / 2 + 1.5, { align: 'center' })
+
+    // Day cells
+    DAYS_SHORT.forEach((dayLabel, i) => {
+      const x = margin + timeColW + i * dayColW
+      doc.setFillColor(...headerColor)
+      doc.rect(x, y, dayColW, headerH, 'F')
+      doc.text(dayLabel.toUpperCase(), x + dayColW / 2, y + headerH / 2 + 1.5, { align: 'center' })
+    })
+    y += headerH
+  }
+
+  // ── Footer ──
+  const drawFooter = () => {
+    doc.setFillColor(...PRIMARY)
+    doc.rect(0, ph - 8, pw, 8, 'F')
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(...WHITE)
+    doc.text(
+      'Covenant College of Health Technology | Official Document',
+      pw / 2,
+      ph - 3,
+      { align: 'center' }
+    )
+  }
+
+  // ── First page header ──
+  drawPageHeader()
+  drawTableHeader()
+
+  // ── Time rows ──
+  TIME_SLOTS.forEach((slot, rowIdx) => {
+    // Check if we need a new page
+    if (y + rowH > ph - margin - 5) {
+      drawFooter()
+      doc.addPage('l', 'a4')
+      pageNum++
+      y = margin
+      drawPageHeader()
+      drawTableHeader()
+    }
+
+    const isEven = rowIdx % 2 === 0
+
+    // Row background
+    if (isEven) {
+      doc.setFillColor(248, 248, 252)
+      doc.rect(margin, y, usableW, rowH, 'F')
+    }
+
+    // Top border line
+    doc.setDrawColor(210, 210, 220)
+    doc.setLineWidth(0.2)
+    doc.line(margin, y, margin + usableW, y)
+
+    // TIME cell - blue text on white
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 60, 140) // darker blue
+    doc.text(slot, margin + 2, y + rowH / 2 + 1.5)
+
+    // Day cells
+    DAYS.forEach((day, dayIdx) => {
+      const cx = margin + timeColW + dayIdx * dayColW
+
+      // Vertical grid lines
+      if (dayIdx > 0) {
+        doc.setDrawColor(210, 210, 220)
+        doc.setLineWidth(0.15)
+        doc.line(cx, y, cx, y + rowH)
       }
 
-      doc.setFontSize(9)
-      doc.text(`${entry.start_time} - ${entry.end_time}`, margin + 2, y + 5)
-      doc.text(`${entry.course_code} - ${entry.course_title}`, margin + colWidths.time + 2, y + 5)
-      doc.text(entry.venue || 'TBA', margin + colWidths.time + colWidths.course + 2, y + 5)
-      doc.text(entry.lecturer_name || 'TBA', margin + colWidths.time + colWidths.course + colWidths.venue + 2, y + 5)
-      y += rowHeight
+      const entry = shouldRenderEntry(day, slot) as TimetableEntry | null
+      if (entry) {
+        const sH = parseInt(entry.start_time.split(':')[0])
+        const eH = parseInt(entry.end_time.split(':')[0])
+        const span = Math.max(1, eH - sH)
+        const cellH = Math.max(rowH, span * rowH)
+
+        // Light blue cell background
+        doc.setFillColor(230, 240, 255)
+        doc.rect(cx, y, dayColW, cellH, 'F')
+
+        // Cell border
+        doc.setDrawColor(170, 200, 235)
+        doc.setLineWidth(0.4)
+        doc.rect(cx, y, dayColW, cellH, 'S')
+
+        // Course code - blue, bold
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 60, 140)
+        let code = entry.course_code
+        const maxChars = Math.max(5, Math.floor((dayColW - 3) / 2.8))
+        if (code.length > maxChars) code = code.substring(0, maxChars - 2) + '..'
+        doc.text(code, cx + 1.5, y + 4)
+
+        // Time range below
+        doc.setFontSize(5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(80, 100, 120)
+        doc.text(`${entry.start_time}-${entry.end_time}`, cx + 1.5, y + 7)
+
+        // Venue
+        if (entry.venue && entry.venue !== 'TBA') {
+          doc.setFontSize(5)
+          doc.setTextColor(100, 115, 130)
+          let ven = entry.venue
+          const maxV = Math.max(3, Math.floor((dayColW - 3) / 2.5))
+          if (ven.length > maxV) ven = ven.substring(0, maxV - 2) + '..'
+          doc.text(ven, cx + 1.5, y + 9.5)
+        }
+
+        placedEntries.add(`${day}|${entry.id}`)
+      }
+
+      // Right edge border
+      if (dayIdx === DAYS.length - 1) {
+        doc.setDrawColor(210, 210, 220)
+        doc.setLineWidth(0.15)
+        doc.line(cx + dayColW, y, cx + dayColW, y + rowH)
+      }
     })
 
-    y += 10
+    y += rowH
   })
 
-  // Footer
-  const footerY = pageHeight - 30
+  // Bottom table border
+  doc.setDrawColor(210, 210, 220)
+  doc.setLineWidth(0.3)
+  doc.line(margin, y, margin + usableW, y)
+
+  // ── Legend ──
+  y += 8
+  if (y + 40 > ph - margin) {
+    drawFooter()
+    doc.addPage('l', 'a4')
+    pageNum++
+    y = margin
+    drawPageHeader()
+  }
+
+  doc.setDrawColor(...PRIMARY)
+  doc.setLineWidth(0.3)
+  doc.line(margin, y, pw - margin, y)
+  y += 6
+
   doc.setFontSize(8)
-  doc.setFont('helvetica', 'italic')
-  doc.text('This document is official and confidential. Any unauthorized reproduction or distribution is prohibited.', margin, footerY)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...DARK)
+  doc.text('KEY / NOTES:', margin, y)
+  y += 5
+
   doc.setFont('helvetica', 'normal')
-  doc.text('COVENANT COLLEGE OF HEALTH TECHNOLOGY - Excellence in Health Education', margin, footerY + 8)
-  doc.text('For any clarifications, contact: students@ccht.edu.ng', margin, footerY + 16)
+  doc.setFontSize(7)
+  doc.setTextColor(80, 80, 80)
+
+  const venues = [...new Set(data.entries.filter(e => e.venue && e.venue !== 'TBA').map(e => e.venue!))]
+  const lecturers = [...new Set(data.entries.filter(e => e.lecturer_name && e.lecturer_name !== 'TBA').map(e => e.lecturer_name!))]
+  const courses = [...new Map(data.entries.map(e => [e.course_code, e.course_code])).values()]
+
+  if (venues.length > 0) {
+    doc.text(`Venues: ${venues.join(', ')}`, margin + 2, y)
+    y += 4
+  }
+  if (lecturers.length > 0) {
+    doc.text(`Lecturers: ${lecturers.join(', ')}`, margin + 2, y)
+    y += 4
+  }
+  if (courses.length > 0) {
+    doc.text(`Courses: ${courses.join(', ')}`, margin + 2, y)
+    y += 4
+  }
+
+  // ── Online Classes ──
+  if (data.onlineClasses && data.onlineClasses.length > 0) {
+    y += 3
+    if (y + 25 > ph - margin - 8) {
+      drawFooter()
+      doc.addPage('l', 'a4')
+      pageNum++
+      y = margin
+      drawPageHeader()
+    }
+
+    doc.setDrawColor(...PRIMARY)
+    doc.setLineWidth(0.3)
+    doc.line(margin, y, pw - margin, y)
+    y += 6
+
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...DARK)
+    doc.text('ONLINE CLASSES:', margin, y)
+    y += 5
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(80, 80, 80)
+
+    data.onlineClasses.forEach((oc, idx) => {
+      const dateStr = oc.class_date
+        ? new Date(oc.class_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        : oc.day_of_week.substring(0, 3)
+
+      if (y + 4 > ph - margin - 8) {
+        drawFooter()
+        doc.addPage('l', 'a4')
+        pageNum++
+        y = margin
+        drawPageHeader()
+      }
+
+      doc.text(
+        `${idx + 1}. ${oc.course_code} | ${dateStr} | ${oc.start_time}-${oc.end_time} | ${oc.meet_link}`,
+        margin + 2,
+        y
+      )
+      y += 4
+    })
+  }
+
+  // ── Footer on last page ──
+  drawFooter()
+
+  // ── Page numbers ──
+  const pc = doc.getNumberOfPages()
+  for (let i = 1; i <= pc; i++) {
+    doc.setPage(i)
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(150, 150, 150)
+    doc.text(`Page ${i} of ${pc}`, pw - margin, 6, { align: 'right' })
+  }
 
   return doc
 }

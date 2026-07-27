@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       code: sc.course?.code || '',
       title: sc.course?.title || '',
       credits: sc.course?.credit_units || 0,
-      semester: sc.semester || '',
+      semester: sc.course?.semester || '',
       level: sc.course?.level || '',
       reviewedAt: sc.reviewed_at || null,
     }))

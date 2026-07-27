@@ -4,12 +4,24 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Clock, Calendar, FileText, AlertCircle, CheckCircle, Play, Lock, Loader2 } from 'lucide-react'
+import { Clock, Calendar, FileText, AlertCircle, CheckCircle, Play, Lock, Loader2, BookOpen, Hourglass } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 
+type ExamAttempt = {
+  id: string
+  status: string
+  started_at: string | null
+  submitted_at: string | null
+  total_score: number | null
+  percentage_score: number | null
+  grade: string | null
+  passed: boolean | null
+}
+
 type ExamSession = {
   id: string
+  course_id: string
   exam_title: string
   exam_description: string
   exam_type: string
@@ -27,17 +39,9 @@ type ExamSession = {
     code: string
     title: string
     credit_units: number
-  }
-  attempt?: {
-    id: string
-    status: string
-    started_at: string | null
-    submitted_at: string | null
-    total_score: number | null
-    percentage_score: number | null
-    grade: string | null
-    passed: boolean | null
-  }
+  } | null
+  student_exam_attempts?: ExamAttempt[]
+  attempt?: ExamAttempt | null
 }
 
 export default function StudentExamsPage() {
@@ -55,49 +59,70 @@ export default function StudentExamsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data, error } = await supabase
+      // Fetch published exam sessions - RLS filters to enrolled courses only
+      const { data: examsData, error: examsError } = await supabase
         .from('student_exam_sessions')
         .select(`
-          *,
-          course:courses (
-            code,
-            title,
-            credit_units
-          ),
-          attempt:student_exam_attempts (
-            id,
-            status,
-            started_at,
-            submitted_at,
-            total_score,
-            percentage_score,
-            grade,
-            passed
-          )
+          id,
+          course_id,
+          exam_title,
+          exam_description,
+          exam_type,
+          duration_minutes,
+          total_marks,
+          passing_marks,
+          start_date,
+          end_date,
+          instructions,
+          is_published,
+          allow_review,
+          review_start_date,
+          review_end_date
         `)
         .eq('is_published', true)
-        .order('start_date', { ascending: false })
+        .order('start_date', { ascending: true })
 
-      if (error) throw error
-
-      // Filter exams for enrolled courses
-      const { data: enrollment } = await supabase
-        .from('enrollments')
-        .select('program_id')
-        .eq('student_id', user.id)
-        .eq('status', 'active')
-        .single()
-
-      if (enrollment) {
-        const filteredExams = data?.filter(exam => {
-          // Check if the exam's course belongs to the student's program
-          return true // For now, show all published exams
-        }) || []
-        setExams(filteredExams)
-      } else {
-        setExams(data || [])
+      if (examsError) {
+        console.error('Query error:', examsError)
+        toast.error('Failed to load exams')
+        setExams([])
+        return
       }
-    } catch (error) {
+
+      if (!examsData || examsData.length === 0) {
+        console.log('No published exams found')
+        setExams([])
+        return
+      }
+
+      // Fetch course details separately
+      const courseIds = [...new Set(examsData.map(e => e.course_id))]
+      const { data: coursesData } = await supabase
+        .from('courses')
+        .select('id, code, title, credit_units, level, semester')
+        .in('id', courseIds)
+
+      const coursesMap = new Map((coursesData || []).map(c => [c.id, c]))
+
+      // Fetch attempts separately
+      const { data: attemptsData } = await supabase
+        .from('student_exam_attempts')
+        .select('*')
+        .eq('student_id', user.id)
+        .in('exam_session_id', examsData.map(e => e.id))
+
+      const attemptsMap = new Map((attemptsData || []).map(a => [a.exam_session_id, a]))
+
+      // Merge data
+      const formatted = examsData.map((exam: any) => ({
+        ...exam,
+        course: coursesMap.get(exam.course_id) || null,
+        attempt: attemptsMap.get(exam.id) || null
+      }))
+
+      console.log('Exams loaded:', formatted.length)
+      setExams(formatted)
+    } catch (error: any) {
       console.error('Failed to load exams:', error)
       toast.error('Failed to load exams')
     } finally {
@@ -123,7 +148,13 @@ export default function StudentExamsPage() {
     }
 
     if (now < startDate) {
-      return { status: 'upcoming', label: 'Upcoming', icon: Calendar, color: 'bg-gray-100 text-gray-700' }
+      const daysUntil = Math.ceil((startDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      return { 
+        status: 'upcoming', 
+        label: daysUntil === 0 ? 'Starts today' : daysUntil === 1 ? 'Starts tomorrow' : `Starts in ${daysUntil} days`, 
+        icon: Hourglass, 
+        color: 'bg-yellow-100 text-yellow-700' 
+      }
     }
 
     if (now >= startDate && now <= endDate) {
@@ -165,8 +196,9 @@ export default function StudentExamsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Exams</h1>
+        <h1 className="text-3xl font-bold">Examinations</h1>
         <p className="text-muted-foreground mt-1">View and take your scheduled examinations</p>
+        <p className="text-xs text-muted-foreground mt-1">{exams.length} exam(s) found</p>
       </div>
 
       {exams.length === 0 ? (
@@ -180,9 +212,10 @@ export default function StudentExamsPage() {
           {exams.map((exam) => {
             const status = getExamStatus(exam)
             const StatusIcon = status.icon
+            const isUpcoming = status.status === 'upcoming'
             
             return (
-              <Card key={exam.id} className="p-6">
+              <Card key={exam.id} className={`p-6 ${isUpcoming ? 'opacity-80' : ''}`}>
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <Badge className={status.color} variant="secondary">
@@ -190,7 +223,9 @@ export default function StudentExamsPage() {
                       {status.label}
                     </Badge>
                     <h3 className="font-bold mt-2">{exam.exam_title}</h3>
-                    <p className="text-sm text-muted-foreground">{exam.course.code} - {exam.course.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {exam.course?.code || 'N/A'} - {exam.course?.title || 'Unknown Course'}
+                    </p>
                   </div>
                 </div>
 
@@ -201,7 +236,7 @@ export default function StudentExamsPage() {
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="h-4 w-4" />
-                    <span>{new Date(exam.start_date).toLocaleDateString('en-GB', { 
+                    <span>Starts: {new Date(exam.start_date).toLocaleDateString('en-GB', { 
                       day: 'numeric', 
                       month: 'short', 
                       year: 'numeric',
@@ -209,11 +244,44 @@ export default function StudentExamsPage() {
                       minute: '2-digit'
                     })}</span>
                   </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    <span>Ends: {new Date(exam.end_date).toLocaleDateString('en-GB', { 
+                      day: 'numeric', 
+                      month: 'short', 
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <BookOpen className="h-4 w-4" />
+                    <span>{exam.course?.credit_units || 0} Credit Units</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    <span>Total Marks: {exam.total_marks} | Pass: {exam.passing_marks}</span>
+                  </div>
+
+                  {exam.exam_description && (
+                    <p className="text-xs text-muted-foreground italic mt-2 line-clamp-2">{exam.exam_description}</p>
+                  )}
+
                   {exam.attempt && exam.attempt.percentage_score !== null && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pt-1">
                       <CheckCircle className="h-4 w-4 text-green-600" />
                       <span className="font-semibold text-green-600">
                         Score: {exam.attempt.percentage_score.toFixed(1)}%
+                        {exam.attempt.grade && ` (${exam.attempt.grade})`}
+                      </span>
+                    </div>
+                  )}
+
+                  {isUpcoming && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <AlertCircle className="h-4 w-4 text-yellow-600" />
+                      <span className="text-xs text-yellow-600 font-medium">
+                        Exam has not been activated yet. It will be available at the scheduled start time.
                       </span>
                     </div>
                   )}
@@ -248,6 +316,17 @@ export default function StudentExamsPage() {
                     >
                       <FileText className="mr-2 h-4 w-4" />
                       Review Results
+                    </Button>
+                  )}
+
+                  {isUpcoming && (
+                    <Button 
+                      disabled
+                      variant="outline"
+                      className="w-full rounded-xl cursor-not-allowed"
+                    >
+                      <Hourglass className="mr-2 h-4 w-4" />
+                      Not Yet Available
                     </Button>
                   )}
 
