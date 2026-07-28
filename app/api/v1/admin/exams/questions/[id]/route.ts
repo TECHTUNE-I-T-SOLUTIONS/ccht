@@ -45,8 +45,8 @@ export async function PUT(
         question_type: body.question_type,
         options,
         correct_answer: body.correct_answer,
-        marks: body.points,
-        question_number: body.question_order,
+        marks: body.marks || body.points,
+        question_number: body.question_number || body.question_order,
         is_active: body.is_active,
         explanation: body.explanation,
       })

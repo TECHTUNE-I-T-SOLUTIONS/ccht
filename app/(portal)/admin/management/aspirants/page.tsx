@@ -8,6 +8,7 @@ import { GraduationCap, FileText, ShieldCheck, Users, ClipboardList, Award, Sear
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import Image from 'next/image'
 
 type AspirantStats = {
   total: number
@@ -196,7 +197,7 @@ export default function AspirantManagementPage() {
             <Download className="h-4 w-4" />
             Export Report
           </Button>
-          <Button className="gap-2" asChild>
+          <Button className="gap-2 border border-primary hover:text-blue-400 hover:shadow-lg hover:shadow-blue-950" asChild>
             <Link href="/admin/admissions">
               <GraduationCap className="h-4 w-4" />
               View All Applications
@@ -309,9 +310,10 @@ export default function AspirantManagementPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="draft">Pending</SelectItem>
                 <SelectItem value="in_review">In Review</SelectItem>
                 <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="migrated">Migrated</SelectItem>
                 <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
@@ -328,7 +330,7 @@ export default function AspirantManagementPage() {
               <div key={aspirant.id} className="flex items-center justify-between rounded-lg border border-border p-4">
                 <div className="flex items-center gap-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
-                    {aspirant.firstName.charAt(0)}{aspirant.lastName.charAt(0)}
+                    <img src={aspirant.avatarUrl || '/apple-icon.png'} alt="avatar" />
                   </div>
                   <div>
                     <p className="font-semibold">{aspirant.firstName} {aspirant.lastName}</p>

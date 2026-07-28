@@ -10,9 +10,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { ArrowLeft, Plus, Edit2, Trash2, Save, X, Upload, FileSpreadsheet, FileText, Shield, User, Sparkles, Download, FileUp } from 'lucide-react'
+import { ArrowLeft, Plus, Edit2, Trash2, Save, X, Upload, FileSpreadsheet, FileText, Shield } from 'lucide-react'
 
 type ExamQuestion = {
   id: string
@@ -39,9 +38,12 @@ export default function AdminExamDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [questionToDelete, setQuestionToDelete] = useState<ExamQuestion | null>(null)
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
-  const [uploadingFile, setUploadingFile] = useState(false)
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
-  const [activeTab, setActiveTab] = useState('manual')
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
+  const [parsedQuestions, setParsedQuestions] = useState<any[]>([])
+  const [currentReviewIndex, setCurrentReviewIndex] = useState(0)
+  const [examDialogOpen, setExamDialogOpen] = useState(false)
+  const [editingExam, setEditingExam] = useState<any>(null)
+  const [savingExam, setSavingExam] = useState(false)
 
   const [questionForm, setQuestionForm] = useState({
     question_text: '',
@@ -52,6 +54,25 @@ export default function AdminExamDetailPage() {
     question_number: 1,
     is_active: true,
     explanation: '',
+  })
+
+  const [examForm, setExamForm] = useState({
+    exam_title: '',
+    exam_type: '',
+    exam_description: '',
+    duration_minutes: 60,
+    total_marks: 100,
+    passing_marks: 50,
+    is_published: false,
+    instructions: '',
+    session_id: '',
+    semester_id: '',
+    course_id: '',
+    start_date: '',
+    end_date: '',
+    allow_review: false,
+    review_start_date: '',
+    review_end_date: '',
   })
 
   useEffect(() => {
@@ -93,7 +114,7 @@ export default function AdminExamDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...questionForm,
-          exam_id: params.id,
+          exam_session_id: params.id,
         }),
       })
 
@@ -177,75 +198,188 @@ export default function AdminExamDetailPage() {
     )
   }
 
-  const handleFileUpload = async () => {
-    if (!uploadedFile) {
-      toast.error('Please select a file first')
-      return
-    }
+  const downloadCSVTemplate = () => {
+    const headers = ['question_text', 'question_type', 'options', 'correct_answer', 'marks', 'question_number', 'is_active']
+    const sampleData = [
+      'What is the capital of France?,multiple_choice,"Paris,London,Berlin,Rome",Paris,10,1,true',
+      'The Earth is flat.,true_false,,false,5,2,true',
+      'Explain the concept of photosynthesis.,essay,,A detailed explanation...,15,3,true',
+      'Fill in the blank: Photosynthesis occurs in the _____ of plant cells.,fill_blank,,chloroplasts,5,4,true',
+    ]
+    
+    const csvContent = [headers.join(','), ...sampleData].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'questions_template.csv'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
-    setUploadingFile(true)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const fileName = file.name.toLowerCase()
+    const isAIParsed = fileName.endsWith('.pdf') || fileName.endsWith('.doc') || fileName.endsWith('.docx')
+
     try {
-      const formData = new FormData()
-      formData.append('file', uploadedFile)
-      formData.append('examId', params.id as string)
+      let questions: any[] = []
 
-      const res = await fetch('/api/v1/admin/exams/upload-questions', {
-        method: 'POST',
-        body: formData,
-      })
+      if (isAIParsed) {
+        // Use AI parsing for PDF/Word documents
+        const formData = new FormData()
+        formData.append('file', file)
+        
+        const res = await fetch('/api/v1/admin/exams/parse-document', {
+          method: 'POST',
+          body: formData,
+        })
 
-      const data = await res.json()
+        if (!res.ok) throw new Error('Failed to parse document with AI')
+        
+        const data = await res.json()
+        questions = data.data || []
+      } else {
+        // Parse CSV/Excel for review (without saving)
+        const formData = new FormData()
+        formData.append('file', file)
+        
+        const res = await fetch('/api/v1/admin/exams/parse-questions', {
+          method: 'POST',
+          body: formData,
+        })
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to upload questions')
+        if (!res.ok) throw new Error('Failed to parse file')
+        
+        const data = await res.json()
+        questions = data.data || []
       }
 
-      toast.success(`Successfully imported ${data.data.inserted} questions`)
-      setUploadDialogOpen(false)
-      setUploadedFile(null)
+      // Debug: Log first question to see structure
+      if (questions.length > 0) {
+        console.log('First question received:', JSON.stringify(questions[0], null, 2))
+      }
+
+      // Show review modal
+      if (questions.length > 0) {
+        setParsedQuestions(questions)
+        setCurrentReviewIndex(0)
+        setReviewDialogOpen(true)
+        setUploadDialogOpen(false)
+      } else {
+        toast.warning('No questions found in document')
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to parse questions')
+      console.error(error)
+    }
+  }
+
+  const saveReviewedQuestions = async () => {
+    try {
+      const importPromises = parsedQuestions.map((q: any) =>
+        fetch('/api/v1/admin/exams/questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...q,
+            exam_session_id: params.id,
+            question_number: q.question_number,
+            marks: q.marks,
+          }),
+        })
+      )
+
+      const results = await Promise.allSettled(importPromises)
+      const failed = results.filter(r => r.status === 'rejected')
+      
+      if (failed.length > 0) {
+        console.error('Failed to import some questions:', failed)
+        toast.error(`Failed to import ${failed.length} of ${parsedQuestions.length} questions`)
+      } else {
+        toast.success(`${parsedQuestions.length} questions imported successfully`)
+      }
+      
+      setReviewDialogOpen(false)
+      setParsedQuestions([])
       loadData()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to upload questions')
+      toast.error('Failed to import questions')
+      console.error(error)
+    }
+  }
+
+  const updateParsedQuestion = (index: number, field: string, value: any) => {
+    const updated = [...parsedQuestions]
+    updated[index] = { ...updated[index], [field]: value }
+    setParsedQuestions(updated)
+  }
+
+  const startEditExam = () => {
+    if (!exam) return
+    // Format dates for datetime-local input (YYYY-MM-DDTHH:MM)
+    const formatDateForInput = (dateStr: string | null) => {
+      if (!dateStr) return ''
+      const date = new Date(dateStr)
+      return date.toISOString().slice(0, 16)
+    }
+
+    setExamForm({
+      exam_title: exam.exam_title || '',
+      exam_type: exam.exam_type || '',
+      exam_description: exam.exam_description || '',
+      duration_minutes: exam.duration_minutes || 60,
+      total_marks: exam.total_marks || 100,
+      passing_marks: exam.passing_marks || 50,
+      is_published: exam.is_published || false,
+      instructions: exam.instructions || '',
+      session_id: exam.session_id || '',
+      semester_id: exam.semester_id || '',
+      course_id: exam.course_id || '',
+      start_date: formatDateForInput(exam.start_date),
+      end_date: formatDateForInput(exam.end_date),
+      allow_review: exam.allow_review || false,
+      review_start_date: formatDateForInput(exam.review_start_date),
+      review_end_date: formatDateForInput(exam.review_end_date),
+    })
+    setEditingExam(exam)
+    setExamDialogOpen(true)
+  }
+
+  const saveExam = async () => {
+    setSavingExam(true)
+    try {
+      // Convert empty date strings to null for PostgreSQL
+      const dataToSave = {
+        ...examForm,
+        start_date: examForm.start_date || null,
+        end_date: examForm.end_date || null,
+        review_start_date: examForm.review_start_date || null,
+        review_end_date: examForm.review_end_date || null,
+      }
+
+      const res = await fetch(`/api/v1/admin/exams/${params.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSave),
+      })
+
+      if (!res.ok) throw new Error('Failed to save exam')
+
+      toast.success('Exam updated successfully')
+      setExamDialogOpen(false)
+      setEditingExam(null)
+      loadData()
+    } catch (error) {
+      toast.error('Failed to save exam')
       console.error(error)
     } finally {
-      setUploadingFile(false)
+      setSavingExam(false)
     }
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setUploadedFile(file)
-    }
-  }
-
-  const downloadTemplate = () => {
-    const template = `1. What is the capital of France?
-A. London
-B. Paris
-C. Berlin
-D. Madrid
-Answer: Paris
-Points: 1
-Explanation: Paris is the capital and largest city of France.
-
-2. Which planet is known as the Red Planet?
-A. Venus
-B. Mars
-C. Jupiter
-D. Saturn
-Answer: Mars
-Points: 1
-Explanation: Mars appears red due to iron oxide on its surface.`
-
-    const blob = new Blob([template], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'questions-template.txt'
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success('Template downloaded')
   }
 
   if (loading) {
@@ -269,11 +403,11 @@ Explanation: Mars appears red due to iron oxide on its surface.`
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => setUploadDialogOpen(true)} variant="outline" className="rounded-xl">
+          <Button onClick={() => setUploadDialogOpen(true)} variant="outline" className="rounded-xl border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-200">
             <Upload className="mr-2 h-4 w-4" />
             Import Questions
           </Button>
-          <Button onClick={startCreateQuestion} className="rounded-xl">
+          <Button onClick={startCreateQuestion} className="rounded-xl border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-200">
             <Plus className="mr-2 h-4 w-4" />
             Add Question
           </Button>
@@ -282,7 +416,16 @@ Explanation: Mars appears red due to iron oxide on its surface.`
 
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="p-6">
-          <h3 className="font-semibold mb-4">Exam Information</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Exam Information</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={startEditExam}
+            >
+              <Edit2 className="h-4 w-4" />
+            </Button>
+          </div>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Session:</span>
@@ -313,6 +456,20 @@ Explanation: Mars appears red due to iron oxide on its surface.`
               <span className={`font-medium ${exam?.is_published ? 'text-emerald-600' : 'text-gray-600'}`}>
                 {exam?.is_published ? 'Published' : 'Draft'}
               </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Start Date:</span>
+              <span className="font-medium">{exam?.start_date ? new Date(exam.start_date).toLocaleString() : 'N/A'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">End Date:</span>
+              <span className="font-medium">{exam?.end_date ? new Date(exam.end_date).toLocaleString() : 'N/A'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">
+                Instructions:
+              </span>
+              <span className="font-medium break-words">{exam?.instructions}</span>
             </div>
             <div className="pt-2 border-t">
               {getCreatorBadge()}
@@ -547,88 +704,403 @@ Explanation: Mars appears red due to iron oxide on its surface.`
         </DialogContent>
       </Dialog>
 
+      {/* Upload Dialog */}
       <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-        <DialogContent className="max-w-2xl bg-white dark:bg-black">
+        <DialogContent className="bg-white dark:bg-black">
           <DialogHeader>
             <DialogTitle>Import Questions</DialogTitle>
             <DialogDescription>
-              Upload a file to import questions. Supports plain text files with formatted questions.
+              Upload a CSV, Excel, PDF, or Word document to import questions. For CSV/Excel, use the template below. For PDF/Word, AI will extract questions automatically.
             </DialogDescription>
           </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            <Button onClick={downloadCSVTemplate} variant="outline" className="w-full">
+              <FileSpreadsheet className="mr-2 h-4 w-4" />
+              Download CSV Template
+            </Button>
+            
+            <div>
+              <Label htmlFor="file_upload">Select File</Label>
+              <Input
+                id="file_upload"
+                type="file"
+                accept=".csv,.xlsx,.xls,.pdf,.doc,.docx"
+                onChange={handleFileUpload}
+              />
+            </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="manual">Manual Upload</TabsTrigger>
-              <TabsTrigger value="ai">AI-Powered Parse</TabsTrigger>
-            </TabsList>
+            <div className="flex gap-3">
+              <Button onClick={() => document.getElementById('file_upload')?.click()} className="flex-1 border border-primary hover:shadow-lg hover:shadow-blue-600">
+                <Upload className="mr-2 h-4 w-4" />
+                Upload File
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setUploadDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-            <TabsContent value="manual" className="space-y-4 mt-4">
-              <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <p className="text-sm font-medium">Download Template</p>
-                    <p className="text-xs text-muted-foreground">Get a sample format for your questions</p>
-                  </div>
-                </div>
-                <Button onClick={downloadTemplate} variant="outline" size="sm">
-                  <Download className="mr-2 h-4 w-4" />
-                  Download
-                </Button>
+      {/* Review Questions Dialog */}
+      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-black">
+          <DialogHeader>
+            <DialogTitle>Review Imported Questions</DialogTitle>
+            <DialogDescription>
+              Review and edit questions before importing. Question {currentReviewIndex + 1} of {parsedQuestions.length}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {parsedQuestions.length > 0 && (
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="review_question_text">Question Text</Label>
+                <Textarea
+                  id="review_question_text"
+                  value={parsedQuestions[currentReviewIndex]?.question_text || ''}
+                  onChange={(e) => updateParsedQuestion(currentReviewIndex, 'question_text', e.target.value)}
+                  rows={3}
+                />
               </div>
 
-              <div className="border-2 border-dashed rounded-lg p-8 text-center">
-                <FileUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-sm text-muted-foreground mb-4">
-                  Drag and drop your file here, or click to browse
-                </p>
-                <Input
-                  type="file"
-                  accept=".txt,.pdf,.doc,.docx,.xlsx,.xls"
-                  onChange={handleFileChange}
-                  className="max-w-xs mx-auto"
-                />
-                {uploadedFile && (
-                  <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
-                    <p className="text-sm text-green-700 dark:text-green-400">
-                      ✓ {uploadedFile.name}
-                    </p>
-                  </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="review_question_type">Question Type</Label>
+                  <Select 
+                    value={parsedQuestions[currentReviewIndex]?.question_type || 'multiple_choice'} 
+                    onValueChange={(value) => updateParsedQuestion(currentReviewIndex, 'question_type', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
+                      <SelectItem value="true_false">True/False</SelectItem>
+                      <SelectItem value="short_answer">Short Answer</SelectItem>
+                      <SelectItem value="essay">Essay</SelectItem>
+                      <SelectItem value="fill_blank">Fill in the Blank</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="review_marks">Marks</Label>
+                  <Input
+                    id="review_marks"
+                    type="number"
+                    value={parsedQuestions[currentReviewIndex]?.marks || 10}
+                    onChange={(e) => updateParsedQuestion(currentReviewIndex, 'marks', parseInt(e.target.value))}
+                  />
+                </div>
+              </div>
+
+              {(parsedQuestions[currentReviewIndex]?.question_type === 'multiple_choice' || 
+                parsedQuestions[currentReviewIndex]?.question_type?.includes('multiple') ||
+                parsedQuestions[currentReviewIndex]?.question_type?.includes('choice')) && (
+                <div className="space-y-2">
+                  <Label>Options</Label>
+                  {parsedQuestions[currentReviewIndex]?.options?.map((option: string, idx: number) => (
+                    <div key={idx} className="flex gap-2">
+                      <Input
+                        value={option || ''}
+                        onChange={(e) => {
+                          const newOptions = [...(parsedQuestions[currentReviewIndex]?.options || [])]
+                          newOptions[idx] = e.target.value
+                          updateParsedQuestion(currentReviewIndex, 'options', newOptions)
+                        }}
+                        placeholder={`Option ${String.fromCharCode(65 + idx)}`}
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant={parsedQuestions[currentReviewIndex]?.correct_answer === option ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => updateParsedQuestion(currentReviewIndex, 'correct_answer', option)}
+                      >
+                        {parsedQuestions[currentReviewIndex]?.correct_answer === option ? '✓' : String.fromCharCode(65 + idx)}
+                      </Button>
+                    </div>
+                  ))}
+                  {(!parsedQuestions[currentReviewIndex]?.options || parsedQuestions[currentReviewIndex]?.options.length === 0) && (
+                    <p className="text-xs text-muted-foreground">No options found. Add options above.</p>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const currentOptions = parsedQuestions[currentReviewIndex]?.options || []
+                      updateParsedQuestion(currentReviewIndex, 'options', [...currentOptions, ''])
+                    }}
+                    className="w-full"
+                  >
+                    + Add Option
+                  </Button>
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="review_correct_answer">Correct Answer</Label>
+                {parsedQuestions[currentReviewIndex]?.question_type === 'multiple_choice' ? (
+                  <Select 
+                    value={parsedQuestions[currentReviewIndex]?.correct_answer || ''} 
+                    onValueChange={(value) => updateParsedQuestion(currentReviewIndex, 'correct_answer', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select correct option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {parsedQuestions[currentReviewIndex]?.options?.map((option: string, idx: number) => (
+                        option && <SelectItem key={idx} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : parsedQuestions[currentReviewIndex]?.question_type === 'true_false' ? (
+                  <Select 
+                    value={parsedQuestions[currentReviewIndex]?.correct_answer || ''} 
+                    onValueChange={(value) => updateParsedQuestion(currentReviewIndex, 'correct_answer', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select answer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">True</SelectItem>
+                      <SelectItem value="false">False</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="review_correct_answer"
+                    value={parsedQuestions[currentReviewIndex]?.correct_answer || ''}
+                    onChange={(e) => updateParsedQuestion(currentReviewIndex, 'correct_answer', e.target.value)}
+                    placeholder="Enter correct answer"
+                  />
                 )}
               </div>
 
-              <div className="text-xs text-muted-foreground">
-                <p className="font-medium mb-1">Supported file types:</p>
-                <p>Plain text (.txt) - Currently supported</p>
-                <p>PDF, Word, Excel - Coming soon</p>
+              <div>
+                <Label htmlFor="review_explanation">Explanation (Optional)</Label>
+                <Textarea
+                  id="review_explanation"
+                  value={parsedQuestions[currentReviewIndex]?.explanation || ''}
+                  onChange={(e) => updateParsedQuestion(currentReviewIndex, 'explanation', e.target.value)}
+                  rows={2}
+                  placeholder="Provide an explanation..."
+                />
               </div>
-            </TabsContent>
+            </div>
+          )}
+          
+          <DialogFooter className="flex justify-between">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentReviewIndex(Math.max(0, currentReviewIndex - 1))}
+                disabled={currentReviewIndex === 0}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentReviewIndex(Math.min(parsedQuestions.length - 1, currentReviewIndex + 1))}
+                disabled={currentReviewIndex === parsedQuestions.length - 1}
+              >
+                Next
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setReviewDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={saveReviewedQuestions}>
+                Import All Questions
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-            <TabsContent value="ai" className="space-y-4 mt-4">
-              <div className="border-2 border-dashed rounded-lg p-8 text-center">
-                <Sparkles className="h-12 w-12 mx-auto text-purple-600 mb-4" />
-                <p className="text-sm text-muted-foreground mb-4">
-                  AI-powered question parsing coming soon
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Upload any document and let AI automatically extract and format questions
-                </p>
+      <Dialog open={examDialogOpen} onOpenChange={setExamDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-black">
+          <DialogHeader>
+            <DialogTitle>Edit Exam Details</DialogTitle>
+            <DialogDescription>
+              Update the exam information below.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="exam_title">Exam Title *</Label>
+              <Input
+                id="exam_title"
+                value={examForm.exam_title}
+                onChange={(e) => setExamForm({ ...examForm, exam_title: e.target.value })}
+                placeholder="Enter exam title..."
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="exam_description">Description</Label>
+              <Textarea
+                id="exam_description"
+                value={examForm.exam_description}
+                onChange={(e) => setExamForm({ ...examForm, exam_description: e.target.value })}
+                placeholder="Enter exam description..."
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="exam_type">Exam Type *</Label>
+                <Select
+                  value={examForm.exam_type}
+                  onValueChange={(value) => setExamForm({ ...examForm, exam_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="regular">Regular</SelectItem>
+                    <SelectItem value="midterm">Midterm</SelectItem>
+                    <SelectItem value="final">Final</SelectItem>
+                    <SelectItem value="quiz">Quiz</SelectItem>
+                    <SelectItem value="assignment">Assignment</SelectItem>
+                    <SelectItem value="practical">Practical</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </TabsContent>
-          </Tabs>
+
+              <div>
+                <Label htmlFor="duration_minutes">Duration (minutes) *</Label>
+                <Input
+                  id="duration_minutes"
+                  type="number"
+                  value={examForm.duration_minutes}
+                  onChange={(e) => setExamForm({ ...examForm, duration_minutes: parseInt(e.target.value) })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="total_marks">Total Marks *</Label>
+                <Input
+                  id="total_marks"
+                  type="number"
+                  value={examForm.total_marks}
+                  onChange={(e) => setExamForm({ ...examForm, total_marks: parseInt(e.target.value) })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="passing_marks">Passing Marks *</Label>
+                <Input
+                  id="passing_marks"
+                  type="number"
+                  value={examForm.passing_marks}
+                  onChange={(e) => setExamForm({ ...examForm, passing_marks: parseInt(e.target.value) })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="start_date">Start Date</Label>
+                <Input
+                  id="start_date"
+                  type="datetime-local"
+                  value={examForm.start_date}
+                  onChange={(e) => setExamForm({ ...examForm, start_date: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="end_date">End Date</Label>
+                <Input
+                  id="end_date"
+                  type="datetime-local"
+                  value={examForm.end_date}
+                  onChange={(e) => setExamForm({ ...examForm, end_date: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="instructions">Instructions</Label>
+              <Textarea
+                id="instructions"
+                value={examForm.instructions}
+                onChange={(e) => setExamForm({ ...examForm, instructions: e.target.value })}
+                placeholder="Enter exam instructions..."
+                rows={4}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="is_published"
+                checked={examForm.is_published}
+                onCheckedChange={(checked) => setExamForm({ ...examForm, is_published: checked as boolean })}
+              />
+              <Label htmlFor="is_published">Published</Label>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-medium mb-3">Review Settings</h4>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="allow_review"
+                    checked={examForm.allow_review}
+                    onCheckedChange={(checked) => setExamForm({ ...examForm, allow_review: checked as boolean })}
+                  />
+                  <Label htmlFor="allow_review">Allow Review</Label>
+                </div>
+
+                {examForm.allow_review && (
+                  <div className="grid grid-cols-2 gap-4 ml-6">
+                    <div>
+                      <Label htmlFor="review_start_date">Review Start Date</Label>
+                      <Input
+                        id="review_start_date"
+                        type="datetime-local"
+                        value={examForm.review_start_date}
+                        onChange={(e) => setExamForm({ ...examForm, review_start_date: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="review_end_date">Review End Date</Label>
+                      <Input
+                        id="review_end_date"
+                        type="datetime-local"
+                        value={examForm.review_end_date}
+                        onChange={(e) => setExamForm({ ...examForm, review_end_date: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setUploadDialogOpen(false)
-              setUploadedFile(null)
-            }}>
+            <Button variant="outline" onClick={() => setExamDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              onClick={handleFileUpload} 
-              disabled={!uploadedFile || uploadingFile || activeTab === 'ai'}
-            >
-              {uploadingFile ? 'Uploading...' : 'Import Questions'}
+            <Button onClick={saveExam} disabled={savingExam} className="border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-200">
+              <Save className="mr-2 h-4 w-4" />
+              {savingExam ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

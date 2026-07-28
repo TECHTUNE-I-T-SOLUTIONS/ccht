@@ -4,17 +4,17 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function GET(request: NextRequest) {
   try {
     const admin = createAdminClient()
-    const configId = request.nextUrl.searchParams.get('configId')
+    const sessionId = request.nextUrl.searchParams.get('sessionId')
 
-    if (!configId) {
-      return NextResponse.json({ error: 'configId is required' }, { status: 400 })
+    if (!sessionId) {
+      return NextResponse.json({ error: 'sessionId is required' }, { status: 400 })
     }
 
     const { data: questions, error } = await admin
-      .from('exam_questions')
+      .from('student_exam_questions')
       .select('*')
-      .eq('exam_config_id', configId)
-      .order('question_order', { ascending: true })
+      .eq('exam_session_id', sessionId)
+      .order('question_number', { ascending: true })
 
     if (error) {
       console.error('[admin/exams/questions] Error fetching questions:', error)
@@ -34,15 +34,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     
     const { data: question, error } = await admin
-      .from('exam_questions')
+      .from('student_exam_questions')
       .insert({
-        exam_config_id: body.exam_config_id,
+        exam_session_id: body.exam_session_id || body.exam_id,
         question_text: body.question_text,
         question_type: body.question_type || 'multiple_choice',
+        question_number: body.question_number || 1,
+        marks: body.marks || body.points || 1,
         options: body.options || [],
         correct_answer: body.correct_answer,
-        points: body.points || 1,
-        question_order: body.question_order,
+        explanation: body.explanation,
         is_active: body.is_active ?? true,
       })
       .select()

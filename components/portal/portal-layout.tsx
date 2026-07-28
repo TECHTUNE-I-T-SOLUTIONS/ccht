@@ -181,7 +181,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
   const userInitial = displayName.charAt(0).toUpperCase()
   
   // Hide sidebar during exam for security
-  const isExamPage = pathname === '/aspirant/exam'
+  const isExamPage = pathname === '/aspirant/exam' || pathname.startsWith('/student/exams/[id]/take') || pathname.includes('/take')
   const showSidebar = !isExamPage
 
   return (

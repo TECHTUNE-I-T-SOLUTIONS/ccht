@@ -214,7 +214,7 @@ export default function AdminDashboard() {
                 <p className="text-sm text-muted-foreground">No notices yet.</p>
               ) : (
                 notices.map((notice) => (
-                  <div key={notice.id} className="rounded-2xl border border-border p-4 bg-slate-50">
+                  <div key={notice.id} className="rounded-2xl border border-border p-4 bg-white dark:bg-black">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-semibold text-foreground">{notice.title}</p>
                     </div>

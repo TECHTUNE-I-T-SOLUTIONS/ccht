@@ -314,7 +314,7 @@ export default function StudentExamsPage() {
                   {canStartExam(exam) && (
                     <Button 
                       onClick={() => startExam(exam.id)}
-                      className="w-full rounded-xl"
+                      className="w-full rounded-xl border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-200"
                     >
                       <Play className="mr-2 h-4 w-4" />
                       Start Exam
@@ -324,7 +324,7 @@ export default function StudentExamsPage() {
                   {status.status === 'in_progress' && (
                     <Button 
                       onClick={() => startExam(exam.id)}
-                      className="w-full rounded-xl"
+                      className="w-full rounded-xl border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-200"
                     >
                       <Play className="mr-2 h-4 w-4" />
                       Continue Exam
@@ -335,7 +335,7 @@ export default function StudentExamsPage() {
                     <Button 
                       onClick={() => reviewExam(exam.id)}
                       variant="outline"
-                      className="w-full rounded-xl"
+                      className="w-full rounded-xl border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-200"
                     >
                       <FileText className="mr-2 h-4 w-4" />
                       Review Results

@@ -41,7 +41,7 @@ export function AnnouncementBanner({ sidebarCollapsed = false }: AnnouncementBan
   }
 
   return (
-    <div className={`bg-gradient-to-r from-blue-950 to-blue-850 text-white overflow-hidden transition-all duration-infinite ${sidebarCollapsed ? 'xl:pl-[4.75rem]' : 'xl:pl-[18rem]'}`}>
+    <div className={`bg-gradient-to-r from-blue-200 to-blue-850 dark:bg-gradient-to-r dark:from-blue-800 dark:to-blue-950 text-primary overflow-hidden transition-all duration-infinite ${sidebarCollapsed ? 'xl:pl-[4.75rem]' : 'xl:pl-[18rem]'}`}>
       <div className="flex items-center">
         <div className="flex items-center gap-2 px-4 py-3 bg-blue-700/50 shrink-0">
           <Bell className="h-4 w-4" />
@@ -50,11 +50,11 @@ export function AnnouncementBanner({ sidebarCollapsed = false }: AnnouncementBan
         <div className="relative flex-1 overflow-hidden">
           <div className="flex animate-marquee whitespace-nowrap">
             {/* Repeat announcements multiple times for seamless infinite scroll */}
-            {[...Array(4000)].flatMap(() => 
+            {[...Array(40000)].flatMap(() => 
               announcements.map((announcement) => (
                 <div key={`${announcement.id}-${Math.random()}`} className="flex items-center gap-4 px-6 py-3">
                   <span className="font-semibold">{announcement.title}</span>
-                  <span className="text-blue-100">{announcement.content}</span>
+                  <span className="text-primary">{announcement.content}</span>
                 </div>
               ))
             )}
