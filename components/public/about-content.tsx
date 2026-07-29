@@ -11,10 +11,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
 const values = [
-  { icon: Target, title: 'Integrity', text: 'We are committed to fostering a vibrant learning community where students, faculty, and staff can thrive.' },
-  { icon: Award, title: 'Excellence', text: 'To be a globally recognized institution of excellence in health technology education, research, and innovation.' },
-  { icon: ShieldCheck, title: 'Innovation', text: 'Our culture is built on the principles of innovation, inclusivity, and lifelong learning.' },
-  { icon: Users, title: 'Collaboration', text: 'We foster a dynamic and collaborative environment that encourages creativity, critical thinking, and personal growth.' },
+  { icon: Target, title: 'Integrity', text: 'At Covenant College of Health Technology, we are committed to fostering a vibrant learning community where students, faculty, and staff can thrive. Our core values – integrity, excellence, collaboration, and innovation serve as the guiding principles for everything we do.' },
+  { icon: Award, title: 'Excellence', text: 'To be a globally recognized institution of excellence in health technology education, research, and innovation, producing skilled professionals dedicated to delivering transformative healthcare solutions and improving the quality of life for all.' },
+  { icon: ShieldCheck, title: 'Innovation', text: 'Our culture is built on the principles of innovation, inclusivity, and lifelong learning. As a leading health technology institution dedicated to providing accessible education to students worldwide, we foster a dynamic and collaborative environment that encourages creativity, critical thinking, and personal growth.' },
+  { icon: Users, title: 'Collaboration', text: 'We foster a dynamic and collaborative environment that encourages creativity, critical thinking, and personal growth. Through these objectives, we aim to empower our students to thrive academically, personally, and professionally by training the head, hands and heart of every student.' },
 ]
 
 const faculty = [
@@ -101,6 +101,30 @@ export function AboutContent() {
                  <TypographyH2 className="text-3xl font-bold">Vision</TypographyH2>
                  <TypographyP className="mt-6 text-muted-foreground text-lg leading-relaxed">
                     To be a globally recognized institution of excellence in health technology education, research, and innovation, producing skilled professionals dedicated to delivering transformative healthcare solutions and improving the quality of life for all.
+                 </TypographyP>
+              </motion.div>
+           </div>
+        </Section>
+
+        {/* OUR OBJECTIVES */}
+        <Section className="bg-accent-soft/20">
+           <div className="text-center max-w-3xl mx-auto mb-16">
+              <TypographyTechnical className="text-primary font-bold">Our Focus</TypographyTechnical>
+              <TypographyH2 className="mt-4">Our Objectives</TypographyH2>
+              <TypographyP className="mt-6 text-muted-foreground max-w-2xl mx-auto">
+                 Our objectives center on fostering academic excellence, nurturing a supportive learning environment, promoting diversity and inclusion, and fostering innovation and creativity.
+              </TypographyP>
+           </div>
+
+           <div className="max-w-4xl mx-auto">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="bg-background rounded-[3rem] p-10 md:p-14 border border-border shadow-2xl shadow-primary/5"
+              >
+                 <TypographyP className="text-muted-foreground text-lg leading-relaxed">
+                    Through these objectives, we aim to empower our students to thrive academically, personally, and professionally by training the head, hands and heart of every student. At Covenant College of Health Technology, our culture is built on the principles of innovation, inclusivity, and lifelong learning. As a leading health technology institution dedicated to providing accessible education to students worldwide, we foster a dynamic and collaborative environment that encourages creativity, critical thinking, and personal growth.
                  </TypographyP>
               </motion.div>
            </div>

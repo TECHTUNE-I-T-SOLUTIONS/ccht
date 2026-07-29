@@ -34,25 +34,31 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 })
     }
 
-    const { data: submissions, error: submissionsError } = await adminSupabase
-      .from('assessment_submissions')
-      .select('*')
+    const { data: examAttempts, error: attemptsError } = await adminSupabase
+      .from('student_exam_attempts')
+      .select(`
+        *,
+        exam_session:student_exam_sessions(
+          total_marks,
+          passing_marks
+        )
+      `)
 
-    if (submissionsError) {
-      console.error('Failed to fetch submissions:', submissionsError)
+    if (attemptsError) {
+      console.error('Failed to fetch exam attempts:', attemptsError)
     }
 
     // Calculate analytics
     const totalAssessments = assessments?.length || 0
-    const totalSubmissions = submissions?.length || 0
+    const totalSubmissions = examAttempts?.length || 0
     
     let totalScore = 0
     let scores: number[] = []
     
-    submissions?.forEach((sub: any) => {
-      if (sub.score !== null && sub.score !== undefined) {
-        totalScore += sub.score
-        scores.push(sub.score)
+    examAttempts?.forEach((attempt: any) => {
+      if (attempt.percentage_score !== null && attempt.percentage_score !== undefined) {
+        totalScore += attempt.percentage_score
+        scores.push(attempt.percentage_score)
       }
     })
 
@@ -60,12 +66,9 @@ export async function GET() {
     const highestScore = scores.length > 0 ? Math.max(...scores) : 0
     const lowestScore = scores.length > 0 ? Math.min(...scores) : 0
     
-    // Calculate pass rate (assuming 50% is passing)
-    const passedCount = submissions?.filter((sub: any) => {
-      const assessment = assessments?.find((a: any) => a.id === sub.assessment_id)
-      if (!assessment) return false
-      const percentage = assessment.total_marks > 0 ? (sub.score / assessment.total_marks) * 100 : 0
-      return percentage >= 50
+    // Calculate pass rate using the passed column or percentage_score
+    const passedCount = examAttempts?.filter((attempt: any) => {
+      return attempt.passed === true || (attempt.percentage_score >= 50)
     }).length || 0
     
     const passRate = totalSubmissions > 0 ? (passedCount / totalSubmissions) * 100 : 0

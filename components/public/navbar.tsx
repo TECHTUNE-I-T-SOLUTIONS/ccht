@@ -184,6 +184,7 @@ export function Navbar() {
             >
                <div className="p-6 space-y-2">
                   <MobileNavItem href={ROUTES.home} label="Home" onClick={() => setIsOpen(false)} />
+                  <MobileNavItem href={ROUTES.login} label="Portal" onClick={() => setIsOpen(false)} />
                   <Collapsible.Root open={isAboutOpen} onOpenChange={setIsAboutOpen}>
                     <Collapsible.Trigger className="flex w-full items-center justify-between rounded-2xl px-5 py-4 text-sm font-bold hover:bg-accent">
                       About
