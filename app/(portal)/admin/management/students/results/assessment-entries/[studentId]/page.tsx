@@ -13,16 +13,17 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { createClient } from '@/lib/supabase/client'
 
 type Student = {
-  id: string
-  first_name: string
-  last_name: string
-  email: string
-  student_profiles?: {
-    matric_number: string
-    current_level: string
+  matric_number: string
+  current_level: string
+  profiles?: {
+    id: string
+    first_name: string
+    last_name: string
+    email: string
   }[]
 }
 
@@ -73,7 +74,17 @@ type Semester = {
 type Enrollment = {
   id: string
   student_id: string
-  course_id: string
+  program_id: string
+  program?: {
+    title: string
+  }[]
+  selected_courses?: {
+    course: {
+      id: string
+      code: string
+      title: string
+    }[]
+  }[]
 }
 
 export default function StudentAssessmentEntriesPage() {
@@ -90,6 +101,13 @@ export default function StudentAssessmentEntriesPage() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [courseFilter, setCourseFilter] = useState('all')
+  const [sessionFilter, setSessionFilter] = useState('all')
+  const [semesterFilter, setSemesterFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('score')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const isMobile = useIsMobile()
   const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -107,6 +125,8 @@ export default function StudentAssessmentEntriesPage() {
     score_status: 'draft'
   })
 
+  const [teachers, setTeachers] = useState<any[]>([])
+
   useEffect(() => {
     loadData()
   }, [studentId])
@@ -116,19 +136,20 @@ export default function StudentAssessmentEntriesPage() {
     try {
       // Load student details
       const { data: studentData, error: studentError } = await supabase
-        .from('profiles')
+        .from('student_profiles')
         .select(`
-          id,
-          first_name,
-          last_name,
-          email,
-          student_profiles(
-            matric_number,
-            current_level
+          matric_number,
+          current_level,
+          profiles!student_profiles_profile_id_fkey(
+            id,
+            first_name,
+            last_name,
+            email
           )
         `)
-        .eq('id', studentId)
+        .eq('profile_id', studentId)
         .single()
+
 
       if (studentError) throw studentError
       setStudent(studentData)
@@ -153,7 +174,18 @@ export default function StudentAssessmentEntriesPage() {
         supabase.from('courses').select('id, code, title').order('code'),
         supabase.from('academic_sessions').select('id, name').order('name'),
         supabase.from('academic_semesters').select('id, semester_name').order('semester_name'),
-        supabase.from('enrollments').select('id, student_id, course_id').eq('student_id', studentId)
+        supabase
+          .from('enrollments')
+          .select(`
+            id,
+            student_id,
+            program_id,
+            program:programs(title),
+            selected_courses:selected_courses(
+              course:courses(id, code, title)
+            )
+          `)
+          .eq('student_id', studentId)
       ])
 
       if (coursesRes.error) throw coursesRes.error
@@ -165,6 +197,17 @@ export default function StudentAssessmentEntriesPage() {
       setSessions(sessionsRes.data || [])
       setSemesters(semestersRes.data || [])
       setEnrollments(enrollmentsRes.data || [])
+      
+      // Load teachers for teacher dropdown
+      const { data: teachersData, error: teachersError } = await supabase
+        .from('teacher_profiles')
+        .select(`
+          profile_id,
+          profiles!teacher_profiles_profile_id_fkey(first_name, last_name)
+        `)
+        .eq('employment_status', 'active')
+      if (teachersError) throw teachersError
+      setTeachers(teachersData || [])
     } catch (error) {
       console.error('Failed to load data:', error)
       toast.error('Failed to load student data')
@@ -206,11 +249,17 @@ export default function StudentAssessmentEntriesPage() {
 
   const handleCreateAssessment = async () => {
     try {
+      // Auto-fetch enrollment_id if not selected
+      let enrollmentId = newAssessment.enrollment_id
+      if (!enrollmentId && enrollments.length > 0) {
+        enrollmentId = enrollments[0].id
+      }
+      
       const { error } = await supabase
         .from('assessments')
         .insert({
           student_id: studentId,
-          enrollment_id: newAssessment.enrollment_id,
+          enrollment_id: enrollmentId,
           course_id: newAssessment.course_id,
           teacher_id: newAssessment.teacher_id || null,
           session_id: newAssessment.session_id || null,
@@ -256,11 +305,25 @@ export default function StudentAssessmentEntriesPage() {
 
   const filteredAssessments = assessments.filter(assessment => {
     const searchLower = searchTerm.toLowerCase()
-    return (
+    const matchesSearch =
       assessment.course?.code?.toLowerCase().includes(searchLower) ||
       assessment.course?.title?.toLowerCase().includes(searchLower) ||
       assessment.session?.name?.toLowerCase().includes(searchLower)
-    )
+    
+    const matchesCourse = courseFilter === 'all' || assessment.course_id === courseFilter
+    const matchesSession = sessionFilter === 'all' || assessment.session_id === sessionFilter
+    const matchesSemester = semesterFilter === 'all' || assessment.semester_id === semesterFilter
+    const matchesStatus = statusFilter === 'all' || assessment.score_status === statusFilter
+    
+    return matchesSearch && matchesCourse && matchesSession && matchesSemester && matchesStatus
+  }).sort((a, b) => {
+    let comparison = 0
+    if (sortBy === 'score') {
+      comparison = a.total_score - b.total_score
+    } else if (sortBy === 'grade') {
+      comparison = a.grade.localeCompare(b.grade)
+    }
+    return sortOrder === 'asc' ? comparison : -comparison
   })
 
   if (loading) {
@@ -282,20 +345,20 @@ export default function StudentAssessmentEntriesPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold">
-              {student?.first_name} {student?.last_name}
+              {student?.profiles?.[0]?.first_name} {student?.profiles?.[0]?.last_name}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {student?.student_profiles?.[0]?.matric_number} • {student?.student_profiles?.[0]?.current_level}
+              {student?.matric_number} • {student?.current_level}
             </p>
           </div>
         </div>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-700">
               <Plus className="h-4 w-4 mr-2" /> Add Assessment
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-black">
             <DialogHeader>
               <DialogTitle>Create New Assessment Entry</DialogTitle>
               <DialogDescription>
@@ -303,38 +366,26 @@ export default function StudentAssessmentEntriesPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div>
-                <Label>Enrollment</Label>
-                <Select
-                  value={newAssessment.enrollment_id}
-                  onValueChange={(value) => setNewAssessment({ ...newAssessment, enrollment_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select enrollment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {enrollments.map((enrollment) => {
-                      const course = courses.find(c => c.id === enrollment.course_id)
-                      return (
-                        <SelectItem key={enrollment.id} value={enrollment.id}>
-                          {course?.code} - {course?.title}
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Course</Label>
                   <Select
                     value={newAssessment.course_id}
-                    onValueChange={(value) => setNewAssessment({ ...newAssessment, course_id: value })}
+                    onValueChange={(value) => {
+                      setNewAssessment({ ...newAssessment, course_id: value })
+                      // Auto-select enrollment when course is selected
+                      const enrollmentWithCourse = enrollments.find(e => 
+                        e.selected_courses?.some(sc => sc.course[0]?.id === value)
+                      )
+                      if (enrollmentWithCourse) {
+                        setNewAssessment(prev => ({ ...prev, enrollment_id: enrollmentWithCourse.id }))
+                      }
+                    }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select course" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-60">
                       {courses.map((course) => (
                         <SelectItem key={course.id} value={course.id}>
                           {course.code} - {course.title}
@@ -344,23 +395,41 @@ export default function StudentAssessmentEntriesPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Session</Label>
+                  <Label>Teacher</Label>
                   <Select
-                    value={newAssessment.session_id}
-                    onValueChange={(value) => setNewAssessment({ ...newAssessment, session_id: value })}
+                    value={newAssessment.teacher_id}
+                    onValueChange={(value) => setNewAssessment({ ...newAssessment, teacher_id: value })}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select session" />
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select teacher" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {sessions.map((session) => (
-                        <SelectItem key={session.id} value={session.id}>
-                          {session.name}
+                    <SelectContent className="max-h-60">
+                      {teachers.map((teacher) => (
+                        <SelectItem key={teacher.profile_id} value={teacher.profile_id}>
+                          {teacher.profiles?.[0]?.first_name} {teacher.profiles?.[0]?.last_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div>
+                <Label>Session</Label>
+                <Select
+                  value={newAssessment.session_id}
+                  onValueChange={(value) => setNewAssessment({ ...newAssessment, session_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select session" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sessions.map((session) => (
+                      <SelectItem key={session.id} value={session.id}>
+                        {session.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Semester</Label>
@@ -464,7 +533,7 @@ export default function StudentAssessmentEntriesPage() {
                 <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
                   <X className="h-4 w-4 mr-2" /> Cancel
                 </Button>
-                <Button onClick={handleCreateAssessment}>
+                <Button onClick={handleCreateAssessment} className="border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-700">
                   <Save className="h-4 w-4 mr-2" /> Create
                 </Button>
               </div>
@@ -474,7 +543,7 @@ export default function StudentAssessmentEntriesPage() {
       </div>
 
       <Card className="p-6">
-        <div className="mb-6">
+        <div className="mb-6 space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -484,10 +553,108 @@ export default function StudentAssessmentEntriesPage() {
               className="pl-10"
             />
           </div>
+          <div className="flex flex-wrap gap-2">
+            <Select value={courseFilter} onValueChange={setCourseFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Courses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Courses</SelectItem>
+                {courses.map((course) => (
+                  <SelectItem key={course.id} value={course.id}>{course.code}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={sessionFilter} onValueChange={setSessionFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Sessions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sessions</SelectItem>
+                {sessions.map((session) => (
+                  <SelectItem key={session.id} value={session.id}>{session.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={semesterFilter} onValueChange={setSemesterFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Semesters" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Semesters</SelectItem>
+                {semesters.map((semester) => (
+                  <SelectItem key={semester.id} value={semester.id}>{semester.semester_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="submitted">Submitted</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="published">Published</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Sort By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="score">Score</SelectItem>
+                <SelectItem value="grade">Grade</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            >
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </Button>
+          </div>
         </div>
 
         {filteredAssessments.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">No assessment entries found</div>
+        ) : isMobile ? (
+          <div className="space-y-4">
+            {filteredAssessments.map((assessment) => (
+              <Card key={assessment.id} className="p-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold">{assessment.course?.code}</p>
+                      <p className="text-sm text-muted-foreground">{assessment.course?.title}</p>
+                    </div>
+                    <Badge className={getGradeColor(assessment.grade)}>{assessment.grade}</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>CA 1: {assessment.ca_1}</div>
+                    <div>CA 2: {assessment.ca_2}</div>
+                    <div>Assignments: {assessment.assignments}</div>
+                    <div>Exam: {assessment.exam_score}</div>
+                    <div className="col-span-2 font-semibold">Total: {assessment.total_score}</div>
+                  </div>
+                  <div className="flex justify-between items-center pt-2">
+                    <Badge variant={assessment.score_status === 'published' ? 'default' : 'secondary'}>
+                      {assessment.score_status}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEditAssessment(assessment)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
         ) : (
           <div className="rounded-md border">
             <Table>
@@ -563,8 +730,8 @@ export default function StudentAssessmentEntriesPage() {
                     type="number"
                     min="0"
                     max="15"
-                    value={editingAssessment.ca_1}
-                    onChange={(e) => setEditingAssessment({ ...editingAssessment, ca_1: parseFloat(e.target.value) || 0 })}
+                    value={editingAssessment?.ca_1 || 0}
+                    onChange={(e) => editingAssessment && setEditingAssessment({ ...editingAssessment, ca_1: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
@@ -573,8 +740,8 @@ export default function StudentAssessmentEntriesPage() {
                     type="number"
                     min="0"
                     max="15"
-                    value={editingAssessment.ca_2}
-                    onChange={(e) => setEditingAssessment({ ...editingAssessment, ca_2: parseFloat(e.target.value) || 0 })}
+                    value={editingAssessment?.ca_2 || 0}
+                    onChange={(e) => editingAssessment && setEditingAssessment({ ...editingAssessment, ca_2: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
               </div>
@@ -584,8 +751,8 @@ export default function StudentAssessmentEntriesPage() {
                   type="number"
                   min="0"
                   max="10"
-                  value={editingAssessment.assignments}
-                  onChange={(e) => setEditingAssessment({ ...editingAssessment, assignments: parseFloat(e.target.value) || 0 })}
+                  value={editingAssessment?.assignments || 0}
+                  onChange={(e) => editingAssessment && setEditingAssessment({ ...editingAssessment, assignments: parseFloat(e.target.value) || 0 })}
                 />
               </div>
               <div>
@@ -594,16 +761,16 @@ export default function StudentAssessmentEntriesPage() {
                   type="number"
                   min="0"
                   max="60"
-                  value={editingAssessment.exam_score}
-                  onChange={(e) => setEditingAssessment({ ...editingAssessment, exam_score: parseFloat(e.target.value) || 0 })}
+                  value={editingAssessment?.exam_score || 0}
+                  onChange={(e) => editingAssessment && setEditingAssessment({ ...editingAssessment, exam_score: parseFloat(e.target.value) || 0 })}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Grade</Label>
                   <Select
-                    value={editingAssessment.grade}
-                    onValueChange={(value) => setEditingAssessment({ ...editingAssessment, grade: value })}
+                    value={editingAssessment?.grade || 'F'}
+                    onValueChange={(value) => editingAssessment && setEditingAssessment({ ...editingAssessment, grade: value })}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -621,8 +788,8 @@ export default function StudentAssessmentEntriesPage() {
                 <div>
                   <Label>Status</Label>
                   <Select
-                    value={editingAssessment.score_status}
-                    onValueChange={(value) => setEditingAssessment({ ...editingAssessment, score_status: value })}
+                    value={editingAssessment?.score_status || 'draft'}
+                    onValueChange={(value) => editingAssessment && setEditingAssessment({ ...editingAssessment, score_status: value })}
                   >
                     <SelectTrigger>
                       <SelectValue />

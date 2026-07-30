@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Loader2, Search, Plus, CheckCircle, X, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { createClient } from '@/lib/supabase/client'
 
 type ResultPublication = {
@@ -32,9 +33,14 @@ type ResultPublication = {
         matric_number: string
       }[]
     }[]
-    course: {
-      code: string
+    program?: {
       title: string
+    }[]
+    selected_courses?: {
+      course: {
+        code: string
+        title: string
+      }[]
     }[]
   }
   session?: {
@@ -52,7 +58,7 @@ type ResultPublication = {
 type Enrollment = {
   id: string
   student_id: string
-  course_id: string
+  program_id: string
   student?: {
     first_name: string
     last_name: string
@@ -60,9 +66,14 @@ type Enrollment = {
       matric_number: string
     }[]
   }[]
-  course?: {
-    code: string
+  program?: {
     title: string
+  }[]
+  selected_courses?: {
+    course: {
+      code: string
+      title: string
+    }[]
   }[]
 }
 
@@ -86,6 +97,9 @@ export default function PublishExamsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('date')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const isMobile = useIsMobile()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newPublication, setNewPublication] = useState({
     enrollment_id: '',
@@ -109,7 +123,10 @@ export default function PublishExamsPage() {
           *,
           enrollment:enrollments(
             student:profiles(first_name, last_name, student_profiles(matric_number)),
-            course:courses(code, title)
+            program:programs(title),
+            selected_courses:selected_courses(
+              course:courses(code, title)
+            )
           ),
           session:academic_sessions(name),
           semester:academic_semesters(semester_name),
@@ -127,9 +144,12 @@ export default function PublishExamsPage() {
           .select(`
             id,
             student_id,
-            course_id,
+            program_id,
             student:profiles(first_name, last_name, student_profiles(matric_number)),
-            course:courses(code, title)
+            program:programs(title),
+            selected_courses:selected_courses(
+              course:courses(code, title)
+            )
           `)
           .order('created_at', { ascending: false }),
         supabase.from('academic_sessions').select('id, name').order('name'),
@@ -206,12 +226,21 @@ export default function PublishExamsPage() {
       pub.enrollment?.student?.[0]?.first_name?.toLowerCase().includes(searchLower) ||
       pub.enrollment?.student?.[0]?.last_name?.toLowerCase().includes(searchLower) ||
       pub.enrollment?.student?.[0]?.student_profiles?.[0]?.matric_number?.toLowerCase().includes(searchLower) ||
-      pub.enrollment?.course?.[0]?.code?.toLowerCase().includes(searchLower) ||
-      pub.enrollment?.course?.[0]?.title?.toLowerCase().includes(searchLower) ||
+      pub.enrollment?.program?.[0]?.title?.toLowerCase().includes(searchLower) ||
+      (pub.enrollment?.selected_courses && pub.enrollment.selected_courses.some(sc => 
+        sc.course[0]?.code.toLowerCase().includes(searchLower) ||
+        sc.course[0]?.title.toLowerCase().includes(searchLower)
+      )) ||
       pub.session?.[0]?.name?.toLowerCase().includes(searchLower)
     
     const matchesStatus = statusFilter === 'all' || pub.publication_status === statusFilter
     return matchesSearch && matchesStatus
+  }).sort((a, b) => {
+    let comparison = 0
+    if (sortBy === 'date') {
+      comparison = new Date(a.published_at).getTime() - new Date(b.published_at).getTime()
+    }
+    return sortOrder === 'asc' ? comparison : -comparison
   })
 
   if (loading) {
@@ -238,7 +267,7 @@ export default function PublishExamsPage() {
         </div>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="border border-primary hover:text-blue-700 hover:shadow-lg hover:shadow-blue-600">
               <Plus className="h-4 w-4 mr-2" /> Publish Results
             </Button>
           </DialogTrigger>
@@ -265,7 +294,10 @@ export default function PublishExamsPage() {
                         {enrollment.student?.[0]?.first_name} {enrollment.student?.[0]?.last_name} 
                         {enrollment.student?.[0]?.student_profiles?.[0]?.matric_number && 
                           ` (${enrollment.student[0].student_profiles[0].matric_number})`} 
-                        - {enrollment.course?.[0]?.code} {enrollment.course?.[0]?.title}
+                        - {enrollment.program?.[0]?.title}
+                        {enrollment.selected_courses && enrollment.selected_courses.length > 0 && (
+                          <> ({enrollment.selected_courses.map(sc => sc.course[0]?.code).join(', ')})</>
+                        )}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -347,8 +379,8 @@ export default function PublishExamsPage() {
       </div>
 
       <Card className="p-6">
-        <div className="mb-6 flex items-center gap-4">
-          <div className="relative flex-1">
+        <div className="mb-6 space-y-4">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by student name, matric number, course, or session..."
@@ -357,21 +389,94 @@ export default function PublishExamsPage() {
               className="pl-10"
             />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="published">Published</SelectItem>
-              <SelectItem value="unpublished">Unpublished</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap gap-2">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="published">Published</SelectItem>
+                <SelectItem value="unpublished">Unpublished</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Sort By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date">Date</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            >
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </Button>
+          </div>
         </div>
 
         {filteredPublications.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             {searchTerm || statusFilter !== 'all' ? 'No publications found matching your filters' : 'No result publications yet'}
+          </div>
+        ) : isMobile ? (
+          <div className="space-y-4">
+            {filteredPublications.map((pub) => (
+              <Card key={pub.id} className="p-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold">
+                        {pub.enrollment?.student?.[0]?.first_name} {pub.enrollment?.student?.[0]?.last_name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {pub.enrollment?.student?.[0]?.student_profiles?.[0]?.matric_number || '-'}
+                      </p>
+                    </div>
+                    {pub.publication_status === 'published' ? (
+                      <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                        Published
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                        Unpublished
+                      </Badge>
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium">{pub.enrollment?.program?.[0]?.title}</p>
+                    {pub.enrollment?.selected_courses && pub.enrollment.selected_courses.length > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        {pub.enrollment.selected_courses.map(sc => sc.course[0]?.code).join(', ')}
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>Session: {pub.session?.[0]?.name || '-'}</div>
+                    <div>Semester: {pub.semester?.[0]?.semester_name || '-'}</div>
+                    <div>Date: {new Date(pub.published_at).toLocaleDateString()}</div>
+                    <div>By: {pub.publisher?.[0]?.first_name} {pub.publisher?.[0]?.last_name}</div>
+                  </div>
+                  <div className="pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => handleToggleStatus(pub.id, pub.publication_status)}
+                    >
+                      {pub.publication_status === 'published' ? (
+                        <><EyeOff className="h-4 w-4 mr-2" /> Unpublish</>
+                      ) : (
+                        <><Eye className="h-4 w-4 mr-2" /> Publish</>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
         ) : (
           <div className="rounded-md border">
@@ -402,8 +507,12 @@ export default function PublishExamsPage() {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{pub.enrollment?.course?.[0]?.code}</p>
-                        <p className="text-sm text-muted-foreground">{pub.enrollment?.course?.[0]?.title}</p>
+                        <p className="font-medium">{pub.enrollment?.program?.[0]?.title}</p>
+                        {pub.enrollment?.selected_courses && pub.enrollment.selected_courses.length > 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            {pub.enrollment.selected_courses.map(sc => sc.course[0]?.code).join(', ')}
+                          </p>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>{pub.session?.[0]?.name || '-'}</TableCell>
