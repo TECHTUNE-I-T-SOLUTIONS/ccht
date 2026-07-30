@@ -40,6 +40,8 @@ export function NewsAndEvents({ blogPosts, events }: { blogPosts: any[], events:
                        alt={blogPosts[0].title} 
                        fill 
                        sizes="(max-width: 1024px) 100vw, 60vw"
+                       quality={75}
+                       loading="lazy"
                        className="object-cover transition-transform duration-700 group-hover:scale-105"
                      />
                      <div className="absolute inset-0 bg-gradient-to-t from-blue-900/40 to-transparent" />

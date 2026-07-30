@@ -31,19 +31,33 @@ type FinalResult = {
   id: string
   student_id: string
   enrollment_id: string
-  session_id: string
-  semester_id: string
-  gpa: number
-  cgpa: number
-  total_credit_units: number
-  total_grade_points: number
-  academic_standing: string
-  remarks: string
-  session?: {
-    name: string
+  assessment_id: string | null
+  course_name: string
+  score: number | null
+  grade: string | null
+  semester: number | null
+  academic_year: string | null
+  published: boolean
+  published_at: string | null
+  published_by: string | null
+  created_at: string
+  updated_at: string
+  enrollment?: {
+    program?: {
+      title: string
+    }[]
   }[]
-  semester?: {
-    semester_name: string
+  assessment?: {
+    course?: {
+      code: string
+      title: string
+    }[]
+    session?: {
+      name: string
+    }[]
+    semester?: {
+      semester_name: string
+    }[]
   }[]
 }
 
@@ -92,10 +106,11 @@ export default function FinalEntriesPage() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [semesters, setSemesters] = useState<Semester[]>([])
+  const [assessments, setAssessments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [sortBy, setSortBy] = useState('gpa')
+  const [sortBy, setSortBy] = useState('score')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const isMobile = useIsMobile()
   const [editingResult, setEditingResult] = useState<FinalResult | null>(null)
@@ -103,14 +118,13 @@ export default function FinalEntriesPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newResult, setNewResult] = useState({
     enrollment_id: '',
-    session_id: '',
-    semester_id: '',
-    gpa: 0,
-    cgpa: 0,
-    total_credit_units: 0,
-    total_grade_points: 0,
-    academic_standing: 'good',
-    remarks: ''
+    assessment_id: '',
+    course_name: '',
+    score: 0,
+    grade: 'F',
+    semester: 1,
+    academic_year: '2026/2027',
+    published: false
   })
 
   useEffect(() => {
@@ -139,13 +153,19 @@ export default function FinalEntriesPage() {
       if (studentError) throw studentError
       setStudent(studentData)
 
-      // Load existing final results
+      // Load existing results
       const { data: resultsData, error: resultsError } = await supabase
-        .from('final_results')
+        .from('results')
         .select(`
           *,
-          session:academic_sessions(name),
-          semester:academic_semesters(semester_name)
+          enrollment:enrollments(
+            program:programs(title)
+          ),
+          assessment:assessments(
+            course:courses(code, title),
+            session:academic_sessions(name),
+            semester:academic_semesters(semester_name)
+          )
         `)
         .eq('student_id', studentId)
         .order('created_at', { ascending: false })
@@ -181,6 +201,18 @@ export default function FinalEntriesPage() {
       setEnrollments(enrollmentsRes.data || [])
       setSessions(sessionsRes.data || [])
       setSemesters(semestersRes.data || [])
+
+      // Load assessments for create modal
+      const { data: assessmentsData } = await supabase
+        .from('assessments')
+        .select(`
+          *,
+          course:courses(code, title),
+          session:academic_sessions(name),
+          semester:academic_semesters(semester_name)
+        `)
+        .eq('student_id', studentId)
+      setAssessments(assessmentsData || [])
     } catch (error) {
       console.error('Failed to load data:', error)
       toast.error('Failed to load student data')
@@ -194,68 +226,92 @@ export default function FinalEntriesPage() {
     setEditDialogOpen(true)
   }
 
+  const handleTogglePublish = async (result: FinalResult) => {
+    try {
+      const { error } = await supabase
+        .from('results')
+        .update({
+          published: !result.published,
+          published_at: !result.published ? new Date().toISOString() : null,
+          published_by: !result.published ? (await supabase.auth.getUser()).data.user?.id : null
+        })
+        .eq('id', result.id)
+
+      if (error) throw error
+      toast.success(result.published ? 'Result unpublished' : 'Result published')
+      loadData()
+    } catch (error) {
+      console.error('Failed to toggle publish status:', error)
+      toast.error('Failed to update publish status')
+    }
+  }
+
   const handleSaveResult = async () => {
     if (!editingResult) return
 
     try {
       const { error } = await supabase
-        .from('final_results')
+        .from('results')
         .update({
-          gpa: editingResult.gpa,
-          cgpa: editingResult.cgpa,
-          total_credit_units: editingResult.total_credit_units,
-          total_grade_points: editingResult.total_grade_points,
-          academic_standing: editingResult.academic_standing,
-          remarks: editingResult.remarks
+          score: editingResult.score,
+          grade: editingResult.grade,
+          published: editingResult.published
         })
         .eq('id', editingResult.id)
 
       if (error) throw error
-      toast.success('Final result updated successfully')
+      toast.success('Result updated successfully')
       setEditDialogOpen(false)
       loadData()
     } catch (error) {
-      console.error('Failed to update final result:', error)
-      toast.error('Failed to update final result')
+      console.error('Failed to update result:', error)
+      toast.error('Failed to update result')
     }
   }
 
   const handleCreateResult = async () => {
     try {
       const { error } = await supabase
-        .from('final_results')
+        .from('results')
         .insert({
           student_id: studentId,
           enrollment_id: newResult.enrollment_id,
-          session_id: newResult.session_id,
-          semester_id: newResult.semester_id,
-          gpa: newResult.gpa,
-          cgpa: newResult.cgpa,
-          total_credit_units: newResult.total_credit_units,
-          total_grade_points: newResult.total_grade_points,
-          academic_standing: newResult.academic_standing,
-          remarks: newResult.remarks
+          assessment_id: newResult.assessment_id || null,
+          course_name: newResult.course_name,
+          score: newResult.score,
+          grade: newResult.grade,
+          semester: newResult.semester,
+          academic_year: newResult.academic_year,
+          published: newResult.published
         })
 
       if (error) throw error
-      toast.success('Final result created successfully')
+      toast.success('Result created successfully')
       setCreateDialogOpen(false)
       setNewResult({
         enrollment_id: '',
-        session_id: '',
-        semester_id: '',
-        gpa: 0,
-        cgpa: 0,
-        total_credit_units: 0,
-        total_grade_points: 0,
-        academic_standing: 'good',
-        remarks: ''
+        assessment_id: '',
+        course_name: '',
+        score: 0,
+        grade: 'F',
+        semester: 1,
+        academic_year: '2026/2027',
+        published: false
       })
       loadData()
     } catch (error) {
-      console.error('Failed to create final result:', error)
-      toast.error('Failed to create final result')
+      console.error('Failed to create result:', error)
+      toast.error('Failed to create result')
     }
+  }
+
+  const getGradeColor = (grade: string) => {
+    if (grade === 'A') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+    if (grade === 'B') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    if (grade === 'C') return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+    if (grade === 'D') return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+    if (grade === 'E') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+    return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
   }
 
   const getStandingColor = (standing: string) => {
@@ -269,19 +325,18 @@ export default function FinalEntriesPage() {
   const filteredResults = finalResults.filter(result => {
     const searchLower = searchTerm.toLowerCase()
     const matchesSearch =
-      result.session?.[0]?.name?.toLowerCase().includes(searchLower) ||
-      result.semester?.[0]?.semester_name?.toLowerCase().includes(searchLower) ||
-      result.academic_standing?.toLowerCase().includes(searchLower)
+      result.assessment?.[0]?.course?.[0]?.title?.toLowerCase().includes(searchLower) ||
+      result.assessment?.[0]?.course?.[0]?.code?.toLowerCase().includes(searchLower) ||
+      result.academic_year?.toLowerCase().includes(searchLower) ||
+      result.grade?.toLowerCase().includes(searchLower)
     
-    const matchesStatus = statusFilter === 'all' || result.academic_standing === statusFilter
+    const matchesStatus = statusFilter === 'all' || result.grade === statusFilter
     
     return matchesSearch && matchesStatus
   }).sort((a, b) => {
     let comparison = 0
-    if (sortBy === 'gpa') {
-      comparison = a.gpa - b.gpa
-    } else if (sortBy === 'cgpa') {
-      comparison = a.cgpa - b.cgpa
+    if (sortBy === 'score') {
+      comparison = (a.score || 0) - (b.score || 0)
     }
     return sortOrder === 'asc' ? comparison : -comparison
   })
@@ -326,132 +381,132 @@ export default function FinalEntriesPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Enrollment</Label>
-                  <Select
-                    value={newResult.enrollment_id}
-                    onValueChange={(value) => setNewResult({ ...newResult, enrollment_id: value })}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select enrollment" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {enrollments.map((enrollment) => (
-                        <SelectItem key={enrollment.id} value={enrollment.id}>
-                          {enrollment.program?.[0]?.title || 'No Program'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Session</Label>
-                  <Select
-                    value={newResult.session_id}
-                    onValueChange={(value) => setNewResult({ ...newResult, session_id: value })}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select session" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {sessions.map((session) => (
-                        <SelectItem key={session.id} value={session.id}>
-                          {session.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
               <div>
-                <Label>Semester</Label>
+                <Label>Enrollment</Label>
                 <Select
-                  value={newResult.semester_id}
-                  onValueChange={(value) => setNewResult({ ...newResult, semester_id: value })}
+                  value={newResult.enrollment_id}
+                  onValueChange={(value) => setNewResult({ ...newResult, enrollment_id: value })}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select semester" />
+                    <SelectValue placeholder="Select enrollment" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
-                    {semesters.map((semester) => (
-                      <SelectItem key={semester.id} value={semester.id}>
-                        {semester.semester_name}
+                    {enrollments.map((enrollment) => (
+                      <SelectItem key={enrollment.id} value={enrollment.id}>
+                        {enrollment.program?.[0]?.title || 'No Program'}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label>Assessment (Optional)</Label>
+                <Select
+                  value={newResult.assessment_id}
+                  onValueChange={(value) => {
+                    setNewResult({ ...newResult, assessment_id: value })
+                    if (value) {
+                      const selectedAssessment = assessments.find(a => a.id === value)
+                      if (selectedAssessment) {
+                        setNewResult(prev => ({
+                          ...prev,
+                          course_name: selectedAssessment.course?.title || '',
+                          score: selectedAssessment.total_score || 0,
+                          grade: selectedAssessment.grade || 'F',
+                          semester: selectedAssessment.semester?.semester_name?.includes('First') ? 1 : 2,
+                          academic_year: selectedAssessment.session?.name || '2026/2027'
+                        }))
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select assessment to auto-fill" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="">No assessment</SelectItem>
+                    {assessments.map((assessment) => (
+                      <SelectItem key={assessment.id} value={assessment.id}>
+                        {assessment.course?.code} - {assessment.course?.title} ({assessment.session?.name})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Course Name</Label>
+                <Input
+                  value={newResult.course_name}
+                  onChange={(e) => setNewResult({ ...newResult, course_name: e.target.value })}
+                  placeholder="Enter course name"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>GPA</Label>
+                  <Label>Score</Label>
                   <Input
                     type="number"
                     step="0.01"
                     min="0"
-                    max="5"
-                    value={newResult.gpa}
-                    onChange={(e) => setNewResult({ ...newResult, gpa: parseFloat(e.target.value) || 0 })}
+                    max="100"
+                    value={newResult.score}
+                    onChange={(e) => setNewResult({ ...newResult, score: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
-                  <Label>CGPA</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    value={newResult.cgpa}
-                    onChange={(e) => setNewResult({ ...newResult, cgpa: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Total Credit Units</Label>
-                  <Input
-                    type="number"
-                    value={newResult.total_credit_units}
-                    onChange={(e) => setNewResult({ ...newResult, total_credit_units: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-                <div>
-                  <Label>Total Grade Points</Label>
-                  <Input
-                    type="number"
-                    value={newResult.total_grade_points}
-                    onChange={(e) => setNewResult({ ...newResult, total_grade_points: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Academic Standing</Label>
+                  <Label>Grade</Label>
                   <Select
-                    value={newResult.academic_standing}
-                    onValueChange={(value) => setNewResult({ ...newResult, academic_standing: value })}
+                    value={newResult.grade}
+                    onValueChange={(value) => setNewResult({ ...newResult, grade: value })}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="first_class">First Class</SelectItem>
-                      <SelectItem value="second_class_upper">Second Class Upper</SelectItem>
-                      <SelectItem value="second_class_lower">Second Class Lower</SelectItem>
-                      <SelectItem value="third_class">Third Class</SelectItem>
-                      <SelectItem value="pass">Pass</SelectItem>
-                      <SelectItem value="fail">Fail</SelectItem>
+                      <SelectItem value="A">A</SelectItem>
+                      <SelectItem value="B">B</SelectItem>
+                      <SelectItem value="C">C</SelectItem>
+                      <SelectItem value="D">D</SelectItem>
+                      <SelectItem value="E">E</SelectItem>
+                      <SelectItem value="F">F</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Remarks</Label>
+                  <Label>Semester</Label>
                   <Input
-                    value={newResult.remarks}
-                    onChange={(e) => setNewResult({ ...newResult, remarks: e.target.value })}
-                    placeholder="Optional remarks"
+                    type="number"
+                    min="1"
+                    max="2"
+                    value={newResult.semester}
+                    onChange={(e) => setNewResult({ ...newResult, semester: parseInt(e.target.value) || 1 })}
                   />
                 </div>
+                <div>
+                  <Label>Academic Year</Label>
+                  <Input
+                    value={newResult.academic_year}
+                    onChange={(e) => setNewResult({ ...newResult, academic_year: e.target.value })}
+                    placeholder="e.g., 2026/2027"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Published</Label>
+                <Select
+                  value={newResult.published.toString()}
+                  onValueChange={(value) => setNewResult({ ...newResult, published: value === 'true' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="false">No</SelectItem>
+                    <SelectItem value="true">Yes</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex justify-end gap-2 pt-4">
                 <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
@@ -471,7 +526,7 @@ export default function FinalEntriesPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by session, semester, or standing..."
+              placeholder="Search by course, academic year, or grade..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -480,16 +535,16 @@ export default function FinalEntriesPage() {
           <div className="flex flex-wrap gap-2">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40">
-                <SelectValue placeholder="All Standing" />
+                <SelectValue placeholder="All Grades" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Standing</SelectItem>
-                <SelectItem value="first_class">First Class</SelectItem>
-                <SelectItem value="second_class_upper">Second Class Upper</SelectItem>
-                <SelectItem value="second_class_lower">Second Class Lower</SelectItem>
-                <SelectItem value="third_class">Third Class</SelectItem>
-                <SelectItem value="pass">Pass</SelectItem>
-                <SelectItem value="fail">Fail</SelectItem>
+                <SelectItem value="all">All Grades</SelectItem>
+                <SelectItem value="A">A</SelectItem>
+                <SelectItem value="B">B</SelectItem>
+                <SelectItem value="C">C</SelectItem>
+                <SelectItem value="D">D</SelectItem>
+                <SelectItem value="E">E</SelectItem>
+                <SelectItem value="F">F</SelectItem>
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={setSortBy}>
@@ -497,8 +552,7 @@ export default function FinalEntriesPage() {
                 <SelectValue placeholder="Sort By" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="gpa">GPA</SelectItem>
-                <SelectItem value="cgpa">CGPA</SelectItem>
+                <SelectItem value="score">Score</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -520,30 +574,38 @@ export default function FinalEntriesPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-semibold">{result.session?.[0]?.name}</p>
-                      <p className="text-sm text-muted-foreground">{result.semester?.[0]?.semester_name}</p>
+                      <p className="font-semibold">{result.assessment?.[0]?.course?.[0]?.code || result.course_name}</p>
+                      <p className="text-sm text-muted-foreground">{result.assessment?.[0]?.course?.[0]?.title || result.course_name}</p>
+                      <p className="text-xs text-muted-foreground">Semester {result.semester} • {result.academic_year}</p>
                     </div>
-                    <Badge className={getStandingColor(result.academic_standing)}>
-                      {result.academic_standing}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={result.published ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'}>
+                        {result.published ? 'Published' : 'Draft'}
+                      </Badge>
+                      <Badge className={getGradeColor(result.grade || 'F')}>
+                        {result.grade}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>GPA: {result.gpa.toFixed(2)}</div>
-                    <div className="font-semibold">CGPA: {result.cgpa.toFixed(2)}</div>
-                    <div>Credits: {result.total_credit_units}</div>
-                    <div>Grade Points: {result.total_grade_points}</div>
+                  <div className="text-sm">
+                    <div>Score: {result.score?.toFixed(2) || 'N/A'}</div>
                   </div>
-                  {result.remarks && (
-                    <p className="text-sm text-muted-foreground">Remarks: {result.remarks}</p>
-                  )}
-                  <div className="pt-2">
+                  <div className="pt-2 flex gap-2">
                     <Button
                       size="sm"
                       variant="outline"
-                      className="w-full"
+                      className="flex-1"
                       onClick={() => handleEditResult(result)}
                     >
                       <Edit className="h-4 w-4 mr-2" /> Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={result.published ? "outline" : "default"}
+                      className="flex-1"
+                      onClick={() => handleTogglePublish(result)}
+                    >
+                      {result.published ? 'Unpublish' : 'Publish'}
                     </Button>
                   </div>
                 </div>
@@ -555,40 +617,49 @@ export default function FinalEntriesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Session</TableHead>
+                  <TableHead>Course</TableHead>
                   <TableHead>Semester</TableHead>
-                  <TableHead>GPA</TableHead>
-                  <TableHead>CGPA</TableHead>
-                  <TableHead>Credits</TableHead>
-                  <TableHead>Grade Points</TableHead>
-                  <TableHead>Standing</TableHead>
-                  <TableHead>Remarks</TableHead>
+                  <TableHead>Academic Year</TableHead>
+                  <TableHead>Score</TableHead>
+                  <TableHead>Grade</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredResults.map((result) => (
                   <TableRow key={result.id}>
-                    <TableCell>{result.session?.[0]?.name || '-'}</TableCell>
-                    <TableCell>{result.semester?.[0]?.semester_name || '-'}</TableCell>
-                    <TableCell className="font-semibold">{result.gpa.toFixed(2)}</TableCell>
-                    <TableCell className="font-semibold">{result.cgpa.toFixed(2)}</TableCell>
-                    <TableCell>{result.total_credit_units}</TableCell>
-                    <TableCell>{result.total_grade_points}</TableCell>
+                    <TableCell>{result.assessment?.[0]?.course?.[0]?.code || result.course_name}</TableCell>
+                    <TableCell>Semester {result.semester}</TableCell>
+                    <TableCell>{result.academic_year}</TableCell>
+                    <TableCell className="font-semibold">{result.score?.toFixed(2) || 'N/A'}</TableCell>
                     <TableCell>
-                      <Badge className={getStandingColor(result.academic_standing)}>
-                        {result.academic_standing}
+                      <Badge className={getGradeColor(result.grade || 'F')}>
+                        {result.grade}
                       </Badge>
                     </TableCell>
-                    <TableCell>{result.remarks || '-'}</TableCell>
+                    <TableCell>
+                      <Badge className={result.published ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'}>
+                        {result.published ? 'Published' : 'Draft'}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEditResult(result)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleTogglePublish(result)}
+                        >
+                          {result.published ? 'Unpublish' : 'Publish'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditResult(result)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -609,74 +680,50 @@ export default function FinalEntriesPage() {
           </DialogHeader>
           {editingResult && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>GPA</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    value={editingResult.gpa}
-                    onChange={(e) => setEditingResult({ ...editingResult, gpa: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-                <div>
-                  <Label>CGPA</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    value={editingResult.cgpa}
-                    onChange={(e) => setEditingResult({ ...editingResult, cgpa: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Total Credit Units</Label>
-                  <Input
-                    type="number"
-                    value={editingResult.total_credit_units}
-                    onChange={(e) => setEditingResult({ ...editingResult, total_credit_units: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-                <div>
-                  <Label>Total Grade Points</Label>
-                  <Input
-                    type="number"
-                    value={editingResult.total_grade_points}
-                    onChange={(e) => setEditingResult({ ...editingResult, total_grade_points: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
+              <div>
+                <Label>Score</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={editingResult.score || 0}
+                  onChange={(e) => setEditingResult({ ...editingResult, score: parseFloat(e.target.value) || 0 })}
+                />
               </div>
               <div>
-                <Label>Academic Standing</Label>
+                <Label>Grade</Label>
                 <Select
-                  value={editingResult.academic_standing}
-                  onValueChange={(value) => setEditingResult({ ...editingResult, academic_standing: value })}
+                  value={editingResult.grade || 'F'}
+                  onValueChange={(value) => setEditingResult({ ...editingResult, grade: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="first_class">First Class</SelectItem>
-                    <SelectItem value="second_class_upper">Second Class Upper</SelectItem>
-                    <SelectItem value="second_class_lower">Second Class Lower</SelectItem>
-                    <SelectItem value="third_class">Third Class</SelectItem>
-                    <SelectItem value="pass">Pass</SelectItem>
-                    <SelectItem value="fail">Fail</SelectItem>
+                    <SelectItem value="A">A</SelectItem>
+                    <SelectItem value="B">B</SelectItem>
+                    <SelectItem value="C">C</SelectItem>
+                    <SelectItem value="D">D</SelectItem>
+                    <SelectItem value="E">E</SelectItem>
+                    <SelectItem value="F">F</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Remarks</Label>
-                <Input
-                  value={editingResult.remarks}
-                  onChange={(e) => setEditingResult({ ...editingResult, remarks: e.target.value })}
-                  placeholder="Optional remarks"
-                />
+                <Label>Published</Label>
+                <Select
+                  value={editingResult.published.toString()}
+                  onValueChange={(value) => setEditingResult({ ...editingResult, published: value === 'true' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="false">No</SelectItem>
+                    <SelectItem value="true">Yes</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex justify-end gap-2 pt-4">
                 <Button variant="outline" onClick={() => setEditDialogOpen(false)}>

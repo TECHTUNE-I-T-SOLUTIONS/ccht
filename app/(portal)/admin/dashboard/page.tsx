@@ -1,10 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, BookOpen, CreditCard, FileText, GraduationCap, Settings, UserRound, ArrowRight, ClipboardCheck, UserCheck, ShieldCheck, Clock3 } from 'lucide-react'
+import { Users, BookOpen, CreditCard, FileText, GraduationCap, Settings, UserRound, ArrowRight, ClipboardCheck, UserCheck, ShieldCheck, Clock3, Loader2 } from 'lucide-react'
+
+// Cache keys
+const STATS_CACHE_KEY = 'admin_dashboard_stats'
+const CACHE_DURATION = 2 * 60 * 1000 // 2 minutes for dashboard stats
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -22,47 +26,68 @@ export default function AdminDashboard() {
   const [notices, setNotices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const getStats = async () => {
-      try {
-        const [dashboardStatsRes, recentAspirantsRes, recentStudentsRes, recentPaymentsRes, noticesRes] = await Promise.all([
-          fetch('/api/v1/admin/dashboard/stats'),
-          fetch('/api/v1/admin/management/aspirants/recent?limit=4'),
-          fetch('/api/v1/admin/management/students/recent?limit=4'),
-          fetch('/api/v1/admin/payments/recent?limit=4'),
-          fetch('/api/v1/admin/notices?limit=3'),
+  const loadDashboardData = useCallback(async () => {
+    try {
+      // Check cache for stats
+      const cached = localStorage.getItem(STATS_CACHE_KEY)
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached)
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          setStats(data)
+        }
+      }
+
+      // Parallel fetch for critical data
+      const [dashboardStatsRes, recentAspirantsRes, recentStudentsRes] = await Promise.all([
+        fetch('/api/v1/admin/dashboard/stats', { cache: 'no-store' }),
+        fetch('/api/v1/admin/management/aspirants/recent?limit=4', { cache: 'no-store' }),
+        fetch('/api/v1/admin/management/students/recent?limit=4', { cache: 'no-store' }),
+      ])
+      
+      const dashboardStats = await dashboardStatsRes.json()
+      const recentAspirants = await recentAspirantsRes.json()
+      const recentStudents = await recentStudentsRes.json()
+      
+      if (dashboardStats.success) {
+        setStats(dashboardStats.data)
+        // Cache stats
+        localStorage.setItem(STATS_CACHE_KEY, JSON.stringify({ data: dashboardStats.data, timestamp: Date.now() }))
+      }
+      
+      // Combine recent users from different sources and deduplicate by ID
+      const combinedUsers = [
+        ...((recentAspirants.data || []).map((a: any) => ({ ...a, role: 'aspirant' }))),
+        ...((recentStudents.data || []).map((s: any) => ({ ...s, role: 'student' }))),
+      ].reduce((unique: any[], user: any) => {
+        if (!unique.some((u: any) => u.id === user.id)) {
+          unique.push(user)
+        }
+        return unique
+      }, []).slice(0, 4)
+      
+      setRecentUsers(combinedUsers)
+
+      // Lazy load less critical data
+      setTimeout(async () => {
+        const [recentPaymentsRes, noticesRes] = await Promise.all([
+          fetch('/api/v1/admin/payments/recent?limit=4', { cache: 'no-store' }),
+          fetch('/api/v1/admin/notices?limit=3', { cache: 'no-store' }),
         ])
-        
-        const dashboardStats = await dashboardStatsRes.json()
-        const recentAspirants = await recentAspirantsRes.json()
-        const recentStudents = await recentStudentsRes.json()
         const recentPayments = await recentPaymentsRes.json()
         const notices = await noticesRes.json()
-        
-        if (dashboardStats.success) setStats(dashboardStats.data)
-        
-        // Combine recent users from different sources and deduplicate by ID
-        const combinedUsers = [
-          ...((recentAspirants.data || []).map((a: any) => ({ ...a, role: 'aspirant' }))),
-          ...((recentStudents.data || []).map((s: any) => ({ ...s, role: 'student' }))),
-        ].reduce((unique: any[], user: any) => {
-          if (!unique.some((u: any) => u.id === user.id)) {
-            unique.push(user)
-          }
-          return unique
-        }, []).slice(0, 4)
-        
-        setRecentUsers(combinedUsers)
         setRecentPayments(recentPayments.data || [])
         setNotices(notices.data || [])
-      } catch (error) {
-        console.error('Failed to load dashboard stats:', error)
-      } finally {
-        setLoading(false)
-      }
+      }, 100)
+    } catch (error) {
+      console.error('Failed to load dashboard stats:', error)
+    } finally {
+      setLoading(false)
     }
-    getStats()
   }, [])
+
+  useEffect(() => {
+    loadDashboardData()
+  }, [loadDashboardData])
 
   const managementModules = [
     { label: 'Admission applications and screening', href: '/admin/management/aspirants', icon: GraduationCap },
@@ -73,7 +98,26 @@ export default function AdminDashboard() {
     { label: 'Fee structure, sessions, and receipts', href: '/admin/finance/fees', icon: CreditCard },
   ]
 
-  if (loading) return <div className="p-8">Loading dashboard...</div>
+  if (loading) {
+    return (
+      <div className="space-y-8 p-6">
+        <div className="rounded-[2rem] border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))] p-6 md:p-8">
+          <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+          <div className="mt-3 h-12 w-64 bg-muted animate-pulse rounded" />
+          <div className="mt-3 h-6 w-96 bg-muted animate-pulse rounded" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="rounded-3xl border bg-white p-6 shadow-sm dark:bg-blue-800/20">
+              <div className="h-5 w-5 bg-muted animate-pulse rounded" />
+              <div className="mt-4 h-4 w-24 bg-muted animate-pulse rounded" />
+              <div className="mt-1 h-8 w-16 bg-muted animate-pulse rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8">

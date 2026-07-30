@@ -14,6 +14,10 @@ interface AnnouncementBannerProps {
   sidebarCollapsed?: boolean
 }
 
+// Cache key for announcements
+const ANNOUNCEMENTS_CACHE_KEY = 'portal_announcements_cache'
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
 export function AnnouncementBanner({ sidebarCollapsed = false }: AnnouncementBannerProps) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,10 +25,24 @@ export function AnnouncementBanner({ sidebarCollapsed = false }: AnnouncementBan
   useEffect(() => {
     const fetchAnnouncements = async () => {
       try {
-        const response = await fetch('/api/v1/announcements?limit=10')
+        // Check cache first
+        const cached = localStorage.getItem(ANNOUNCEMENTS_CACHE_KEY)
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached)
+          if (Date.now() - timestamp < CACHE_DURATION) {
+            setAnnouncements(data)
+            setLoading(false)
+            return
+          }
+        }
+
+        const response = await fetch('/api/v1/announcements?limit=10', { cache: 'no-store' })
         const data = await response.json()
         if (data.success) {
-          setAnnouncements(data.data || [])
+          const announcementsData = data.data || []
+          setAnnouncements(announcementsData)
+          // Cache announcements
+          localStorage.setItem(ANNOUNCEMENTS_CACHE_KEY, JSON.stringify({ data: announcementsData, timestamp: Date.now() }))
         }
       } catch (error) {
         console.error('Failed to fetch announcements:', error)
@@ -49,8 +67,8 @@ export function AnnouncementBanner({ sidebarCollapsed = false }: AnnouncementBan
         </div>
         <div className="relative flex-1 overflow-hidden">
           <div className="flex animate-marquee whitespace-nowrap">
-            {/* Repeat announcements multiple times for seamless infinite scroll */}
-            {[...Array(40000)].flatMap(() => 
+            {/* Repeat announcements 4 times for seamless infinite scroll - much more efficient than 40,000 */}
+            {Array.from({ length: 4 }).flatMap(() => 
               announcements.map((announcement) => (
                 <div key={`${announcement.id}-${Math.random()}`} className="flex items-center gap-4 px-6 py-3">
                   <span className="font-semibold">{announcement.title}</span>

@@ -84,6 +84,9 @@ type Enrollment = {
       code: string
       title: string
     }[]
+    status: string
+    session: string
+    semester: string
   }[]
 }
 
@@ -182,7 +185,10 @@ export default function StudentAssessmentEntriesPage() {
             program_id,
             program:programs(title),
             selected_courses:selected_courses(
-              course:courses(id, code, title)
+              course:courses(id, code, title),
+              status,
+              session,
+              semester
             )
           `)
           .eq('student_id', studentId)
@@ -199,15 +205,39 @@ export default function StudentAssessmentEntriesPage() {
       setEnrollments(enrollmentsRes.data || [])
       
       // Load teachers for teacher dropdown
-      const { data: teachersData, error: teachersError } = await supabase
+      // Query teacher_profiles first, then fetch profiles separately
+      const { data: teacherProfilesData, error: teacherProfilesError } = await supabase
         .from('teacher_profiles')
-        .select(`
-          profile_id,
-          profiles!teacher_profiles_profile_id_fkey(first_name, last_name)
-        `)
-        .eq('employment_status', 'active')
-      if (teachersError) throw teachersError
-      setTeachers(teachersData || [])
+        .select('profile_id, employee_number')
+      
+      if (teacherProfilesError) {
+        console.error('Error loading teacher_profiles:', teacherProfilesError)
+        toast.error('Failed to load teachers')
+      } else if (teacherProfilesData && teacherProfilesData.length > 0) {
+        // Fetch profiles for all teacher profile_ids
+        const profileIds = teacherProfilesData.map(tp => tp.profile_id)
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, email')
+          .in('id', profileIds)
+        
+        if (profilesError) {
+          console.error('Error loading profiles:', profilesError)
+        }
+        
+        // Combine the data
+        const teachersWithProfiles = teacherProfilesData.map(tp => ({
+          profile_id: tp.profile_id,
+          employee_number: tp.employee_number,
+          profiles: profilesData?.filter(p => p.id === tp.profile_id) || []
+        }))
+        
+        console.log('Teachers loaded (manual join):', teachersWithProfiles)
+        setTeachers(teachersWithProfiles)
+      } else {
+        console.log('No teacher_profiles found')
+        setTeachers([])
+      }
     } catch (error) {
       console.error('Failed to load data:', error)
       toast.error('Failed to load student data')
@@ -371,7 +401,7 @@ export default function StudentAssessmentEntriesPage() {
                   <Label>Course</Label>
                   <Select
                     value={newAssessment.course_id}
-                    onValueChange={(value) => {
+                    onValueChange={async (value) => {
                       setNewAssessment({ ...newAssessment, course_id: value })
                       // Auto-select enrollment when course is selected
                       const enrollmentWithCourse = enrollments.find(e => 
@@ -380,18 +410,36 @@ export default function StudentAssessmentEntriesPage() {
                       if (enrollmentWithCourse) {
                         setNewAssessment(prev => ({ ...prev, enrollment_id: enrollmentWithCourse.id }))
                       }
+                      // Auto-calculate exam score from 100 to 60 scale if existing assessment exists
+                      const { data: existingAssessment } = await supabase
+                        .from('assessments')
+                        .select('exam_score')
+                        .eq('student_id', studentId)
+                        .eq('course_id', value)
+                        .single()
+                      if (existingAssessment?.exam_score) {
+                        // Convert from 100-point scale to 60-point scale
+                        const convertedScore = existingAssessment.exam_score * 0.6
+                        setNewAssessment(prev => ({ ...prev, exam_score: convertedScore }))
+                      }
                     }}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select course" />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {courses.map((course) => (
-                        <SelectItem key={course.id} value={course.id}>
-                          {course.code} - {course.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
+                      {courses.filter(course => 
+                        enrollments.some(e => 
+                          e.selected_courses?.some(sc => 
+            sc.course[0]?.id === course.id && sc.status === 'approved'
+          )
+        )
+      ).map((course) => (
+        <SelectItem key={course.id} value={course.id}>
+          {course.code} - {course.title}
+        </SelectItem>
+      ))}
+    </SelectContent>
                   </Select>
                 </div>
                 <div>
@@ -404,11 +452,21 @@ export default function StudentAssessmentEntriesPage() {
                       <SelectValue placeholder="Select teacher" />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {teachers.map((teacher) => (
-                        <SelectItem key={teacher.profile_id} value={teacher.profile_id}>
-                          {teacher.profiles?.[0]?.first_name} {teacher.profiles?.[0]?.last_name}
-                        </SelectItem>
-                      ))}
+                      {teachers.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground">No teachers available</div>
+                      ) : (
+                        teachers.map((teacher) => {
+                          const profile = teacher.profiles?.[0]
+                          const displayName = profile?.first_name && profile?.last_name 
+                            ? `${profile.first_name} ${profile.last_name}`
+                            : profile?.first_name || profile?.last_name || profile?.email || teacher.employee_number || `Teacher (${teacher.profile_id.slice(0, 8)})`
+                          return (
+                            <SelectItem key={teacher.profile_id} value={teacher.profile_id}>
+                              {displayName}
+                            </SelectItem>
+                          )
+                        })
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

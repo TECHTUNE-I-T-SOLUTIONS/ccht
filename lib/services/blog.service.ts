@@ -7,8 +7,8 @@ export type BlogPost = {
   id: string;
   title: string;
   slug: string;
-  content: string;
-  excerpt: string;
+  content?: string;
+  excerpt?: string;
   author_id?: string;
   featured_image_url?: string;
   tags?: string[];
@@ -17,12 +17,12 @@ export type BlogPost = {
   status: string;
   published_at?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
   author?: {
     first_name?: string;
     last_name?: string;
     avatar_url?: string;
-  };
+  }[];
 };
 
 export class BlogService {
@@ -31,7 +31,7 @@ export class BlogService {
 
     let query = supabase
       .from('blog_posts')
-      .select('id, title, slug, excerpt, featured_image_url, tags, seo_title, seo_description, status, published_at, created_at, updated_at, author_id, author:profiles(first_name, last_name, avatar_url)')
+      .select('id, title, slug, excerpt, featured_image_url, status, published_at, created_at')
       .eq('status', 'published')
       .order('published_at', { ascending: false });
 

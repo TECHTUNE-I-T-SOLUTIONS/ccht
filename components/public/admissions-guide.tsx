@@ -88,6 +88,8 @@ export function AdmissionsGuide() {
                alt="Student at CCHT"
                fill
                sizes="30vw"
+               quality={75}
+               loading="lazy"
                className="object-cover"
              />
              <div className="absolute inset-0 bg-gradient-to-t from-blue-900/80 to-transparent" />

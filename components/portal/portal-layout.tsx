@@ -1,8 +1,8 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { Menu, X, LogOut, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText, ChevronsLeft, ChevronsRight, BellDot, Award, CreditCard, Lock as LockIcon, UserCheck, Briefcase, Shield } from 'lucide-react'
+import { Menu, X, LogOut, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText, ChevronsLeft, ChevronsRight, BellDot, Award, CreditCard, Lock as LockIcon, UserCheck, Briefcase, Shield, Loader2 } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { ThemeToggle } from '@/components/public/theme-toggle'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -34,6 +34,10 @@ type NavItem = {
   stage?: string
 }
 
+// Cache key for user data
+const USER_CACHE_KEY = 'portal_user_cache'
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
 export function PortalLayout({ children, role }: PortalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -46,53 +50,93 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
   const [currentStage, setCurrentStage] = useState('signup')
   const [examUnlocked, setExamUnlocked] = useState(false)
   const [studentProfile, setStudentProfile] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
 
-  useEffect(() => {
-    const loadUser = async () => {
-      const response = await fetch('/api/v1/auth/me')
-      const data = await response.json().catch(() => null)
-      setUser(data?.user || null)
+  const loadUser = useCallback(async () => {
+    try {
+      // Check cache first
+      const cached = localStorage.getItem(USER_CACHE_KEY)
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached)
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          setUser(data)
+          setIsLoading(false)
+          // Continue with background refresh
+        }
+      }
 
-      if ((data?.user?.role || role) === 'aspirant') {
-        const [photoRes, notificationRes, statusRes, docsRes, resultsRes] = await Promise.all([
-          fetch('/api/v1/admissions/profile-photo'),
-          fetch('/api/v1/notifications/aspirant'),
-          fetch('/api/v1/aspirant/payments/status'),
-          fetch('/api/v1/admissions/documents'),
-          fetch('/api/v1/admissions/results'),
+      const response = await fetch('/api/v1/auth/me', { cache: 'no-store' })
+      const data = await response.json().catch(() => null)
+      const userData = data?.user || null
+      setUser(userData)
+
+      // Cache user data
+      if (userData) {
+        localStorage.setItem(USER_CACHE_KEY, JSON.stringify({ data: userData, timestamp: Date.now() }))
+      }
+
+      const userRole = userData?.role || role
+
+      // Only load role-specific data if needed
+      if (userRole === 'aspirant') {
+        // Parallel fetch for aspirant data
+        const [photoRes, notificationRes, statusRes] = await Promise.all([
+          fetch('/api/v1/admissions/profile-photo', { cache: 'no-store' }),
+          fetch('/api/v1/notifications/aspirant', { cache: 'no-store' }),
+          fetch('/api/v1/aspirant/payments/status', { cache: 'no-store' }),
         ])
+        
         const photoData = await photoRes.json().catch(() => null)
         const notificationData = await notificationRes.json().catch(() => null)
         const statusData = await statusRes.json().catch(() => null)
-        const docsData = await docsRes.json().catch(() => null)
-        const resultsData = await resultsRes.json().catch(() => null)
         
         setPassportUploaded(Boolean(photoData?.data?.length))
         setUnreadCount((notificationData?.data || []).filter((item: { is_read?: boolean }) => !item.is_read).length)
         setAppFeePaid(statusData?.data?.profile?.application_fee_paid || false)
-        setDocumentsUploaded((docsData?.data || []).length > 0)
-        setExamCompleted((resultsData?.data || []).length > 0)
         setCurrentStage(statusData?.data?.profile?.current_stage || 'signup')
-        // Exam is unlocked when stage is 'exam' or later
+        
         const stageOrder = ['signup', 'payment', 'documents', 'exam', 'admission_fee', 'migration', 'admission_acceptance', 'completed']
         const currentStageIndex = stageOrder.indexOf(statusData?.data?.profile?.current_stage || 'signup')
         setExamUnlocked(currentStageIndex >= stageOrder.indexOf('exam'))
+
+        // Lazy load documents and results
+        setTimeout(async () => {
+          const [docsRes, resultsRes] = await Promise.all([
+            fetch('/api/v1/admissions/documents', { cache: 'no-store' }),
+            fetch('/api/v1/admissions/results', { cache: 'no-store' }),
+          ])
+          const docsData = await docsRes.json().catch(() => null)
+          const resultsData = await resultsRes.json().catch(() => null)
+          setDocumentsUploaded((docsData?.data || []).length > 0)
+          setExamCompleted((resultsData?.data || []).length > 0)
+        }, 100)
       }
 
-      if ((data?.user?.role || role) === 'student') {
-        const studentProfileRes = await fetch('/api/v1/student/profile')
-        const studentProfileData = await studentProfileRes.json().catch(() => null)
-        setStudentProfile(studentProfileData?.data || null)
+      if (userRole === 'student') {
+        // Lazy load student profile
+        setTimeout(async () => {
+          const studentProfileRes = await fetch('/api/v1/student/profile', { cache: 'no-store' })
+          const studentProfileData = await studentProfileRes.json().catch(() => null)
+          setStudentProfile(studentProfileData?.data || null)
+        }, 100)
       }
+    } catch (error) {
+      console.error('Failed to load user:', error)
+    } finally {
+      setIsLoading(false)
     }
-
-    loadUser()
   }, [role])
+
+  useEffect(() => {
+    loadUser()
+  }, [loadUser])
 
   const handleLogout = async () => {
     try {
+      // Clear cache on logout
+      localStorage.removeItem(USER_CACHE_KEY)
       const response = await fetch('/api/v1/auth/logout', { method: 'POST' })
       if (!response.ok) throw new Error('Logout failed')
       toast.success('You have been signed out.')
@@ -183,6 +227,29 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
   // Hide sidebar during exam for security
   const isExamPage = pathname === '/aspirant/exam' || pathname.startsWith('/student/exams/[id]/take') || pathname.includes('/take')
   const showSidebar = !isExamPage
+
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <header className="sticky top-0 z-[70] border-b border-border/70 bg-background/90 backdrop-blur">
+          <div className="flex h-16 items-center justify-between gap-2 px-4 sm:px-6">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded bg-muted animate-pulse" />
+              <div className="h-8 w-32 rounded bg-muted animate-pulse" />
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />
+              <div className="h-9 w-20 rounded bg-muted animate-pulse" />
+            </div>
+          </div>
+        </header>
+        <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
