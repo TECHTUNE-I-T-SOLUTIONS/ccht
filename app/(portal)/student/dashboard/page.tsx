@@ -26,7 +26,7 @@ export default function StudentDashboard() {
           supabase.from('profiles').select('id, email, first_name, last_name, phone, role, avatar_url').eq('id', user.id).single(),
           supabase.from('student_profiles').select('*').eq('profile_id', user.id).single(),
           supabase.from('payments').select('id, amount, status, created_at, description').order('created_at', { ascending: false }).limit(4),
-          supabase.from('aspirant_admission_payment').select('id, amount, status, created_at, description').eq('profile_id', user.id).order('created_at', { ascending: false }).limit(4),
+          supabase.from('aspirant_admission_payments').select('id, amount, status, created_at, description').eq('profile_id', user.id).order('created_at', { ascending: false }).limit(4),
           supabase.from('results').select('id, course_name, score, grade, semester, academic_year, created_at').eq('student_id', user.id).order('created_at', { ascending: false }).limit(4),
           supabase.from('enrollments').select('*, program:programs(title)').eq('student_id', user.id).eq('status', 'active'),
           supabase.from('announcements').select('*').eq('is_published', true).order('published_at', { ascending: false }).limit(3),

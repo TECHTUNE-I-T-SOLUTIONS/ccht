@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { Menu, X, LogOut, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText, ChevronsLeft, ChevronsRight, BellDot, Award, CreditCard, Lock as LockIcon, UserCheck, Briefcase, Shield, Loader2 } from 'lucide-react'
+import { Menu, X, LogOut, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText, ChevronsLeft, ChevronsRight, BellDot, Award, CreditCard, Lock as LockIcon, UserCheck, Briefcase, Shield, Loader2, Mail } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { ThemeToggle } from '@/components/public/theme-toggle'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -184,6 +184,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
         { label: 'Finance', href: '/admin/finance/fees', icon: CreditCard },
         { label: 'Content', href: '/admin/content', icon: FileText },
         { label: 'Messages', href: '/admin/messages', icon: Bell },
+        { label: 'Send Email', href: '/admin/communication/send-email', icon: Mail },
         { label: 'Settings', href: '/admin/settings', icon: Settings },
       ],
       aspirant: [

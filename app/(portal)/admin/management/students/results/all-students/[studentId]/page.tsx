@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus } from 'lucide-react'
+import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { createClient } from '@/lib/supabase/client'
@@ -96,6 +96,10 @@ export default function StudentDetailResultsPage() {
   const [editingExam, setEditingExam] = useState<ExamResult | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editExamDialogOpen, setEditExamDialogOpen] = useState(false)
+  const [deleteResultId, setDeleteResultId] = useState<string | null>(null)
+  const [deleteExamId, setDeleteExamId] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteExamDialogOpen, setDeleteExamDialogOpen] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -163,14 +167,95 @@ export default function StudentDetailResultsPage() {
     }
   }
 
-  const handleEditResult = (result: AssessmentResult) => {
-    setEditingResult(result)
+  const handleEditResult = async (result: AssessmentResult) => {
+    // Fetch exam attempt for this course if it exists
+    try {
+      const { data: examAttempt } = await supabase
+        .from('student_exam_attempts')
+        .select(`
+          total_score,
+          exam_session:student_exam_sessions!inner(
+            total_marks
+          )
+        `)
+        .eq('student_id', result.student_id)
+        .maybeSingle()
+
+      let examScore = result.exam_score
+      
+      // If exam attempt exists and score is over 100, convert to 60-point scale
+      if (examAttempt && examAttempt.total_score > 100) {
+        const totalMarks = (examAttempt.exam_session as any)?.total_marks || 100
+        // Convert from 100-point scale to 60-point scale
+        examScore = (examAttempt.total_score / totalMarks) * 60
+      }
+
+      setEditingResult({
+        ...result,
+        exam_score: examScore
+      })
+    } catch (error) {
+      console.error('Failed to fetch exam attempt:', error)
+      setEditingResult(result)
+    }
     setEditDialogOpen(true)
   }
 
   const handleEditExam = (exam: ExamResult) => {
     setEditingExam(exam)
     setEditExamDialogOpen(true)
+  }
+
+  const handleDeleteResult = (id: string) => {
+    setDeleteResultId(id)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteExam = (id: string) => {
+    setDeleteExamId(id)
+    setDeleteExamDialogOpen(true)
+  }
+
+  const confirmDeleteResult = async () => {
+    if (!deleteResultId) return
+
+    try {
+      const { error } = await supabase
+        .from('assessments')
+        .delete()
+        .eq('id', deleteResultId)
+
+      if (error) throw error
+      toast.success('Assessment result deleted successfully')
+      loadData()
+    } catch (error) {
+      console.error('Failed to delete result:', error)
+      toast.error('Failed to delete result')
+    } finally {
+      setDeleteDialogOpen(false)
+      setDeleteResultId(null)
+    }
+  }
+
+  const confirmDeleteExam = async () => {
+    if (!deleteExamId) return
+
+    try {
+      const { error } = await supabase
+        .from('student_exam_attempts')
+        .delete()
+        .eq('id', deleteExamId)
+
+      if (error) throw error
+      toast.success('Exam result deleted successfully')
+      loadData()
+    } catch (error) {
+      console.error('Failed to delete exam result:', error)
+      toast.error('Failed to delete exam result')
+    } finally {
+      setDeleteExamDialogOpen(false)
+      setDeleteExamId(null)
+    }
   }
 
   const handleSaveResult = async () => {
@@ -396,13 +481,22 @@ export default function StudentDetailResultsPage() {
                         <Badge variant={result.score_status === 'published' ? 'default' : 'secondary'}>
                           {result.score_status}
                         </Badge>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditResult(result)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditResult(result)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDeleteResult(result.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </Card>
@@ -449,13 +543,22 @@ export default function StudentDetailResultsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditResult(result)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEditResult(result)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteResult(result.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -487,25 +590,36 @@ export default function StudentDetailResultsPage() {
                         <div className="font-semibold">Percentage: {result.percentage_score}%</div>
                       </div>
                       <div className="flex justify-between items-center pt-2">
-                        <Badge variant={result.status === 'graded' ? 'default' : 'secondary'}>
-                          {result.status}
-                        </Badge>
-                        {result.passed ? (
-                          <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                            Passed
+                        <div className="flex gap-1">
+                          <Badge variant={result.status === 'graded' ? 'default' : 'secondary'}>
+                            {result.status}
                           </Badge>
-                        ) : (
-                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                            Failed
-                          </Badge>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditExam(result)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                          {result.passed ? (
+                            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                              Passed
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                              Failed
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditExam(result)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDeleteExam(result.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </Card>
@@ -559,13 +673,22 @@ export default function StudentDetailResultsPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditExam(result)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEditExam(result)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteExam(result.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -579,7 +702,7 @@ export default function StudentDetailResultsPage() {
 
       {/* Edit Result Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white dark:bg-black">
           <DialogHeader>
             <DialogTitle>Edit Assessment Result</DialogTitle>
             <DialogDescription>
@@ -678,6 +801,46 @@ export default function StudentDetailResultsPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Result Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="bg-white dark:bg-black">
+          <DialogHeader>
+            <DialogTitle>Delete Assessment Result</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this assessment result? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteResult}>
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Exam Confirmation Dialog */}
+      <Dialog open={deleteExamDialogOpen} onOpenChange={setDeleteExamDialogOpen}>
+        <DialogContent className="bg-white dark:bg-black">
+          <DialogHeader>
+            <DialogTitle>Delete Exam Result</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this exam result? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setDeleteExamDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteExam}>
+              Delete
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

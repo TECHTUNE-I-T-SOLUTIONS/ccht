@@ -1,54 +1,37 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Award, FileText, Sparkles, Clock3, AlertCircle, CheckCircle2, Filter, Search, Download } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Award, FileText, Sparkles, Clock3, AlertCircle, CheckCircle2, Filter, Search, Download, X, Eye } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { generateStudentResults } from '@/lib/templates/student-results'
 
 const gradePoints: Record<string, number> = { A: 5, B: 4, C: 3, D: 2, E: 1, F: 0 }
 
-type Result = {
-  id: string
-  course_name: string
-  course_code?: string
-  score: number | null
-  grade: string | null
-  semester: number
-  academic_year: string
-  credit_units: number
-  status: 'published' | 'pending' | 'not_released'
-  published_at?: string
-}
-
-type StudentProfile = {
-  matric_number: string
-  current_level: string
-}
-
-type Enrollment = {
-  program_id: string
-  program?: {
-    title: string
-    department?: {
-      name: string
-    }
-  }
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Result = any
 
 export default function ResultsPage() {
+  const router = useRouter()
   const [results, setResults] = useState<Result[]>([])
-  const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null)
-  const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
+  const [studentProfile, setStudentProfile] = useState<any>(null)
+  const [enrollment, setEnrollment] = useState<any>(null)
+  const [userProfile, setUserProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'pending'>('all')
+  const [filterStatus, setFilterStatus] = useState('all')
   const [filterSession, setFilterSession] = useState('all')
   const [filterSemester, setFilterSemester] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedResult, setSelectedResult] = useState<Result | null>(null)
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false)
+  const [resultAssessment, setResultAssessment] = useState<any>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -61,13 +44,29 @@ export default function ResultsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const [resultsRes, studentProfileRes, enrollmentRes] = await Promise.all([
-        supabase.from('results').select('*').eq('student_id', user.id).order('academic_year', { ascending: false }),
-        supabase.from('student_profiles').select('matric_number, current_level').eq('profile_id', user.id).single(),
-        supabase.from('enrollments').select('*, program:programs(title, department:departments(name))').eq('student_id', user.id).eq('status', 'active').single()
+      // Load user profile, student profile, enrollments, and results
+      const [profileRes, resultsRes, studentProfileRes, enrollmentRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase
+          .from('results')
+          .select('*')
+          .eq('student_id', user.id)
+          .order('academic_year', { ascending: false })
+          .order('semester', { ascending: false }),
+        supabase.from('student_profiles').select('*').eq('profile_id', user.id).single(),
+        supabase.from('enrollments').select('*, program:programs(title, department:departments(name))').eq('student_id', user.id).eq('status', 'active').maybeSingle()
       ])
 
-      if (resultsRes.data) setResults(resultsRes.data)
+      if (profileRes.data) setUserProfile(profileRes.data)
+      if (resultsRes.data) {
+        // Map published boolean to status string
+        const mapped = resultsRes.data.map((r: any) => ({
+          ...r,
+          status: r.published ? 'published' : 'pending',
+          credit_units: 3 // Default credit units since results table doesn't have this
+        }))
+        setResults(mapped)
+      }
       if (studentProfileRes.data) setStudentProfile(studentProfileRes.data)
       if (enrollmentRes.data) setEnrollment(enrollmentRes.data)
     } catch (error) {
@@ -78,31 +77,22 @@ export default function ResultsPage() {
     }
   }
 
-  const sessions = Array.from(new Set(results.map(r => r.academic_year))).sort().reverse()
+  const sessions = Array.from(new Set(results.map((r: any) => r.academic_year))).sort().reverse()
   const semesters = [1, 2]
 
-  const filteredResults = results.filter(result => {
-    // Status filter
+  const filteredResults = results.filter((result: any) => {
     if (filterStatus !== 'all' && result.status !== filterStatus) return false
-    
-    // Session filter
     if (filterSession !== 'all' && result.academic_year !== filterSession) return false
-    
-    // Semester filter
     if (filterSemester !== 'all' && result.semester !== parseInt(filterSemester)) return false
-    
-    // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      return result.course_name.toLowerCase().includes(query) ||
-             (result.course_code && result.course_code.toLowerCase().includes(query))
+      return result.course_name?.toLowerCase().includes(query)
     }
-    
     return true
   })
 
   // Group results by session and semester
-  const groupedResults = filteredResults.reduce((acc, result) => {
+  const groupedResults = filteredResults.reduce((acc: any, result: any) => {
     const key = `${result.academic_year} - Semester ${result.semester}`
     if (!acc[key]) acc[key] = []
     acc[key].push(result)
@@ -114,9 +104,8 @@ export default function ResultsPage() {
     let cgpaPoints = 0
     let cgpaUnits = 0
 
-    results.forEach((r) => {
+    results.forEach((r: any) => {
       if (r.status !== 'published' || !r.grade) return
-      
       const units = r.credit_units || 3
       const grade = r.grade || 'F'
       const point = gradePoints[grade] ?? 0
@@ -153,8 +142,8 @@ export default function ResultsPage() {
     const session = sessionKey ? sessionKey.split(' - ')[0] : filterSession === 'all' ? sessions[0] : filterSession
     const semester = sessionKey ? sessionKey.split(' - ')[1] : filterSemester === 'all' ? 'Semester 1' : `Semester ${filterSemester}`
     
-    const totalCredits = resultsToDownload.reduce((sum, r) => sum + (r.credit_units || 3), 0)
-    const totalGradePoints = resultsToDownload.reduce((sum, r) => {
+    const totalCredits = resultsToDownload.reduce((sum: number, r: any) => sum + (r.credit_units || 3), 0)
+    const totalGradePoints = resultsToDownload.reduce((sum: number, r: any) => {
       if (!r.grade) return sum
       const units = r.credit_units || 3
       return sum + (gradePoints[r.grade] || 0) * units
@@ -162,15 +151,15 @@ export default function ResultsPage() {
     const gpa = totalCredits > 0 ? totalGradePoints / totalCredits : 0
 
     const doc = generateStudentResults({
-      firstName: '', // Will be filled from profiles
-      lastName: '', // Will be filled from profiles
-      matricNumber: studentProfile.matric_number || '',
-      program: enrollment.program?.title || '',
-      department: enrollment.program?.department?.name || '',
+      firstName: userProfile?.first_name || '',
+      lastName: userProfile?.last_name || '',
+      matricNumber: studentProfile?.matric_number || '',
+      program: enrollment?.program?.title || '',
+      department: enrollment?.program?.department?.name || '',
       session,
       semester,
-      level: studentProfile.current_level || '100',
-      results: resultsToDownload.map(r => ({
+      level: studentProfile?.current_level || '100',
+      results: resultsToDownload.map((r: any) => ({
         courseCode: r.course_code || 'N/A',
         courseTitle: r.course_name,
         credit: r.credit_units || 3,
@@ -189,35 +178,39 @@ export default function ResultsPage() {
     toast.success('Results downloaded')
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'published':
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600">
-            <CheckCircle2 className="h-3 w-3" />
-            Published
-          </span>
-        )
-      case 'pending':
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600">
-            <Clock3 className="h-3 w-3" />
-            Pending
-          </span>
-        )
-      case 'not_released':
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-gray-500/10 px-3 py-1 text-xs font-semibold text-gray-600">
-            <AlertCircle className="h-3 w-3" />
-            Not Released
-          </span>
-        )
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-gray-500/10 px-3 py-1 text-xs font-semibold text-gray-600">
-            Unknown
-          </span>
-        )
+  const openResultDetail = async (result: any) => {
+    setSelectedResult(result)
+    setResultAssessment(null)
+    setDetailDialogOpen(true)
+    
+    // Fetch the assessment for this result
+    if (result.assessment_id) {
+      const { data: assessment } = await supabase
+        .from('assessments')
+        .select('*')
+        .eq('id', result.assessment_id)
+        .single()
+      setResultAssessment(assessment)
+    } else {
+      // Try to find by course name and student
+      const courseCode = result.course_name?.split(' - ')[0]
+      if (courseCode) {
+        const { data: courses } = await supabase
+          .from('courses')
+          .select('id')
+          .ilike('code', courseCode)
+          .limit(1)
+        
+        if (courses && courses.length > 0) {
+          const { data: assessment } = await supabase
+            .from('assessments')
+            .select('*')
+            .eq('student_id', result.student_id)
+            .eq('course_id', courses[0].id)
+            .single()
+          setResultAssessment(assessment)
+        }
+      }
     }
   }
 
@@ -230,9 +223,20 @@ export default function ResultsPage() {
     return 'bg-red-500/10 text-red-600'
   }
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'published':
+        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20"><CheckCircle2 className="h-3 w-3 mr-1" /> Published</Badge>
+      case 'pending':
+        return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20"><Clock3 className="h-3 w-3 mr-1" /> Pending</Badge>
+      default:
+        return <Badge className="bg-gray-500/10 text-gray-600 border-gray-500/20"><AlertCircle className="h-3 w-3 mr-1" /> Unknown</Badge>
+    }
+  }
+
   if (loading) return <div className="p-8 font-technical">Loading results and grades...</div>
 
-  const publishedResults = results.filter(r => r.status === 'published')
+  const publishedResults = results.filter((r: any) => r.status === 'published')
 
   return (
     <div className="space-y-6">
@@ -243,7 +247,7 @@ export default function ResultsPage() {
             <p className="text-muted-foreground">View your GPA performance and exam scores</p>
           </div>
           {publishedResults.length > 0 && (
-            <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-white p-4 text-primary shadow-sm">
+            <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-white dark:bg-black p-4 text-primary shadow-sm">
               <Award className="h-10 w-10" />
               <div>
                 <span className="block text-[10px] font-technical uppercase font-bold tracking-wider">Cumulative CGPA</span>
@@ -263,7 +267,7 @@ export default function ResultsPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Published Results</p>
-              <p className="text-2xl font-bold">{results.filter(r => r.status === 'published').length}</p>
+              <p className="text-2xl font-bold">{results.filter((r: any) => r.status === 'published').length}</p>
             </div>
           </div>
         </Card>
@@ -274,7 +278,7 @@ export default function ResultsPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Pending Results</p>
-              <p className="text-2xl font-bold">{results.filter(r => r.status === 'pending').length}</p>
+              <p className="text-2xl font-bold">{results.filter((r: any) => r.status === 'pending').length}</p>
             </div>
           </div>
         </Card>
@@ -284,8 +288,8 @@ export default function ResultsPage() {
               <AlertCircle className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Not Released</p>
-              <p className="text-2xl font-bold">{results.filter(r => r.status === 'not_released').length}</p>
+              <p className="text-xs text-muted-foreground">Total Courses</p>
+              <p className="text-2xl font-bold">{results.length}</p>
             </div>
           </div>
         </Card>
@@ -313,8 +317,8 @@ export default function ResultsPage() {
                   />
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
+              <div className="flex gap-2 flex-wrap">
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
                   <SelectTrigger className="w-[140px] rounded-xl">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
@@ -330,7 +334,7 @@ export default function ResultsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Sessions</SelectItem>
-                    {sessions.map(session => (
+                    {sessions.map((session: string) => (
                       <SelectItem key={session} value={session}>{session}</SelectItem>
                     ))}
                   </SelectContent>
@@ -362,80 +366,97 @@ export default function ResultsPage() {
             </Card>
           ) : (
             <div className="space-y-6">
-              {Object.entries(groupedResults).map(([sessionKey, sessionResults]) => (
-                <Card key={sessionKey} className="rounded-[2.5rem] border bg-white p-6 shadow-sm md:p-8">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold">{sessionKey}</h2>
-                    <Button 
-                      onClick={() => downloadResults(sessionKey)}
-                      variant="outline" 
-                      size="sm"
-                      className="rounded-xl"
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Download
-                    </Button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="border-b bg-slate-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left font-semibold">Course</th>
-                          <th className="px-4 py-3 text-left font-semibold">Credit</th>
-                          <th className="px-4 py-3 text-left font-semibold">Score</th>
-                          <th className="px-4 py-3 text-left font-semibold">Grade</th>
-                          <th className="px-4 py-3 text-left font-semibold">GP</th>
-                          <th className="px-4 py-3 text-left font-semibold">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {sessionResults.map((result) => (
-                          <tr key={result.id} className="hover:bg-slate-50">
-                            <td className="px-4 py-3">
-                              <div>
-                                <p className="font-semibold">{result.course_name}</p>
-                                {result.course_code && (
-                                  <p className="text-xs text-muted-foreground">{result.course_code}</p>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">{result.credit_units || 3}</td>
-                            <td className="px-4 py-3 font-technical">
-                              {result.status === 'published' ? (
-                                <span className="font-semibold">{result.score}%</span>
-                              ) : (
-                                <span className="text-muted-foreground">--</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              {result.status === 'published' && result.grade ? (
-                                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${getGradeColor(result.grade)}`}>
-                                  {result.grade}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">--</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 font-technical">
-                              {result.status === 'published' && result.grade ? (
-                                <span className="font-semibold">{gradePoints[result.grade] || 0}</span>
-                              ) : (
-                                <span className="text-muted-foreground">--</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">{getStatusBadge(result.status)}</td>
+              {Object.entries(groupedResults).map(([sessionKey, sessionResults]) => {
+                const sessionResultsTyped = sessionResults as Result[]
+                const total = sessionResultsTyped.length
+                const published = sessionResultsTyped.filter((r: any) => r.status === 'published').length
+                const avgScore = sessionResultsTyped
+                  .filter((r: any) => r.status === 'published' && r.score)
+                  .reduce((acc: number, r: any) => acc + (r.score || 0), 0) / (published || 1)
+
+                return (
+                  <Card key={sessionKey} className="rounded-[2.5rem] border bg-white dark:bg-black p-6 shadow-sm md:p-8">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h2 className="text-xl font-bold">{sessionKey}</h2>
+                        <p className="text-sm text-muted-foreground">
+                          {published} of {total} published | Avg Score: {avgScore.toFixed(1)}%
+                        </p>
+                      </div>
+                      <Button 
+                        onClick={() => downloadResults(sessionKey)}
+                        variant="outline" 
+                        size="sm"
+                        className="rounded-xl"
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                      </Button>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="border-b bg-slate-50 dark:bg-slate-900">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-semibold">Course</th>
+                            <th className="px-4 py-3 text-left font-semibold">Credit</th>
+                            <th className="px-4 py-3 text-left font-semibold">Score</th>
+                            <th className="px-4 py-3 text-left font-semibold">Grade</th>
+                            <th className="px-4 py-3 text-left font-semibold">GP</th>
+                            <th className="px-4 py-3 text-left font-semibold">Status</th>
+                            <th className="px-4 py-3 text-left font-semibold">Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
-              ))}
+                        </thead>
+                        <tbody className="divide-y">
+                          {sessionResultsTyped.map((result: any) => (
+                            <tr key={result.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => openResultDetail(result)}>
+                              <td className="px-4 py-3">
+                                <div>
+                                  <p className="font-semibold">{result.course_name}</p>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">{result.credit_units || 3}</td>
+                              <td className="px-4 py-3 font-technical">
+                                {result.status === 'published' ? (
+                                  <span className="font-semibold">{result.score?.toFixed(2)}%</span>
+                                ) : (
+                                  <span className="text-muted-foreground">--</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                {result.status === 'published' && result.grade ? (
+                                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${getGradeColor(result.grade)}`}>
+                                    {result.grade}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">--</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 font-technical">
+                                {result.status === 'published' && result.grade ? (
+                                  <span className="font-semibold">{gradePoints[result.grade] || 0}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">--</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">{getStatusBadge(result.status)}</td>
+                              <td className="px-4 py-3">
+                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openResultDetail(result); }}>
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                )
+              })}
             </div>
           )}
 
           {/* GPA Performance */}
-          <Card className="rounded-[2.5rem] border bg-white p-6 shadow-sm md:p-8">
+          <Card className="rounded-[2.5rem] border bg-white dark:bg-black p-6 shadow-sm md:p-8">
             <h2 className="mb-6 flex items-center gap-2 text-xl font-bold">
               <Sparkles className="h-5 w-5 text-primary" />
               GPA performance history
@@ -448,7 +469,7 @@ export default function ResultsPage() {
             ) : (
               <div className="space-y-4">
                 {calculatedGPAs.semesterGPAs.map((val) => (
-                  <div key={val.semester} className="flex items-center justify-between rounded-2xl border bg-slate-50 p-4">
+                  <div key={val.semester} className="flex items-center justify-between rounded-2xl border bg-slate-50 dark:bg-slate-800 p-4">
                     <span className="text-sm font-bold">{val.semester}</span>
                     <div className="text-right">
                       <span className="block text-[10px] font-technical uppercase font-bold text-muted-foreground">GPA</span>
@@ -461,6 +482,136 @@ export default function ResultsPage() {
           </Card>
         </>
       )}
+
+      {/* Result Detail Dialog */}
+      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <DialogContent className="max-w-lg bg-white dark:bg-black">
+          <DialogHeader>
+            <DialogTitle>Result Details</DialogTitle>
+            <DialogDescription>
+              Detailed view of your course result.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedResult && (
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Student Info */}
+              <div className="rounded-lg border bg-slate-50 dark:bg-slate-800 p-4">
+                <h3 className="font-semibold mb-2">Student Information</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">Name:</span> <span className="font-medium">{userProfile?.first_name} {userProfile?.last_name}</span></div>
+                  <div><span className="text-muted-foreground">Matric:</span> <span className="font-medium">{studentProfile?.matric_number || 'N/A'}</span></div>
+                  <div><span className="text-muted-foreground">Program:</span> <span className="font-medium">{enrollment?.program?.title || 'N/A'}</span></div>
+                  <div><span className="text-muted-foreground">Level:</span> <span className="font-medium">{studentProfile?.current_level || 'N/A'}</span></div>
+                </div>
+              </div>
+
+              {/* Course Result */}
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
+                <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3">Course Result</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center pb-2 border-b border-blue-200 dark:border-blue-800">
+                    <span className="text-sm text-blue-800 dark:text-blue-200">Course</span>
+                    <span className="font-semibold text-blue-900 dark:text-blue-100 text-right text-sm">{selectedResult.course_name}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-blue-200 dark:border-blue-800">
+                    <span className="text-sm text-blue-800 dark:text-blue-200">Academic Year</span>
+                    <span className="font-semibold text-blue-900 dark:text-blue-100 text-sm">{selectedResult.academic_year}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-blue-200 dark:border-blue-800">
+                    <span className="text-sm text-blue-800 dark:text-blue-200">Semester</span>
+                    <span className="font-semibold text-blue-900 dark:text-blue-100 text-sm">Semester {selectedResult.semester}</span>
+                  </div>
+                  {selectedResult.status === 'published' && (
+                    <>
+                      <div className="flex justify-between items-center pb-2 border-b border-blue-200 dark:border-blue-800">
+                        <span className="text-sm text-blue-800 dark:text-blue-200">Score</span>
+                        <span className="font-semibold text-blue-900 dark:text-blue-100 text-sm">{selectedResult.score?.toFixed(2)}%</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-blue-200 dark:border-blue-800">
+                        <span className="text-sm text-blue-800 dark:text-blue-200">Grade</span>
+                        <span className={`font-bold text-lg ${getGradeColor(selectedResult.grade)} px-3 py-1 rounded-full`}>
+                          {selectedResult.grade}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-blue-200 dark:border-blue-800">
+                        <span className="text-sm text-blue-800 dark:text-blue-200">Grade Point</span>
+                        <span className="font-semibold text-blue-900 dark:text-blue-100 text-sm">{gradePoints[selectedResult.grade] || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-blue-200 dark:border-blue-800">
+                        <span className="text-sm text-blue-800 dark:text-blue-200">Credit Units</span>
+                        <span className="font-semibold text-blue-900 dark:text-blue-100 text-sm">{selectedResult.credit_units || 3}</span>
+                      </div>
+                      {selectedResult.published_at && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-blue-800 dark:text-blue-200">Published</span>
+                          <span className="font-semibold text-blue-900 dark:text-blue-100 text-sm">{new Date(selectedResult.published_at).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {selectedResult.status !== 'published' && (
+                    <div className="flex items-center gap-2 text-amber-600 py-2">
+                      <Clock3 className="h-4 w-4" />
+                      <span className="text-sm">This result is pending and has not been published yet.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Assessment Breakdown */}
+              {resultAssessment && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950">
+                  <h3 className="font-semibold text-emerald-900 dark:text-emerald-100 mb-3">Assessment Breakdown</h3>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex justify-between p-2 rounded bg-white/50 dark:bg-black/20">
+                        <span className="text-emerald-800 dark:text-emerald-200">CA 1 (max 15)</span>
+                        <span className="font-bold text-emerald-900 dark:text-emerald-100">{parseFloat(resultAssessment.ca_1) || 0}</span>
+                      </div>
+                      <div className="flex justify-between p-2 rounded bg-white/50 dark:bg-black/20">
+                        <span className="text-emerald-800 dark:text-emerald-200">CA 2 (max 15)</span>
+                        <span className="font-bold text-emerald-900 dark:text-emerald-100">{parseFloat(resultAssessment.ca_2) || 0}</span>
+                      </div>
+                      <div className="flex justify-between p-2 rounded bg-white/50 dark:bg-black/20">
+                        <span className="text-emerald-800 dark:text-emerald-200">Assignments (max 10)</span>
+                        <span className="font-bold text-emerald-900 dark:text-emerald-100">{parseFloat(resultAssessment.assignments) || 0}</span>
+                      </div>
+                      <div className="flex justify-between p-2 rounded bg-white/50 dark:bg-black/20">
+                        <span className="text-emerald-800 dark:text-emerald-200">Exam Score (max 60)</span>
+                        <span className="font-bold text-emerald-900 dark:text-emerald-100">{parseFloat(resultAssessment.exam_score) || 0}</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 mt-2 border-t border-emerald-200 dark:border-emerald-800">
+                      <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Continuous Assessment (CA)</span>
+                      <span className="font-bold text-emerald-900 dark:text-emerald-100">{parseFloat(resultAssessment.continuous_assessment) || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-2 rounded bg-emerald-100 dark:bg-emerald-900/30">
+                      <span className="text-sm font-bold text-emerald-900 dark:text-emerald-100">Total Score</span>
+                      <span className="text-lg font-black text-emerald-900 dark:text-emerald-100">{parseFloat(resultAssessment.total_score) || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-emerald-800 dark:text-emerald-200">Assessment Grade</span>
+                      <span className={`font-bold px-2 py-0.5 rounded text-xs ${getGradeColor(resultAssessment.grade)}`}>
+                        {resultAssessment.grade}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-emerald-800 dark:text-emerald-200">Status</span>
+                      <span className="font-semibold text-emerald-900 dark:text-emerald-100 capitalize">{resultAssessment.score_status}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end sticky bottom-0 bg-white dark:bg-black pt-2">
+                <Button variant="outline" onClick={() => setDetailDialogOpen(false)}>
+                  <X className="h-4 w-4 mr-2" /> Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

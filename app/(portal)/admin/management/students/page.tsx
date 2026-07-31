@@ -8,6 +8,7 @@ import { BookOpen, Users, FileText, Award, Search, Filter, Download, Eye, CheckC
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
 
 type StudentStats = {
   total: number
@@ -169,6 +170,34 @@ export default function StudentManagementPage() {
     return matchesSearch && matchesStatus
   })
 
+  const handleExportReport = async () => {
+    try {
+      toast.info('Preparing export...')
+      
+      // Fetch all students
+      const response = await fetch('/api/v1/admin/management/students/export')
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch students for export')
+      }
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `students-report-${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+      
+      toast.success('Report exported successfully!')
+    } catch (error) {
+      console.error('Export error:', error)
+      toast.error('Failed to export report. Please try again.')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -177,7 +206,7 @@ export default function StudentManagementPage() {
           <p className="mt-1 text-sm text-muted-foreground">Comprehensive management for all student-related activities</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleExportReport}>
             <Download className="h-4 w-4" />
             Export Report
           </Button>

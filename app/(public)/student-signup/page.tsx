@@ -11,17 +11,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { Loader2, ArrowRight, ArrowLeft, Upload } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { nigeriaStates, getStateLGAs, getStateNames } from '@/lib/data/nigeria-states'
 
 type Step = 1 | 2 | 3
 
 const GENDERS = ['male', 'female', 'other', 'prefer_not_to_say']
-const NIGERIAN_STATES = [
-  'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue',
-  'Borno', 'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu', 'FCT (Abuja)',
-  'Gombe', 'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara',
-  'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo', 'Osun', 'Oyo', 'Plateau', 'Rivers',
-  'Sokoto', 'Taraba', 'Yobe', 'Zamfara',
-]
+const NATIONALITIES = ['Nigerian', 'Ghanaian', 'Beninese', 'Nigerien', 'Cameroonian', 'Other']
+const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+const GENOTYPES = ['AA', 'AS', 'AC', 'SS', 'SC']
 
 export default function StudentSignupPage() {
   const supabase = createClient()
@@ -57,17 +54,21 @@ export default function StudentSignupPage() {
     emergencyContactPhone: '',
     bloodGroup: '',
     genotype: '',
+    program: '',
+    department: '',
   })
 
   useEffect(() => {
     ;(async () => {
       try {
-        const [{ data: setting }, { data: deptData }] = await Promise.all([
+        const [{ data: setting }, { data: deptData }, { data: progData }] = await Promise.all([
           supabase.from('signup_settings').select('is_enabled').eq('signup_type', 'student').single(),
           supabase.from('departments').select('id, name').eq('is_active', true).order('name'),
+          supabase.from('programs').select('id, title').eq('is_active', true).order('title'),
         ])
         setEnabled(Boolean(setting?.is_enabled))
         setDepartments((deptData || []) as any)
+        setPrograms((progData || []) as any)
       } catch (error) {
         console.error(error)
         setEnabled(false)
@@ -107,7 +108,7 @@ export default function StudentSignupPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Signup failed')
       toast.success(data.message || 'Student account created')
-      window.location.href = '/auth/login'
+      window.location.href = '/login'
     } catch (error: any) {
       toast.error(error.message || 'Signup failed')
     } finally {
@@ -149,6 +150,20 @@ export default function StudentSignupPage() {
               <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
               <div><Label>Password</Label><Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
               <div><Label>Confirm Password</Label><Input type="password" value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} /></div>
+              <div>
+                <Label>Program</Label>
+                <Select value={form.program} onValueChange={(value) => setForm({ ...form, program: value })}>
+                  <SelectTrigger><SelectValue placeholder="Select program" /></SelectTrigger>
+                  <SelectContent>{programs.map((p) => <SelectItem key={p.id} value={p.title}>{p.title}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Department</Label>
+                <Select value={form.department} onValueChange={(value) => setForm({ ...form, department: value })}>
+                  <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                  <SelectContent>{departments.map((d) => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             </div>
           )}
 
@@ -162,23 +177,39 @@ export default function StudentSignupPage() {
                   <SelectContent>{GENDERS.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Student Number</Label><Input value={form.studentNumber} onChange={(e) => setForm({ ...form, studentNumber: e.target.value })} /></div>
-              <div><Label>Matric Number</Label><Input value={form.matricNumber} onChange={(e) => setForm({ ...form, matricNumber: e.target.value })} /></div>
-              <div><Label>Nationality</Label><Input value={form.nationality} onChange={(e) => setForm({ ...form, nationality: e.target.value })} /></div>
+              <div><Label>Student Number (e.g., 006)</Label><Input value={form.studentNumber} onChange={(e) => setForm({ ...form, studentNumber: e.target.value })} /></div>
+              <div><Label>Matric Number (e.g., CCHT/2025/006)</Label><Input value={form.matricNumber} onChange={(e) => setForm({ ...form, matricNumber: e.target.value })} /></div>
               <div>
-                <Label>State of Origin</Label>
-                <Select value={form.stateOfOrigin} onValueChange={(value) => setForm({ ...form, stateOfOrigin: value })}>
-                  <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                  <SelectContent>{NIGERIAN_STATES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                <Label>Nationality</Label>
+                <Select value={form.nationality} onValueChange={(value) => setForm({ ...form, nationality: value })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{NATIONALITIES.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>LGA</Label><Input value={form.lga} onChange={(e) => setForm({ ...form, lga: e.target.value })} /></div>
+              <div>
+                <Label>State of Origin</Label>
+                <Select value={form.stateOfOrigin} onValueChange={(value) => setForm({ ...form, stateOfOrigin: value, lga: '' })}>
+                  <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                  <SelectContent>{getStateNames().map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>LGA</Label>
+                <Select value={form.lga} onValueChange={(value) => setForm({ ...form, lga: value })} disabled={!form.stateOfOrigin}>
+                  <SelectTrigger><SelectValue placeholder={form.stateOfOrigin ? 'Select LGA' : 'Select state first'} /></SelectTrigger>
+                  <SelectContent>
+                    {form.stateOfOrigin && getStateLGAs(form.stateOfOrigin).map((lga) => (
+                      <SelectItem key={lga} value={lga}>{lga}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div><Label>City</Label><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
               <div>
-                <Label>State</Label>
+                <Label>State (Residence)</Label>
                 <Select value={form.state} onValueChange={(value) => setForm({ ...form, state: value })}>
                   <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                  <SelectContent>{NIGERIAN_STATES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  <SelectContent>{getStateNames().map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="md:col-span-2"><Label>Address</Label><Textarea value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
@@ -193,8 +224,20 @@ export default function StudentSignupPage() {
                 <div><Label>Guardian Email</Label><Input type="email" value={form.guardianEmail} onChange={(e) => setForm({ ...form, guardianEmail: e.target.value })} /></div>
                 <div><Label>Emergency Contact</Label><Input value={form.emergencyContactName} onChange={(e) => setForm({ ...form, emergencyContactName: e.target.value })} /></div>
                 <div><Label>Emergency Phone</Label><Input value={form.emergencyContactPhone} onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })} /></div>
-                <div><Label>Blood Group</Label><Input value={form.bloodGroup} onChange={(e) => setForm({ ...form, bloodGroup: e.target.value })} /></div>
-                <div><Label>Genotype</Label><Input value={form.genotype} onChange={(e) => setForm({ ...form, genotype: e.target.value })} /></div>
+                <div>
+                  <Label>Blood Group</Label>
+                  <Select value={form.bloodGroup} onValueChange={(value) => setForm({ ...form, bloodGroup: value })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{BLOOD_GROUPS.map((bg) => <SelectItem key={bg} value={bg}>{bg}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Genotype</Label>
+                  <Select value={form.genotype} onValueChange={(value) => setForm({ ...form, genotype: value })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{GENOTYPES.map((gt) => <SelectItem key={gt} value={gt}>{gt}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="rounded-xl border border-dashed p-6 text-center">
                 <Upload className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />

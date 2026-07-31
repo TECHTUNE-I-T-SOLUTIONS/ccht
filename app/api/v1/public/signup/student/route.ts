@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { EmailTemplates } from '@/lib/services/email-templates'
 
 export const runtime = 'nodejs'
 
@@ -36,6 +37,8 @@ export async function POST(request: NextRequest) {
       bloodGroup,
       genotype,
       passportPhotoUrl,
+      program,
+      department,
     } = body
 
     if (!email || !password || !firstName || !lastName || !dateOfBirth || !gender || !studentNumber || !matricNumber) {
@@ -107,6 +110,26 @@ export async function POST(request: NextRequest) {
     if (studentError) {
       await admin.auth.admin.deleteUser(userId)
       return NextResponse.json({ error: studentError.message }, { status: 500 })
+    }
+
+    // Send welcome email to the new student
+    try {
+      const welcomeEmail = EmailTemplates.studentWelcome({
+        email,
+        fullName: `${firstName} ${lastName}`,
+        matricNumber,
+        program: program || 'Not specified',
+        department: department || 'Not specified',
+      })
+
+      await fetch(`${origin}/api/v1/email/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(welcomeEmail),
+      })
+    } catch (emailError) {
+      console.error('Failed to send welcome email:', emailError)
+      // Don't fail the signup if email fails
     }
 
     return NextResponse.json({

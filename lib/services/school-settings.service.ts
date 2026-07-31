@@ -93,7 +93,7 @@ export class SchoolSettingsService {
     return {
       name: settings['school_name'] || 'Covenant College of Health Technology',
       email: settings['school_email'] || 'info@covenantcollegeofhealthtech.com.ng',
-      phone: settings['school_phone'] || '+234 7066 3698 18',
+      phone: settings['school_phone'] || '+2347066369818',
       address: settings['school_address'] || 'Igbon, Oyo, Nigeria',
       about: settings['school_about'] || '',
       mission: settings['school_mission'] || '',

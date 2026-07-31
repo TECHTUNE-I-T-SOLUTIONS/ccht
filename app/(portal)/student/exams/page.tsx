@@ -294,8 +294,7 @@ export default function StudentExamsPage() {
                     <div className="flex items-center gap-2 pt-1">
                       <CheckCircle className="h-4 w-4 text-green-600" />
                       <span className="font-semibold text-green-600">
-                        Score: {exam.attempt.percentage_score.toFixed(1)}%
-                        {exam.attempt.grade && ` (${exam.attempt.grade})`}
+                        Exam Completed
                       </span>
                     </div>
                   )}

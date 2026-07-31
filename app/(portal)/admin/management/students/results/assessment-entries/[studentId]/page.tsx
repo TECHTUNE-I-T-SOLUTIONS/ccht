@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus } from 'lucide-react'
+import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { createClient } from '@/lib/supabase/client'
@@ -114,6 +114,8 @@ export default function StudentAssessmentEntriesPage() {
   const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [assessmentToDelete, setAssessmentToDelete] = useState<Assessment | null>(null)
   const [newAssessment, setNewAssessment] = useState({
     enrollment_id: '',
     course_id: '',
@@ -270,10 +272,36 @@ export default function StudentAssessmentEntriesPage() {
       if (error) throw error
       toast.success('Assessment updated successfully')
       setEditDialogOpen(false)
+      setEditingAssessment(null)
       loadData()
     } catch (error) {
       console.error('Failed to update assessment:', error)
       toast.error('Failed to update assessment')
+    }
+  }
+
+  const handleDeleteClick = (assessment: Assessment) => {
+    setAssessmentToDelete(assessment)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!assessmentToDelete) return
+
+    try {
+      const { error } = await supabase
+        .from('assessments')
+        .delete()
+        .eq('id', assessmentToDelete.id)
+
+      if (error) throw error
+      toast.success('Assessment deleted successfully')
+      setDeleteDialogOpen(false)
+      setAssessmentToDelete(null)
+      loadData()
+    } catch (error) {
+      console.error('Failed to delete assessment:', error)
+      toast.error('Failed to delete assessment')
     }
   }
 
@@ -697,18 +725,28 @@ export default function StudentAssessmentEntriesPage() {
                     <div>Exam: {assessment.exam_score}</div>
                     <div className="col-span-2 font-semibold">Total: {assessment.total_score}</div>
                   </div>
-                  <div className="flex justify-between items-center pt-2">
-                    <Badge variant={assessment.score_status === 'published' ? 'default' : 'secondary'}>
-                      {assessment.score_status}
-                    </Badge>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEditAssessment(assessment)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  </div>
+                   <div className="flex justify-between items-center pt-2">
+                     <Badge variant={assessment.score_status === 'published' ? 'default' : 'secondary'}>
+                       {assessment.score_status}
+                     </Badge>
+                     <div className="flex gap-2">
+                       <Button
+                         size="sm"
+                         variant="outline"
+                         onClick={() => handleEditAssessment(assessment)}
+                       >
+                         <Edit className="h-4 w-4" />
+                       </Button>
+                       <Button
+                         size="sm"
+                         variant="outline"
+                         onClick={() => handleDeleteClick(assessment)}
+                         className="text-red-600 hover:text-red-700 hover:border-red-700"
+                       >
+                         <Trash2 className="h-4 w-4" />
+                       </Button>
+                     </div>
+                   </div>
                 </div>
               </Card>
             ))}
@@ -754,13 +792,23 @@ export default function StudentAssessmentEntriesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEditAssessment(assessment)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditAssessment(assessment)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteClick(assessment)}
+                          className="text-red-600 hover:text-red-700 hover:border-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -770,9 +818,49 @@ export default function StudentAssessmentEntriesPage() {
         )}
       </Card>
 
+      {/* Delete Assessment Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-md bg-white dark:bg-black">
+          <DialogHeader>
+            <DialogTitle>Delete Assessment Entry</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this assessment entry? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {assessmentToDelete && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
+                <h4 className="font-semibold text-red-900 dark:text-red-100 mb-2">
+                  Assessment Details
+                </h4>
+                <div className="space-y-1 text-sm text-red-800 dark:text-red-200">
+                  <p><strong>Course:</strong> {assessmentToDelete.course?.code} - {assessmentToDelete.course?.title}</p>
+                  <p><strong>Exam Score:</strong> {assessmentToDelete.exam_score}</p>
+                  <p><strong>Total Score:</strong> {assessmentToDelete.total_score}</p>
+                  <p><strong>Grade:</strong> {assessmentToDelete.grade}</p>
+                  <p><strong>Status:</strong> {assessmentToDelete.score_status}</p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleDeleteConfirm}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Assessment
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Assessment Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white dark:bg-black">
           <DialogHeader>
             <DialogTitle>Edit Assessment Entry</DialogTitle>
             <DialogDescription>

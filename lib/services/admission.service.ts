@@ -321,23 +321,7 @@ export class AdmissionService {
       publicId: `passport_${crypto.randomUUID()}`,
     })
 
-    const { data: inserted, error: insertError } = await supabase
-      .from('aspirant_profile_photos')
-      .insert({
-        application_id: profileId,
-        uploaded_by: uploadedBy,
-        storage_bucket: 'cloudinary',
-        storage_path: result.public_id,
-        file_name: file.name,
-        mime_type: file.type || null,
-        file_size: file.size,
-        media_provider: 'cloudinary',
-      })
-      .select()
-      .single()
-
-    if (insertError) throw new Error(insertError.message)
-
+    // Update the profiles table directly - works for all user types (admin, teacher, student)
     const { error: profileUpdateError } = await supabase
       .from('profiles')
       .update({
@@ -354,70 +338,12 @@ export class AdmissionService {
 
     if (profileUpdateError) {
       console.error('Failed to update profile photo fields:', profileUpdateError.message)
-    }
-
-    let documentRecord: Record<string, any> | null = null
-    let documentError: { message: string } | null = null
-    
-    try {
-      const docResult = await supabase
-        .from('admission_documents')
-        .insert({
-          application_id: profileId,
-          uploaded_by: uploadedBy,
-          document_type: 'passport_photo',
-          storage_bucket: 'cloudinary',
-          storage_path: result.public_id,
-          file_name: file.name,
-          mime_type: file.type || null,
-          file_size: file.size,
-          media_provider: 'cloudinary',
-        })
-        .select()
-        .single()
-      
-      documentRecord = docResult.data
-      documentError = docResult.error
-    } catch (docInsertErr) {
-      documentError = { message: String(docInsertErr) }
-    }
-    
-    if (documentError) {
-      console.error('Failed to save passport to admission_documents:', documentError.message)
-      try {
-        const retryResult = await supabase
-          .from('admission_documents')
-          .insert({
-            application_id: profileId,
-            uploaded_by: uploadedBy,
-            document_type: 'passport_photo',
-            storage_bucket: 'cloudinary',
-            storage_path: `${result.public_id}_${Date.now()}`,
-            file_name: file.name,
-            mime_type: file.type || null,
-            file_size: file.size,
-            media_provider: 'cloudinary',
-          })
-          .select()
-          .single()
-        documentRecord = retryResult.data
-        if (!retryResult.error) {
-          console.log('Document insert succeeded on retry with modified path')
-        }
-      } catch (retryErr) {
-        console.error('Retry also failed for admission_documents insert:', String(retryErr))
-      }
+      throw new Error(profileUpdateError.message)
     }
 
     return {
-      ...inserted,
-      image_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id, result.format),
-      document: documentRecord
-        ? {
-            ...documentRecord,
-            file_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id, result.format),
-          }
-        : null,
+      profile_photo_path: result.public_id,
+      avatar_url: buildCloudinaryPublicUrl(getCloudinaryConfig().cloudName, result.public_id, result.format),
     }
   }
 

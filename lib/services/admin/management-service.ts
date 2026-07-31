@@ -86,9 +86,9 @@ export class ManagementService {
       const [totalResult, activeResult, inactiveResult, suspendedResult, graduatedResult] = await Promise.all([
         supabase.from('profiles').select('id').eq('role', 'student'),
         supabase.from('student_profiles').select('id').eq('admission_status', 'active'),
+        supabase.from('student_profiles').select('id').eq('admission_status', 'inactive'),
         supabase.from('student_profiles').select('id').eq('admission_status', 'suspended'),
         supabase.from('student_profiles').select('id').eq('admission_status', 'graduated'),
-        supabase.from('student_profiles').select('id').eq('admission_status', 'withdrawn'),
       ])
 
       const total = totalResult.data?.length || 0
@@ -142,6 +142,46 @@ export class ManagementService {
       })) || []
     } catch (error) {
       console.error('[ManagementService] Failed to get recent students:', error)
+      return []
+    }
+  }
+
+  static async getAllStudentsForExport() {
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          email,
+          created_at,
+          student_profiles(
+            student_number,
+            matric_number,
+            current_level,
+            admission_status
+          )
+        `)
+        .eq('role', 'student')
+        .order('first_name', { ascending: true })
+
+      if (error) throw error
+
+      return data?.map((profile: any) => ({
+        firstName: profile.first_name || '',
+        lastName: profile.last_name || '',
+        email: profile.email || '',
+        studentNumber: profile.student_profiles?.[0]?.student_number || '',
+        matricNumber: profile.student_profiles?.[0]?.matric_number || '',
+        currentLevel: profile.student_profiles?.[0]?.current_level || '',
+        admissionStatus: profile.student_profiles?.[0]?.admission_status || 'active',
+        enrolledAt: profile.created_at || '',
+      })) || []
+    } catch (error) {
+      console.error('[ManagementService] Failed to get all students for export:', error)
       return []
     }
   }

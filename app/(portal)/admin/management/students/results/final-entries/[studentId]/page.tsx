@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,102 +11,31 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus } from 'lucide-react'
+import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { createClient } from '@/lib/supabase/client'
 
-type Student = {
-  matric_number: string
-  current_level: string
-  profiles?: {
-    id: string
-    first_name: string
-    last_name: string
-    email: string
-  }[]
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type FinalResult = any
 
-type FinalResult = {
-  id: string
-  student_id: string
-  enrollment_id: string
-  assessment_id: string | null
-  course_name: string
-  score: number | null
-  grade: string | null
-  semester: number | null
-  academic_year: string | null
-  published: boolean
-  published_at: string | null
-  published_by: string | null
-  created_at: string
-  updated_at: string
-  enrollment?: {
-    program?: {
-      title: string
-    }[]
-  }[]
-  assessment?: {
-    course?: {
-      code: string
-      title: string
-    }[]
-    session?: {
-      name: string
-    }[]
-    semester?: {
-      semester_name: string
-    }[]
-  }[]
-}
-
-type Course = {
-  id: string
-  code: string
-  title: string
-  credit_units: number
-}
-
-type Enrollment = {
-  id: string
-  student_id: string
-  program_id: string
-  program?: {
-    title: string
-  }[]
-  selected_courses?: {
-    course: {
-      id: string
-      code: string
-      title: string
-    }[]
-  }[]
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Enrollment = any
 
 type Session = {
   id: string
   name: string
 }
 
-type Semester = {
-  id: string
-  semester_name: string
-}
-
 export default function FinalEntriesPage() {
   const params = useParams()
-  const router = useRouter()
   const studentId = params.studentId as string
   const supabase = createClient()
 
-  const [student, setStudent] = useState<Student | null>(null)
+  const [student, setStudent] = useState<any>(null)
   const [finalResults, setFinalResults] = useState<FinalResult[]>([])
-  const [courses, setCourses] = useState<Course[]>([])
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
-  const [semesters, setSemesters] = useState<Semester[]>([])
-  const [assessments, setAssessments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -116,6 +45,8 @@ export default function FinalEntriesPage() {
   const [editingResult, setEditingResult] = useState<FinalResult | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [resultToDelete, setResultToDelete] = useState<FinalResult | null>(null)
   const [newResult, setNewResult] = useState({
     enrollment_id: '',
     assessment_id: '',
@@ -126,6 +57,19 @@ export default function FinalEntriesPage() {
     academic_year: '2026/2027',
     published: false
   })
+  const [availableCourses, setAvailableCourses] = useState<any[]>([])
+  const [assessments, setAssessments] = useState<any[]>([])
+  const [calculatingScore, setCalculatingScore] = useState(false)
+  
+  // Helper to calculate grade from score
+  const calculateGrade = (score: number): string => {
+    if (score >= 70) return 'A'
+    if (score >= 60) return 'B'
+    if (score >= 50) return 'C'
+    if (score >= 45) return 'D'
+    if (score >= 40) return 'E'
+    return 'F'
+  }
 
   useEffect(() => {
     loadData()
@@ -153,72 +97,222 @@ export default function FinalEntriesPage() {
       if (studentError) throw studentError
       setStudent(studentData)
 
-      // Load existing results
+      // Load existing results with enrollment and session info
       const { data: resultsData, error: resultsError } = await supabase
         .from('results')
         .select(`
           *,
-          enrollment:enrollments(
+          enrollment:enrollments!results_enrollment_id_fkey(
+            id,
+            student_id,
+            program_id,
             program:programs(title)
-          ),
-          assessment:assessments(
-            course:courses(code, title),
-            session:academic_sessions(name),
-            semester:academic_semesters(semester_name)
           )
         `)
         .eq('student_id', studentId)
         .order('created_at', { ascending: false })
 
-      if (resultsError) throw resultsError
-      setFinalResults(resultsData || [])
+      if (resultsError) {
+        console.error('Error loading results:', resultsError)
+        // Fallback without explicit FK
+        const { data: fallbackData } = await supabase
+          .from('results')
+          .select(`
+            *,
+            enrollment:enrollments(
+              program:programs(title)
+            )
+          `)
+          .eq('student_id', studentId)
+          .order('created_at', { ascending: false })
+        setFinalResults(fallbackData || [])
+      } else {
+        setFinalResults(resultsData || [])
+      }
 
-      // Load dropdown data
-      const [coursesRes, enrollmentsRes, sessionsRes, semestersRes] = await Promise.all([
-        supabase.from('courses').select('id, code, title, credit_units').order('code'),
+      // Load enrollments for this student with proper FK
+      const [enrollmentsRes, sessionsRes] = await Promise.all([
         supabase
           .from('enrollments')
           .select(`
             id,
             student_id,
             program_id,
+            session_id,
+            student:profiles!enrollments_student_id_fkey(first_name, last_name, email, student_profiles(matric_number)),
             program:programs(title),
             selected_courses:selected_courses(
               course:courses(id, code, title)
             )
           `)
           .eq('student_id', studentId),
-        supabase.from('academic_sessions').select('id, name').order('name'),
-        supabase.from('academic_semesters').select('id, semester_name').order('semester_name')
+        supabase.from('academic_sessions').select('id, name').order('name')
       ])
 
-      if (coursesRes.error) throw coursesRes.error
-      if (enrollmentsRes.error) throw enrollmentsRes.error
+      if (enrollmentsRes.error) {
+        console.error('Error loading enrollments:', enrollmentsRes.error)
+        toast.error('Failed to load enrollments')
+      }
       if (sessionsRes.error) throw sessionsRes.error
-      if (semestersRes.error) throw semestersRes.error
 
-      setCourses(coursesRes.data || [])
       setEnrollments(enrollmentsRes.data || [])
       setSessions(sessionsRes.data || [])
-      setSemesters(semestersRes.data || [])
-
-      // Load assessments for create modal
-      const { data: assessmentsData } = await supabase
+      
+      // Load assessments for this student - fetch course_id directly
+      const { data: assessmentsData, error: assessmentsError } = await supabase
         .from('assessments')
-        .select(`
-          *,
-          course:courses(code, title),
-          session:academic_sessions(name),
-          semester:academic_semesters(semester_name)
-        `)
+        .select('*')
         .eq('student_id', studentId)
+      
+      if (assessmentsError) {
+        console.error('Error loading assessments:', assessmentsError)
+      }
+      
+      console.log('Assessments loaded:', assessmentsData?.length || 0, assessmentsData)
       setAssessments(assessmentsData || [])
+      
+      // Get all course IDs from assessments
+      const assessmentCourseIds = (assessmentsData || []).map((a: any) => a.course_id).filter(Boolean)
+      
+      // Get all course IDs from selected_courses
+      const selectedCourseIds: string[] = []
+      for (const enrollment of (enrollmentsRes.data || [])) {
+        for (const sc of (enrollment.selected_courses || [])) {
+          const course = sc.course?.[0]
+          if (course?.id) {
+            selectedCourseIds.push(course.id)
+          }
+        }
+      }
+      
+      // Combine all course IDs and fetch course details
+      const allCourseIds = [...new Set([...assessmentCourseIds, ...selectedCourseIds])]
+      console.log('All course IDs to fetch:', allCourseIds)
+      
+      let coursesMap: Map<string, any> = new Map()
+      if (allCourseIds.length > 0) {
+        const { data: coursesData } = await supabase
+          .from('courses')
+          .select('id, code, title')
+          .in('id', allCourseIds)
+        
+        console.log('Courses fetched:', coursesData?.length || 0, coursesData)
+        coursesMap = new Map((coursesData || []).map((c: any) => [c.id, c]))
+      }
+      
+      // Build available courses list
+      const coursesFromAssessments: any[] = []
+      const seenCourseIds = new Set<string>()
+      
+      // First add courses that have assessments
+      for (const assessment of (assessmentsData || [])) {
+        const courseId = assessment.course_id
+        if (courseId && !seenCourseIds.has(courseId)) {
+          seenCourseIds.add(courseId)
+          const course = coursesMap.get(courseId)
+          if (course) {
+            // Find the enrollment_id from the assessment itself
+            const enrollmentId = assessment.enrollment_id
+            // Find session_id from the enrollment
+            const matchingEnrollment = (enrollmentsRes.data || []).find((e: any) => e.id === enrollmentId)
+            
+            coursesFromAssessments.push({
+              id: course.id,
+              code: course.code,
+              title: course.title,
+              enrollment_id: enrollmentId || matchingEnrollment?.id || '',
+              session_id: matchingEnrollment?.session_id || '',
+              hasAssessment: true,
+              assessment: assessment
+            })
+          }
+        }
+      }
+      
+      // Then add courses from selected_courses that don't have assessments
+      for (const enrollment of (enrollmentsRes.data || [])) {
+        for (const sc of (enrollment.selected_courses || [])) {
+          const course = sc.course?.[0]
+          if (course && !seenCourseIds.has(course.id)) {
+            seenCourseIds.add(course.id)
+            const fullCourse = coursesMap.get(course.id) || course
+            coursesFromAssessments.push({
+              id: fullCourse.id,
+              code: fullCourse.code,
+              title: fullCourse.title,
+              enrollment_id: enrollment.id,
+              session_id: enrollment.session_id,
+              hasAssessment: false,
+              assessment: null
+            })
+          }
+        }
+      }
+      
+      setAvailableCourses(coursesFromAssessments)
+      console.log('Available courses built:', coursesFromAssessments.length, coursesFromAssessments)
+      
     } catch (error) {
       console.error('Failed to load data:', error)
       toast.error('Failed to load student data')
     } finally {
       setLoading(false)
     }
+  }
+  
+  // Handle course selection and auto-calculate score from assessment
+  const handleCourseSelect = (courseId: string) => {
+    const course = availableCourses.find((c: any) => c.id === courseId)
+    if (!course) {
+      console.log('Course not found:', courseId)
+      return
+    }
+    
+    setCalculatingScore(true)
+    
+    // Use the assessment stored in the course object, or find it
+    const assessment = course.assessment || assessments.find((a: any) => a.course_id === courseId)
+    
+    if (assessment) {
+      // Calculate total score from assessment components
+      // ca_1 + ca_2 + assignments + exam_score = total_score
+      const ca1 = parseFloat(assessment.ca_1) || 0
+      const ca2 = parseFloat(assessment.ca_2) || 0
+      const assignments = parseFloat(assessment.assignments) || 0
+      const examScore = parseFloat(assessment.exam_score) || 0
+      const totalScore = ca1 + ca2 + assignments + examScore
+      
+      const grade = calculateGrade(totalScore)
+      
+      console.log('Auto-calculated score:', { ca1, ca2, assignments, examScore, totalScore, grade, assessmentId: assessment.id })
+      
+      setNewResult(prev => ({
+        ...prev,
+        enrollment_id: course.enrollment_id || prev.enrollment_id,
+        assessment_id: assessment.id || '',
+        course_name: `${course.code} - ${course.title}`,
+        score: totalScore,
+        grade: grade,
+        academic_year: sessions.find((s: any) => s.id === course.session_id)?.name || prev.academic_year
+      }))
+    } else {
+      // No assessment found, just set the course name
+      setNewResult(prev => ({
+        ...prev,
+        enrollment_id: course.enrollment_id || prev.enrollment_id,
+        assessment_id: '',
+        course_name: `${course.code} - ${course.title}`,
+        score: 0,
+        grade: 'F'
+      }))
+    }
+    
+    setCalculatingScore(false)
+  }
+  
+  // Get suggested assessment for display
+  const getAssessmentForCourse = (courseId: string) => {
+    return assessments.find((a: any) => a.course_id === courseId)
   }
 
   const handleEditResult = (result: FinalResult) => {
@@ -228,12 +322,13 @@ export default function FinalEntriesPage() {
 
   const handleTogglePublish = async (result: FinalResult) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser()
       const { error } = await supabase
         .from('results')
         .update({
           published: !result.published,
           published_at: !result.published ? new Date().toISOString() : null,
-          published_by: !result.published ? (await supabase.auth.getUser()).data.user?.id : null
+          published_by: !result.published ? user?.id : null
         })
         .eq('id', result.id)
 
@@ -270,7 +365,19 @@ export default function FinalEntriesPage() {
   }
 
   const handleCreateResult = async () => {
+    if (!newResult.enrollment_id) {
+      toast.error('Please select an enrollment')
+      return
+    }
+    if (!newResult.course_name) {
+      toast.error('Please enter a course name')
+      return
+    }
+
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const isPublished = newResult.published
+      
       const { error } = await supabase
         .from('results')
         .insert({
@@ -278,11 +385,13 @@ export default function FinalEntriesPage() {
           enrollment_id: newResult.enrollment_id,
           assessment_id: newResult.assessment_id || null,
           course_name: newResult.course_name,
-          score: newResult.score,
-          grade: newResult.grade,
+          score: newResult.score || null,
+          grade: newResult.grade || null,
           semester: newResult.semester,
           academic_year: newResult.academic_year,
-          published: newResult.published
+          published: isPublished,
+          published_at: isPublished ? new Date().toISOString() : null,
+          published_by: isPublished ? user?.id : null
         })
 
       if (error) throw error
@@ -305,6 +414,25 @@ export default function FinalEntriesPage() {
     }
   }
 
+  const handleDeleteResult = async () => {
+    if (!resultToDelete) return
+    try {
+      const { error } = await supabase
+        .from('results')
+        .delete()
+        .eq('id', resultToDelete.id)
+
+      if (error) throw error
+      toast.success('Result deleted successfully')
+      setDeleteDialogOpen(false)
+      setResultToDelete(null)
+      loadData()
+    } catch (error) {
+      console.error('Failed to delete result:', error)
+      toast.error('Failed to delete result')
+    }
+  }
+
   const getGradeColor = (grade: string) => {
     if (grade === 'A') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
     if (grade === 'B') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
@@ -314,26 +442,17 @@ export default function FinalEntriesPage() {
     return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
   }
 
-  const getStandingColor = (standing: string) => {
-    if (standing === 'first_class' || standing === 'excellent') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-    if (standing === 'second_class_upper' || standing === 'very_good') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-    if (standing === 'second_class_lower' || standing === 'good') return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-    if (standing === 'third_class' || standing === 'fair') return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-    return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-  }
-
-  const filteredResults = finalResults.filter(result => {
+  const filteredResults = finalResults.filter((result: any) => {
     const searchLower = searchTerm.toLowerCase()
     const matchesSearch =
-      result.assessment?.[0]?.course?.[0]?.title?.toLowerCase().includes(searchLower) ||
-      result.assessment?.[0]?.course?.[0]?.code?.toLowerCase().includes(searchLower) ||
+      result.course_name?.toLowerCase().includes(searchLower) ||
       result.academic_year?.toLowerCase().includes(searchLower) ||
       result.grade?.toLowerCase().includes(searchLower)
     
     const matchesStatus = statusFilter === 'all' || result.grade === statusFilter
     
     return matchesSearch && matchesStatus
-  }).sort((a, b) => {
+  }).sort((a: any, b: any) => {
     let comparison = 0
     if (sortBy === 'score') {
       comparison = (a.score || 0) - (b.score || 0)
@@ -382,79 +501,108 @@ export default function FinalEntriesPage() {
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label>Enrollment</Label>
+                <Label>Enrollment (Student & Program)</Label>
                 <Select
                   value={newResult.enrollment_id}
-                  onValueChange={(value) => setNewResult({ ...newResult, enrollment_id: value })}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select enrollment" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {enrollments.map((enrollment) => (
-                      <SelectItem key={enrollment.id} value={enrollment.id}>
-                        {enrollment.program?.[0]?.title || 'No Program'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Assessment (Optional)</Label>
-                <Select
-                  value={newResult.assessment_id}
                   onValueChange={(value) => {
-                    setNewResult({ ...newResult, assessment_id: value })
-                    if (value) {
-                      const selectedAssessment = assessments.find(a => a.id === value)
-                      if (selectedAssessment) {
-                        setNewResult(prev => ({
-                          ...prev,
-                          course_name: selectedAssessment.course?.title || '',
-                          score: selectedAssessment.total_score || 0,
-                          grade: selectedAssessment.grade || 'F',
-                          semester: selectedAssessment.semester?.semester_name?.includes('First') ? 1 : 2,
-                          academic_year: selectedAssessment.session?.name || '2026/2027'
-                        }))
+                    setNewResult({ ...newResult, enrollment_id: value })
+                    const selectedEnrollment = enrollments.find((e: any) => e.id === value)
+                    if (selectedEnrollment) {
+                      const session = sessions.find((s: any) => s.id === selectedEnrollment.session_id)
+                      if (session) {
+                        setNewResult(prev => ({ ...prev, academic_year: session.name }))
                       }
                     }
                   }}
                 >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select assessment to auto-fill" />
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select enrollment" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
-                    <SelectItem value="">No assessment</SelectItem>
-                    {assessments.map((assessment) => (
-                      <SelectItem key={assessment.id} value={assessment.id}>
-                        {assessment.course?.code} - {assessment.course?.title} ({assessment.session?.name})
-                      </SelectItem>
-                    ))}
+                    {enrollments.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground">No enrollments found</div>
+                    ) : (
+                      enrollments.map((enrollment: any) => {
+                        const student = enrollment.student || {}
+                        const program = enrollment.program || {}
+                        const matricNumber = student?.student_profiles?.matric_number || ''
+                        const courseCodes = enrollment.selected_courses
+                          ?.map((sc: any) => sc.course?.[0]?.code)
+                          .filter(Boolean)
+                          .join(', ') || ''
+                        const session = sessions.find((s: any) => s.id === enrollment.session_id)
+                        
+                        const displayText = [
+                          student?.first_name && student?.last_name ? `${student.first_name} ${student.last_name}` : 'Unknown Student',
+                          matricNumber ? `(${matricNumber})` : '',
+                          '-',
+                          program?.title || 'No Program',
+                          session ? `[${session.name}]` : '',
+                          courseCodes ? `(${courseCodes})` : ''
+                        ].filter(Boolean).join(' ')
+                        
+                        return (
+                          <SelectItem key={enrollment.id} value={enrollment.id}>
+                            {displayText}
+                          </SelectItem>
+                        )
+                      })
+                    )}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Course Name</Label>
-                <Input
-                  value={newResult.course_name}
-                  onChange={(e) => setNewResult({ ...newResult, course_name: e.target.value })}
-                  placeholder="Enter course name"
-                />
+                <Label>Course (Courses with Assessments)</Label>
+                <Select
+                  value={availableCourses.find((c: any) => c.code === newResult.course_name.split(' - ')[0])?.id || ''}
+                  onValueChange={(value) => handleCourseSelect(value)}
+                  disabled={calculatingScore}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={calculatingScore ? "Calculating score..." : "Select a course to auto-fill"} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {availableCourses.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground">No courses with assessments found. Ensure assessments exist for this student.</div>
+                    ) : (
+                      availableCourses.map((course: any) => {
+                        const hasAssessment = course.hasAssessment
+                        const assessment = course.assessment
+                        const scoreText = hasAssessment && assessment
+                          ? ` (Score: ${(parseFloat(assessment.ca_1) || 0) + (parseFloat(assessment.ca_2) || 0) + (parseFloat(assessment.assignments) || 0) + (parseFloat(assessment.exam_score) || 0)})`
+                          : ''
+                        return (
+                          <SelectItem key={course.id} value={course.id}>
+                            {course.code} - {course.title}
+                            {hasAssessment ? ` ✓${scoreText}` : ' (no assessment)'}
+                          </SelectItem>
+                        )
+                      })
+                    )}
+                  </SelectContent>
+                </Select>
+                {newResult.course_name && (
+                  <p className="text-xs text-muted-foreground mt-1">Selected: {newResult.course_name}</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Score</Label>
+                  <Label>Score (0-100) - Auto-calculated from Assessment</Label>
                   <Input
                     type="number"
                     step="0.01"
                     min="0"
                     max="100"
                     value={newResult.score}
-                    onChange={(e) => setNewResult({ ...newResult, score: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const score = parseFloat(e.target.value) || 0
+                      setNewResult({ ...newResult, score, grade: calculateGrade(score) })
+                    }}
                   />
+                  {calculatingScore && <p className="text-xs text-blue-600 mt-1">Calculating score from assessment data...</p>}
                 </div>
                 <div>
-                  <Label>Grade</Label>
+                  <Label>Grade (Auto-calculated)</Label>
                   <Select
                     value={newResult.grade}
                     onValueChange={(value) => setNewResult({ ...newResult, grade: value })}
@@ -463,34 +611,50 @@ export default function FinalEntriesPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="A">A</SelectItem>
-                      <SelectItem value="B">B</SelectItem>
-                      <SelectItem value="C">C</SelectItem>
-                      <SelectItem value="D">D</SelectItem>
-                      <SelectItem value="E">E</SelectItem>
-                      <SelectItem value="F">F</SelectItem>
+                      <SelectItem value="A">A (70-100)</SelectItem>
+                      <SelectItem value="B">B (60-69)</SelectItem>
+                      <SelectItem value="C">C (50-59)</SelectItem>
+                      <SelectItem value="D">D (45-49)</SelectItem>
+                      <SelectItem value="E">E (40-44)</SelectItem>
+                      <SelectItem value="F">F (0-39)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground mt-1">Grade auto-calculated from score. You can override.</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Semester</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="2"
-                    value={newResult.semester}
-                    onChange={(e) => setNewResult({ ...newResult, semester: parseInt(e.target.value) || 1 })}
-                  />
+                  <Select
+                    value={newResult.semester.toString()}
+                    onValueChange={(value) => setNewResult({ ...newResult, semester: parseInt(value) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">First Semester</SelectItem>
+                      <SelectItem value="2">Second Semester</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label>Academic Year</Label>
-                  <Input
+                  <Select
                     value={newResult.academic_year}
-                    onChange={(e) => setNewResult({ ...newResult, academic_year: e.target.value })}
-                    placeholder="e.g., 2026/2027"
-                  />
+                    onValueChange={(value) => setNewResult({ ...newResult, academic_year: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {sessions.map((session: any) => (
+                        <SelectItem key={session.id} value={session.name}>
+                          {session.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div>
@@ -503,8 +667,8 @@ export default function FinalEntriesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="false">No</SelectItem>
-                    <SelectItem value="true">Yes</SelectItem>
+                    <SelectItem value="false">No (Draft)</SelectItem>
+                    <SelectItem value="true">Yes (Published)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -569,13 +733,12 @@ export default function FinalEntriesPage() {
           <div className="text-center py-8 text-muted-foreground">No final results found</div>
         ) : isMobile ? (
           <div className="space-y-4">
-            {filteredResults.map((result) => (
+            {filteredResults.map((result: any) => (
               <Card key={result.id} className="p-4">
                 <div className="space-y-2">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-semibold">{result.assessment?.[0]?.course?.[0]?.code || result.course_name}</p>
-                      <p className="text-sm text-muted-foreground">{result.assessment?.[0]?.course?.[0]?.title || result.course_name}</p>
+                      <p className="font-semibold">{result.course_name}</p>
                       <p className="text-xs text-muted-foreground">Semester {result.semester} • {result.academic_year}</p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -607,6 +770,14 @@ export default function FinalEntriesPage() {
                     >
                       {result.published ? 'Unpublish' : 'Publish'}
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setResultToDelete(result); setDeleteDialogOpen(true); }}
+                      className="text-red-600 hover:text-red-700 hover:border-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -627,9 +798,9 @@ export default function FinalEntriesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredResults.map((result) => (
+                {filteredResults.map((result: any) => (
                   <TableRow key={result.id}>
-                    <TableCell>{result.assessment?.[0]?.course?.[0]?.code || result.course_name}</TableCell>
+                    <TableCell>{result.course_name}</TableCell>
                     <TableCell>Semester {result.semester}</TableCell>
                     <TableCell>{result.academic_year}</TableCell>
                     <TableCell className="font-semibold">{result.score?.toFixed(2) || 'N/A'}</TableCell>
@@ -659,6 +830,14 @@ export default function FinalEntriesPage() {
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setResultToDelete(result); setDeleteDialogOpen(true); }}
+                          className="text-red-600 hover:text-red-700 hover:border-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -680,6 +859,10 @@ export default function FinalEntriesPage() {
           </DialogHeader>
           {editingResult && (
             <div className="space-y-4">
+              <div>
+                <Label>Course</Label>
+                <p className="text-sm font-medium">{editingResult.course_name}</p>
+              </div>
               <div>
                 <Label>Score</Label>
                 <Input
@@ -720,8 +903,8 @@ export default function FinalEntriesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="false">No</SelectItem>
-                    <SelectItem value="true">Yes</SelectItem>
+                    <SelectItem value="false">No (Draft)</SelectItem>
+                    <SelectItem value="true">Yes (Published)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -731,6 +914,44 @@ export default function FinalEntriesPage() {
                 </Button>
                 <Button onClick={handleSaveResult} className="border border-primary hover:shadow-lg hover:shadow-blue-600">
                   <Save className="h-4 w-4 mr-2" /> Save
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-md bg-white dark:bg-black">
+          <DialogHeader>
+            <DialogTitle>Delete Final Result</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this result? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {resultToDelete && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
+                <h4 className="font-semibold text-red-900 dark:text-red-100 mb-2">Result Details</h4>
+                <div className="space-y-1 text-sm text-red-800 dark:text-red-200">
+                  <p><strong>Course:</strong> {resultToDelete.course_name}</p>
+                  <p><strong>Score:</strong> {resultToDelete.score?.toFixed(2) || 'N/A'}</p>
+                  <p><strong>Grade:</strong> {resultToDelete.grade}</p>
+                  <p><strong>Semester:</strong> {resultToDelete.semester}</p>
+                  <p><strong>Academic Year:</strong> {resultToDelete.academic_year}</p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleDeleteResult}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Result
                 </Button>
               </div>
             </div>

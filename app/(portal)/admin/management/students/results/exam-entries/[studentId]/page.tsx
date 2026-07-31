@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus } from 'lucide-react'
+import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { createClient } from '@/lib/supabase/client'
@@ -94,6 +94,8 @@ export default function ExamEntriesPage() {
   const [editingExam, setEditingExam] = useState<StudentExamAttempt | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [deleteExamId, setDeleteExamId] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [newExam, setNewExam] = useState({
     exam_session_id: '',
     enrollment_id: '',
@@ -182,8 +184,48 @@ export default function ExamEntriesPage() {
   }
 
   const handleEditExam = (exam: StudentExamAttempt) => {
-    setEditingExam(exam)
+    setEditingExam({
+      ...exam,
+      total_score: exam.total_score || 0,
+      percentage_score: exam.percentage_score || 0
+    })
     setEditDialogOpen(true)
+  }
+
+  const calculateGrade = (score: number, totalMarks: number): string => {
+    const percentage = (score / totalMarks) * 100
+    if (percentage >= 70) return 'A'
+    if (percentage >= 60) return 'B'
+    if (percentage >= 50) return 'C'
+    if (percentage >= 45) return 'D'
+    if (percentage >= 40) return 'E'
+    return 'F'
+  }
+
+  const handleDeleteExam = (id: string) => {
+    setDeleteExamId(id)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteExam = async () => {
+    if (!deleteExamId) return
+
+    try {
+      const { error } = await supabase
+        .from('student_exam_attempts')
+        .delete()
+        .eq('id', deleteExamId)
+
+      if (error) throw error
+      toast.success('Exam result deleted successfully')
+      loadData()
+    } catch (error) {
+      console.error('Failed to delete exam result:', error)
+      toast.error('Failed to delete exam result')
+    } finally {
+      setDeleteDialogOpen(false)
+      setDeleteExamId(null)
+    }
   }
 
   const handleSaveExam = async () => {
@@ -517,25 +559,36 @@ export default function ExamEntriesPage() {
                     <div className="font-semibold">Percentage: {exam.percentage_score}%</div>
                   </div>
                   <div className="flex justify-between items-center pt-2">
-                    <Badge variant={exam.status === 'graded' ? 'default' : 'secondary'}>
-                      {exam.status}
-                    </Badge>
-                    {exam.passed ? (
-                      <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                        Passed
+                    <div className="flex gap-1">
+                      <Badge variant={exam.status === 'graded' ? 'default' : 'secondary'}>
+                        {exam.status}
                       </Badge>
-                    ) : (
-                      <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                        Failed
-                      </Badge>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEditExam(exam)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
+                      {exam.passed ? (
+                        <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                          Passed
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                          Failed
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEditExam(exam)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteExam(exam.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </Card>
@@ -590,13 +643,22 @@ export default function ExamEntriesPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEditExam(exam)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditExam(exam)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteExam(exam.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -605,6 +667,26 @@ export default function ExamEntriesPage() {
           </div>
         )}
       </Card>
+
+      {/* Delete Exam Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="bg-white dark:bg-black">
+          <DialogHeader>
+            <DialogTitle>Delete Exam Result</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this exam result? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteExam}>
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Exam Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -617,12 +699,32 @@ export default function ExamEntriesPage() {
           </DialogHeader>
           {editingExam && (
             <div className="space-y-4">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                <p className="text-sm font-medium">Exam: {editingExam.exam_session?.exam_title}</p>
+                <p className="text-sm text-muted-foreground">
+                  Course: {editingExam.exam_session?.course[0]?.code} - {editingExam.exam_session?.course[0]?.title}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Total Marks: {editingExam.exam_session?.total_marks} | Passing Marks: {editingExam.exam_session?.passing_marks}
+                </p>
+              </div>
               <div>
                 <Label>Total Score</Label>
                 <Input
                   type="number"
                   value={editingExam.total_score}
-                  onChange={(e) => setEditingExam({ ...editingExam, total_score: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => {
+                    const score = parseFloat(e.target.value) || 0
+                    const session = editingExam.exam_session
+                    const percentage = session ? (score / session.total_marks) * 100 : 0
+                    const grade = session ? calculateGrade(score, session.total_marks) : 'F'
+                    setEditingExam({ 
+                      ...editingExam, 
+                      total_score: score,
+                      percentage_score: Math.round(percentage),
+                      grade: grade
+                    })
+                  }}
                 />
               </div>
               <div>
@@ -630,7 +732,7 @@ export default function ExamEntriesPage() {
                 <Input
                   type="number"
                   value={editingExam.percentage_score}
-                  onChange={(e) => setEditingExam({ ...editingExam, percentage_score: parseFloat(e.target.value) || 0 })}
+                  readOnly
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
