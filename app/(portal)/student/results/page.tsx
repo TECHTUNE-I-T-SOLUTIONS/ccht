@@ -126,7 +126,7 @@ export default function ResultsPage() {
     }
   })()
 
-  const downloadResults = (sessionKey?: string) => {
+  const downloadResults = async (sessionKey?: string) => {
     if (!studentProfile || !enrollment) {
       toast.error('Student data not loaded')
       return
@@ -142,8 +142,24 @@ export default function ResultsPage() {
     const session = sessionKey ? sessionKey.split(' - ')[0] : filterSession === 'all' ? sessions[0] : filterSession
     const semester = sessionKey ? sessionKey.split(' - ')[1] : filterSemester === 'all' ? 'Semester 1' : `Semester ${filterSemester}`
     
-    const totalCredits = resultsToDownload.reduce((sum: number, r: any) => sum + (r.credit_units || 3), 0)
-    const totalGradePoints = resultsToDownload.reduce((sum: number, r: any) => {
+    // Fetch assessment data for each result to get CA and exam breakdown
+    const resultsWithAssessments = await Promise.all(
+      resultsToDownload.map(async (r: any) => {
+        let assessment = null
+        if (r.assessment_id) {
+          const { data } = await supabase
+            .from('assessments')
+            .select('*')
+            .eq('id', r.assessment_id)
+            .single()
+          assessment = data
+        }
+        return { ...r, assessment }
+      })
+    )
+    
+    const totalCredits = resultsWithAssessments.reduce((sum: number, r: any) => sum + (r.credit_units || 3), 0)
+    const totalGradePoints = resultsWithAssessments.reduce((sum: number, r: any) => {
       if (!r.grade) return sum
       const units = r.credit_units || 3
       return sum + (gradePoints[r.grade] || 0) * units
@@ -159,11 +175,13 @@ export default function ResultsPage() {
       session,
       semester,
       level: studentProfile?.current_level || '100',
-      results: resultsToDownload.map((r: any) => ({
+      results: resultsWithAssessments.map((r: any) => ({
         courseCode: r.course_code || 'N/A',
         courseTitle: r.course_name,
         credit: r.credit_units || 3,
-        score: r.score || 0,
+        ca: r.assessment?.continuous_assessment || 0,
+        exam: r.assessment?.exam_score || 0,
+        total: r.score || 0,
         grade: r.grade || 'N/A',
         gradePoint: r.grade ? (gradePoints[r.grade] || 0) : 0
       })),
