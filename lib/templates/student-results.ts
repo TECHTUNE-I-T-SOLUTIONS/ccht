@@ -242,13 +242,13 @@ export function generateStudentResults(data: StudentResultData): jsPDF {
     doc.text(result.credit.toString(), xPos, y + 4)
     xPos += colW.credit
 
-    doc.text(result.ca.toFixed(1), xPos, y + 4)
+    doc.text((result.ca ?? 0).toFixed(1), xPos, y + 4)
     xPos += colW.ca
 
-    doc.text(result.exam.toFixed(1), xPos, y + 4)
+    doc.text((result.exam ?? 0).toFixed(1), xPos, y + 4)
     xPos += colW.exam
 
-    doc.text(result.total.toFixed(1), xPos, y + 4)
+    doc.text((result.total ?? 0).toFixed(1), xPos, y + 4)
     xPos += colW.total
 
     doc.text(result.grade, xPos, y + 4)

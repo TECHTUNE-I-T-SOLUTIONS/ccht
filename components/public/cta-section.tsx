@@ -19,11 +19,11 @@ export function CTASection() {
         className="max-w-4xl mx-auto"
       >
         <Badge className="bg-white/20 text-white border-white/30 px-4 py-1.5 rounded-full font-technical text-xs mb-6">
-          <Heart className="h-3 w-3 mr-1" /> Join Our Community
+          <Heart className="h-3 w-3 mr-1" /> Join Our School
         </Badge>
         <TypographyH2 className="text-white">Ready to begin your medical career?</TypographyH2>
         <TypographyP className="mx-auto mt-4 max-w-2xl text-white/90">
-          Join a community dedicated to excellence, discipline, and practical health service. Your journey to becoming a health professional starts here with our newly enhanced, secure platform.
+          Join a school dedicated to excellence, discipline, and practical health service. Your journey to becoming a health professional starts here with our newly enhanced, secure platform.
         </TypographyP>
         <div className="mt-10 flex flex-wrap justify-center gap-4">
           <Button size="lg" variant="secondary" className="rounded-full border border-white bg-white text-blue-600 hover:bg-blue-50 shadow-lg hover:shadow-xl hover:shadow-blue-900/20" asChild>

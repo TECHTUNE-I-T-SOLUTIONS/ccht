@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
-import { Loader2, ArrowRight, ArrowLeft, Upload } from 'lucide-react'
+import { Loader2, ArrowRight, ArrowLeft, Upload, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { nigeriaStates, getStateLGAs, getStateNames } from '@/lib/data/nigeria-states'
 import { AcademicSessionService } from '@/lib/services/academic-session.service'
@@ -106,6 +106,19 @@ export default function StudentSignupPage() {
     return true
   }, [form, step])
 
+  const validateStep2 = () => {
+    // Validate student number matches matric number suffix
+    if (form.matricNumber && form.studentNumber) {
+      const matricParts = form.matricNumber.split('/')
+      const matricSuffix = matricParts[matricParts.length - 1]
+      if (matricSuffix !== form.studentNumber) {
+        toast.error(`Student number must match the last part of your matric number. Your matric number is "${form.matricNumber}", so your student number should be "${matricSuffix}"`)
+        return false
+      }
+    }
+    return true
+  }
+
   const uploadPassport = async (file: File) => {
     const fd = new FormData()
     fd.append('file', file)
@@ -114,6 +127,12 @@ export default function StudentSignupPage() {
     const data = await res.json()
     if (!res.ok) throw new Error(data?.error || 'Passport upload failed')
     setPassportUrl(data.url)
+    toast.success('Passport photo uploaded successfully')
+  }
+
+  const deletePassport = () => {
+    setPassportUrl('')
+    toast.success('Passport photo removed')
   }
 
   const submit = async () => {
@@ -386,10 +405,25 @@ export default function StudentSignupPage() {
                 </div>
               </div>
               <div className="rounded-xl border border-dashed p-6 text-center">
-                <Upload className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-                <p className="font-medium">Upload passport photo</p>
-                <input type="file" accept="image/*" className="mt-4 block w-full text-sm" onChange={(e) => e.target.files?.[0] && uploadPassport(e.target.files[0])} />
-                {passportUrl && <p className="mt-3 text-xs text-emerald-600">Uploaded successfully</p>}
+                {passportUrl ? (
+                  <div className="relative inline-block">
+                    <img src={passportUrl} alt="Passport preview" className="mx-auto h-32 w-32 rounded-full object-cover border-2 border-primary" />
+                    <button
+                      type="button"
+                      onClick={deletePassport}
+                      className="absolute -top-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                    <p className="mt-3 text-xs text-emerald-600 font-medium">Passport uploaded successfully</p>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+                    <p className="font-medium">Upload passport photo</p>
+                    <input type="file" accept="image/*" className="mt-4 block w-full text-sm" onChange={(e) => e.target.files?.[0] && uploadPassport(e.target.files[0])} />
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -399,7 +433,10 @@ export default function StudentSignupPage() {
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
             {step < 3 ? (
-              <Button type="button" disabled={!canNext || loading} onClick={() => setStep((s) => (s + 1) as Step)} className="border border-primary hover:shadow-lg hover:shadow-blue-600">
+              <Button type="button" disabled={!canNext || loading} onClick={() => {
+                if (step === 2 && !validateStep2()) return
+                setStep((s) => (s + 1) as Step)
+              }} className="border border-primary hover:shadow-lg hover:shadow-blue-600">
                 Next <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
