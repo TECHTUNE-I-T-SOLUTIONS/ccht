@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { EmailTemplates } from '@/lib/services/email-templates'
+import { emailService } from '@/lib/services/email.service'
 
 export async function GET(request: NextRequest) {
   try {
@@ -91,6 +93,12 @@ export async function PATCH(request: NextRequest) {
       updateData.review_notes = reviewNotes
     }
 
+    // Get the selections with student and course details before updating
+    const { data: selectionsBeforeUpdate } = await adminSupabase
+      .from('selected_courses')
+      .select('*, student:profiles(first_name, last_name, email), course:courses(title, code)')
+      .in('id', selectionIds)
+
     const { error } = await adminSupabase
       .from('selected_courses')
       .update(updateData)
@@ -98,6 +106,33 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Send course acceptance notification emails if approved
+    if (status === 'approved' && selectionsBeforeUpdate) {
+      try {
+        for (const selection of selectionsBeforeUpdate) {
+          if (selection.student && selection.course) {
+            try {
+              const courseEmail = EmailTemplates.studentCourseRegistration({
+                email: selection.student.email,
+                fullName: `${selection.student.first_name} ${selection.student.last_name}`,
+                courseName: selection.course.title,
+                courseCode: selection.course.code,
+                session: selection.session,
+                semester: selection.semester,
+                registrationUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/student/courses`,
+              })
+              emailService.sendEmailAsync(courseEmail)
+            } catch (emailError) {
+              console.error('Error sending course acceptance email to student:', selection.student.email, emailError)
+            }
+          }
+        }
+      } catch (notificationError) {
+        console.error('Error sending course acceptance notifications:', notificationError)
+        // Don't fail the request if notifications fail
+      }
     }
 
     return NextResponse.json({ 

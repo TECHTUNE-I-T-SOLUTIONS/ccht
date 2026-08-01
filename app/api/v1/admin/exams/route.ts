@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { EmailTemplates } from '@/lib/services/email-templates'
+import { emailService } from '@/lib/services/email.service'
 
 export const runtime = 'nodejs'
 
@@ -123,6 +125,62 @@ export async function POST(request: Request) {
       .single()
 
     if (error) throw error
+
+    // Send result publication notification email if exam is published
+    if (body.is_published) {
+      try {
+        // Get all students enrolled in the course
+        const { data: enrollments } = await admin
+          .from('student_enrollments')
+          .select('student_id')
+          .eq('course_id', body.course_id)
+
+        if (enrollments && enrollments.length > 0) {
+          const studentIds = enrollments.map(e => e.student_id)
+          
+          const { data: students } = await admin
+            .from('profiles')
+            .select('id, first_name, last_name, email')
+            .in('id', studentIds)
+            .eq('is_active', true)
+
+          if (students && students.length > 0) {
+            // Get course details
+            const { data: course } = await admin
+              .from('courses')
+              .select('title, code')
+              .eq('id', body.course_id)
+              .single()
+
+            for (const student of students) {
+              try {
+                const resultEmail = EmailTemplates.studentResultPublished({
+                  email: student.email,
+                  fullName: `${student.first_name} ${student.last_name}`,
+                  courseName: course?.title || 'Course',
+                  courseCode: course?.code || 'N/A',
+                  examTitle: body.exam_title,
+                  examDate: new Date(body.start_date).toLocaleDateString('en-NG', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  }),
+                  resultUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/student/results`,
+                })
+                emailService.sendEmailAsync(resultEmail)
+              } catch (emailError) {
+                console.error('Error sending result email to student:', student.email, emailError)
+              }
+            }
+          }
+        }
+      } catch (notificationError) {
+        console.error('Error sending exam notifications:', notificationError)
+        // Don't fail the request if notifications fail
+      }
+    }
+
     return NextResponse.json({ success: true, data, message: 'Exam created successfully' })
   } catch (error: any) {
     console.error('Exam creation error:', error)

@@ -229,7 +229,7 @@ export default function StudentSignupPage() {
               <h3 className="font-semibold text-slate-800 mb-3">🚀 Next Steps</h3>
               <ol className="text-sm text-slate-700 space-y-2 list-decimal list-inside">
                 <li>Check your email for the welcome message</li>
-                <li>Log in to the student portal at <a href="/login" className="text-blue-600 hover:underline">newccht.vercel.app/login</a></li>
+                <li>Log in to the student portal at <a href="/login" className="text-blue-600 hover:underline">www.covenantcollegeofhealthtech.com.ng/login</a></li>
                 <li>Complete your profile setup</li>
                 <li>Register for your courses</li>
                 <li>Access your timetable and academic resources</li>

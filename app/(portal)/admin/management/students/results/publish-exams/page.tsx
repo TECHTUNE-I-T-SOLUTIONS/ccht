@@ -179,7 +179,7 @@ export default function PublishExamsPage() {
           Please log in to the student portal to view your complete results.
         </div>
         <div class="message">
-          <a href="https://newccht.vercel.app/login" class="button">🚀 Access Student Portal</a>
+          <a href="https://www.covenantcollegeofhealthtech.com.ng/login" class="button">🚀 Access Student Portal</a>
         </div>
         <div class="message">
           If you have any questions or concerns about your results, please contact the Academic Office.

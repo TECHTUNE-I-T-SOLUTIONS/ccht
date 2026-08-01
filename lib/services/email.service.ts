@@ -131,10 +131,10 @@ class EmailService {
   }
 
   private getBaseTemplate(content: string, title: string): string {
-    const schoolLogo = 'https://newccht.vercel.app/_next/image?url=%2Fimages%2Flogo.png&w=48&q=75'
+    const schoolLogo = 'https://www.covenantcollegeofhealthtech.com.ng/_next/image?url=%2Fimages%2Flogo.png&w=48&q=75'
     const schoolName = 'CCHT'
     const schoolFullName = 'Covenant College of Health Technology'
-    const schoolWebsite = 'https://newccht.vercel.app'
+    const schoolWebsite = 'https://www.covenantcollegeofhealthtech.com.ng'
     const schoolAddress = 'Igbon, Oyo State, Nigeria'
     const schoolPhone = '+2347066369818'
     const schoolEmail = 'info@covenantcollegeofhealthtech.com.ng'

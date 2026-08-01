@@ -274,7 +274,7 @@ export function generateAdmissionLetter(data: AdmissionLetterData): jsPDF {
   const contacts = [
     { label: 'College Email:', value: 'info@covenantcollegeofhealthtech.com.ng' },
     { label: 'College Phone:', value: '+2347066369818' },
-    { label: 'College Website:', value: 'https://newccht.vercel.app' },
+    { label: 'College Website:', value: 'https://www.covenantcollegeofhealthtech.com.ng' },
     { label: 'College Address:', value: 'Opposite NUD Primary school, Ogbomoso-Ilorin, Old Express Road, Orile-Igbon, Oyo State, Nigeria' }
   ]
 

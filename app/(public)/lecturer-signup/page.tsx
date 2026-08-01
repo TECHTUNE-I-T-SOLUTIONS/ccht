@@ -105,7 +105,7 @@ export default function LecturerSignupPage() {
       const data = await res.json().catch(() => null)
       if (!res.ok) throw new Error(data?.error || 'Signup failed')
       toast.success(data?.message || 'Lecturer account created')
-      window.location.href = '/auth/login'
+      window.location.href = 'login'
     } catch (error: any) {
       toast.error(error.message || 'Signup failed')
     } finally {

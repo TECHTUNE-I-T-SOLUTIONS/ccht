@@ -86,7 +86,7 @@ export function generateStudentResults(data: StudentResultData): jsPDF {
   // ==================== HEADER SECTION ====================
   // School logo - centered at top
   try {
-    const logoUrl = 'https://newccht.vercel.app/_next/image?url=%2Fimages%2Flogo.png&w=48&q=75'
+    const logoUrl = 'https://www.covenantcollegeofhealthtech.com.ng/_next/image?url=%2Fimages%2Flogo.png&w=48&q=75'
     doc.addImage(logoUrl, 'PNG', pageWidth / 2 - 12, y, 24, 24)
     y += 28
   } catch (error) {

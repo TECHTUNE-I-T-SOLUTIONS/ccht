@@ -1,9 +1,9 @@
 import { EmailTemplate } from './email.service'
 
-const schoolLogo = 'https://newccht.vercel.app/_next/image?url=%2Fimages%2Flogo.png&w=48&q=75'
+const schoolLogo = 'https://www.covenantcollegeofhealthtech.com.ng/_next/image?url=%2Fimages%2Flogo.png&w=48&q=75'
 const schoolName = 'CCHT'
 const schoolFullName = 'Covenant College of Health Technology'
-const schoolWebsite = 'https://newccht.vercel.app'
+const schoolWebsite = 'https://www.covenantcollegeofhealthtech.com.ng'
 const portalUrl = `${schoolWebsite}/login`
 const schoolAddress = 'Igbon, Oyo State, Nigeria'
 const schoolPhone = '+2347066369818'
@@ -11,9 +11,9 @@ const schoolEmail = 'info@covenantcollegeofhealthtech.com.ng'
 
 // Helper function to wrap content with the professional email template
 export function wrapEmailContent(content: string, title: string): string {
-  const schoolLogo = 'https://newccht.vercel.app/_next/image?url=%2Fimages%2Flogo.png&w=48&q=75'
+  const schoolLogo = 'https://www.covenantcollegeofhealthtech.com.ng/_next/image?url=%2Fimages%2Flogo.png&w=48&q=75'
   const schoolFullName = 'Covenant College of Health Technology'
-  const schoolWebsite = 'https://newccht.vercel.app'
+  const schoolWebsite = 'https://www.covenantcollegeofhealthtech.com.ng'
   const schoolAddress = 'Igbon, Oyo State, Nigeria'
   const schoolPhone = '+2347066369818'
   const schoolEmail = 'info@covenantcollegeofhealthtech.com.ng'
@@ -1323,11 +1323,12 @@ export class EmailTemplates {
   static eventNotification(data: {
     email: string
     fullName: string
-    eventName: string
+    eventTitle: string
     eventDate: string
     eventTime: string
-    location: string
-    description: string
+    eventLocation: string
+    eventDescription: string
+    eventUrl: string
   }): EmailTemplate {
     const content = `
         <div class="greeting">Dear ${data.fullName},</div>
@@ -1337,12 +1338,15 @@ export class EmailTemplates {
         <div class="info-box">
           <h3>Event Details</h3>
           <ul>
-            <li><strong>Event:</strong> ${data.eventName}</li>
+            <li><strong>Event:</strong> ${data.eventTitle}</li>
             <li><strong>Date:</strong> ${data.eventDate}</li>
             <li><strong>Time:</strong> ${data.eventTime}</li>
-            <li><strong>Location:</strong> ${data.location}</li>
+            <li><strong>Location:</strong> ${data.eventLocation}</li>
           </ul>
-          <p style="margin-top: 15px;">${data.description}</p>
+          <p style="margin-top: 15px;">${data.eventDescription}</p>
+        </div>
+        <div class="message">
+          <a href="${data.eventUrl}" class="button">View Event Details</a>
         </div>
         <div class="message">
           We look forward to seeing you there!
@@ -1356,8 +1360,8 @@ export class EmailTemplates {
 
     return {
       to: data.email,
-      subject: `Upcoming Event: ${data.eventName}`,
-      html: wrapEmailContent(content, `Upcoming Event: ${data.eventName}`),
+      subject: `Upcoming Event: ${data.eventTitle}`,
+      html: wrapEmailContent(content, `Upcoming Event: ${data.eventTitle}`),
     }
   }
 }

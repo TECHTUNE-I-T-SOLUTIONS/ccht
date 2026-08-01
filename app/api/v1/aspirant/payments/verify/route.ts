@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { AspirantPaymentsService } from '@/lib/services/aspirant-payments.service'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { EmailTemplates } from '@/lib/services/email-templates'
+import { emailService } from '@/lib/services/email.service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -74,6 +76,39 @@ export async function POST(request: NextRequest) {
         if (profileError) {
           console.error('Error updating aspirant profile:', profileError)
           return NextResponse.json({ error: 'Failed to update aspirant profile: ' + profileError.message }, { status: 500 })
+        }
+
+        // Send aspirant welcome email after successful application payment
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, email')
+            .eq('id', user.id)
+            .single()
+
+          const { data: aspirantData } = await supabase
+            .from('aspirant_profiles')
+            .select('preferred_program_id, profile_id')
+            .eq('profile_id', user.id)
+            .single()
+
+          if (profile && aspirantData) {
+            const fullName = `${profile.first_name} ${profile.last_name}`
+            const applicationId = aspirantData.profile_id || user.id
+            const program = aspirantData.preferred_program_id || 'Health Technology Program'
+
+            const welcomeEmail = EmailTemplates.aspirantApplicationReceived({
+              email: profile.email,
+              fullName,
+              applicationId,
+              program,
+            })
+
+            emailService.sendEmailAsync(welcomeEmail)
+          }
+        } catch (emailError) {
+          console.error('Error sending aspirant welcome email:', emailError)
+          // Don't fail the request if email fails
         }
       } else {
         // Generate admission number

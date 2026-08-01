@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { uploadFileToCloudinary } from '@/lib/cloudinary'
+import { EmailTemplates } from '@/lib/services/email-templates'
+import { emailService } from '@/lib/services/email.service'
 
 export const runtime = 'nodejs'
 
@@ -168,6 +170,23 @@ export async function POST(request: NextRequest) {
       }
     } catch (notificationError) {
       console.warn('[lecturer-signup] notification_insert_warning', notificationError)
+    }
+
+    // Send lecturer welcome email
+    try {
+      const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`
+      const welcomeEmail = EmailTemplates.lecturerWelcome({
+        email,
+        fullName,
+        employeeId: employeeNumber,
+        department: department,
+        designation: qualification,
+      })
+
+      emailService.sendEmailAsync(welcomeEmail)
+    } catch (emailError) {
+      console.error('[lecturer-signup] email_send_error', emailError)
+      // Don't fail the request if email fails
     }
 
     return NextResponse.json({
