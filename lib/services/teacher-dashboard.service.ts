@@ -118,7 +118,7 @@ export class TeacherDashboardService {
     const admin = createAdminClient()
     const { data, error } = await admin
       .from('teacher_profiles')
-      .select('profile_id, employee_number, staff_number, qualification, specialization, department, employment_type, date_joined, office_location, office_hours, can_publish_results, can_enter_scores, employment_status, created_at, updated_at, departments, profile:profiles(id, email, first_name, last_name, middle_name, phone, role, avatar_url, profile_photo_bucket, profile_photo_path, profile_photo_mime_type, profile_photo_uploaded_at, media_provider)')
+      .select('profile_id, employee_number, staff_number, qualification, specialization, department, employment_type, date_joined, office_location, office_hours, can_publish_results, can_enter_scores, employment_status, created_at, updated_at, departments, courses, profile:profiles(id, email, first_name, last_name, middle_name, phone, role, avatar_url, profile_photo_bucket, profile_photo_path, profile_photo_mime_type, profile_photo_uploaded_at, media_provider)')
       .eq('profile_id', teacherId)
       .single()
     if (error) throw new Error(error.message)
@@ -168,59 +168,83 @@ export class TeacherDashboardService {
 
   static async getTeacherStudents() {
     try {
-      const teacherDepartments = await this.getTeacherDepartmentNames()
-      // console.log('[TeacherDashboardService] Teacher departments:', teacherDepartments)
-      
+      const teacherId = await this.getCurrentTeacherId()
       const admin = createAdminClient()
-      const { data: students, error } = await admin
+      
+      // Get teacher's courses from teacher_profiles
+      const { data: teacherProfile, error: profileError } = await admin
+        .from('teacher_profiles')
+        .select('courses, departments, department')
+        .eq('profile_id', teacherId)
+        .single()
+      
+      if (profileError) throw new Error(profileError.message)
+      
+      let teacherCourseIds: string[] = []
+      
+      // If teacher has selected courses in their profile, use those
+      if (teacherProfile?.courses && Array.isArray(teacherProfile.courses) && teacherProfile.courses.length > 0) {
+        teacherCourseIds = teacherProfile.courses
+      } else {
+        // Fallback to course_teacher_assignments
+        const { data: assignments, error: assignError } = await admin
+          .from('course_teacher_assignments')
+          .select('course_id')
+          .eq('teacher_id', teacherId)
+          .eq('is_active', true)
+        
+        if (assignError) throw new Error(assignError.message)
+        teacherCourseIds = (assignments || []).map((a: any) => a.course_id)
+      }
+      
+      // If no courses found, return empty array
+      if (teacherCourseIds.length === 0) {
+        console.log('[TeacherDashboardService] No courses found for teacher')
+        return []
+      }
+      
+      // Get selected_courses for teacher's courses with approved status
+      const { data: selectedCourses, error: selectedError } = await admin
+        .from('selected_courses')
+        .select('student_id, course_id, session, semester, status, course:courses(id, code, title), student:profiles(id, first_name, last_name, email, phone, avatar_url)')
+        .in('course_id', teacherCourseIds)
+        .eq('status', 'approved')
+      
+      if (selectedError) throw new Error(selectedError.message)
+      
+      // Get student profiles for these students
+      const studentIds = (selectedCourses || []).map((sc: any) => sc.student_id).filter(Boolean)
+      
+      if (studentIds.length === 0) {
+        return []
+      }
+      
+      const { data: students, error: studentsError } = await admin
         .from('student_profiles')
         .select('profile_id, student_number, matric_number, admission_session, admission_date, date_of_birth, gender, blood_group, genotype, state_of_origin, local_government_area, nationality, address_line_1, address_line_2, city, state, guardian_name, guardian_phone, guardian_email, emergency_contact_name, emergency_contact_phone, current_level, admission_status, created_at, updated_at, profile:profiles(id, first_name, last_name, middle_name, email, phone, avatar_url)')
+        .in('profile_id', studentIds)
         .order('created_at', { ascending: false })
-      if (error) throw new Error(error.message)
-
-      const studentIds = (students || []).map((student: any) => student.profile_id)
-      if (!studentIds.length) return []
-
-      const { data: enrollments, error: enrollmentError } = await admin
-        .from('enrollments')
-        .select('student_id, program_id, program:programs(id, title, department_id, department:departments(id, name))')
-        .in('student_id', studentIds)
-      if (enrollmentError) throw new Error(enrollmentError.message)
-
-      const enrollmentMap = new Map<string, any[]>()
-      for (const enrollment of enrollments || []) {
-        const list = enrollmentMap.get(enrollment.student_id) || []
-        list.push(enrollment)
-        enrollmentMap.set(enrollment.student_id, list)
-      }
-
-      const filteredStudents = (students || [])
-        .map((student: any) => {
-          const studentEnrollments = enrollmentMap.get(student.profile_id) || []
-          const programDepartments = studentEnrollments
-            .map((enrollment: any) => String(enrollment?.program?.department?.name || enrollment?.program?.department_id || '').trim())
-            .filter(Boolean)
-          return { ...student, enrollment: studentEnrollments, programDepartments }
-        })
-        .filter((student: any) => {
-          // If teacher has no departments specified, show all students
-          if (!teacherDepartments.length) {
-            console.log('[TeacherDashboardService] No teacher departments, showing all students')
-            return true
-          }
-          // If student has no enrollments or no department info, exclude them
-          if (!student.programDepartments?.length) {
-            console.log('[TeacherDashboardService] Student has no program departments:', student.profile_id)
-            return false
-          }
-          // Check if student's department matches teacher's department
-          const matches = student.programDepartments.some((dept: string) => teacherDepartments.includes(dept))
-          // console.log('[TeacherDashboardService] Student', student.profile_id, 'departments:', student.programDepartments, 'matches:', matches)
-          return matches
-        })
       
-      // console.log('[TeacherDashboardService] Filtered students count:', filteredStudents.length)
-      return filteredStudents
+      if (studentsError) throw new Error(studentsError.message)
+      
+      // Group selected courses by student
+      const studentCourseMap = new Map<string, any[]>()
+      for (const sc of selectedCourses || []) {
+        const list = studentCourseMap.get(sc.student_id) || []
+        list.push(sc)
+        studentCourseMap.set(sc.student_id, list)
+      }
+      
+      // Add course information to each student
+      const studentsWithCourses = (students || []).map((student: any) => {
+        const studentCourses = studentCourseMap.get(student.profile_id) || []
+        return {
+          ...student,
+          selected_courses: studentCourses
+        }
+      })
+      
+      return studentsWithCourses
     } catch (error: any) {
       console.error('[TeacherDashboardService] getTeacherStudents error:', error)
       throw error
@@ -228,14 +252,124 @@ export class TeacherDashboardService {
   }
 
   static async getTeacherStudentById(studentId: string) {
-    const admin = createAdminClient()
-    const { data, error } = await admin
-      .from('student_profiles')
-      .select('*, profile:profiles(id, first_name, last_name, email, phone, avatar_url), enrollment:enrollments(*, program:programs(title, department_id))')
-      .eq('profile_id', studentId)
-      .single()
-    if (error) throw new Error(error.message)
-    return data
+    try {
+      const teacherId = await this.getCurrentTeacherId()
+      const admin = createAdminClient()
+      
+      // Get teacher's courses
+      const { data: teacherProfile, error: profileError } = await admin
+        .from('teacher_profiles')
+        .select('courses, departments, department')
+        .eq('profile_id', teacherId)
+        .single()
+      
+      if (profileError) throw new Error(profileError.message)
+      
+      let teacherCourseIds: string[] = []
+      
+      // If teacher has selected courses in their profile, use those
+      if (teacherProfile?.courses && Array.isArray(teacherProfile.courses) && teacherProfile.courses.length > 0) {
+        teacherCourseIds = teacherProfile.courses
+      } else {
+        // Fallback to course_teacher_assignments
+        const { data: assignments, error: assignError } = await admin
+          .from('course_teacher_assignments')
+          .select('course_id')
+          .eq('teacher_id', teacherId)
+          .eq('is_active', true)
+        
+        if (assignError) throw new Error(assignError.message)
+        teacherCourseIds = (assignments || []).map((a: any) => a.course_id)
+      }
+      
+      // Get student profile
+      const { data: student, error: studentError } = await admin
+        .from('student_profiles')
+        .select('profile_id, student_number, matric_number, admission_session, admission_date, date_of_birth, gender, blood_group, genotype, state_of_origin, local_government_area, nationality, address_line_1, address_line_2, city, state, guardian_name, guardian_phone, guardian_email, emergency_contact_name, emergency_contact_phone, current_level, admission_status, created_at, updated_at, profile:profiles(id, first_name, last_name, middle_name, email, phone, avatar_url)')
+        .eq('profile_id', studentId)
+        .single()
+      
+      if (studentError) throw new Error(studentError.message)
+      
+      // Get student's enrollments
+      const { data: enrollments, error: enrollmentError } = await admin
+        .from('enrollments')
+        .select('id, student_id, program_id, session_id, enrollment_date, expected_graduation_date, status, remarks, program:programs(id, title, department_id, department:departments(id, name), level, duration_months), session:academic_sessions(name)')
+        .eq('student_id', studentId)
+      
+      if (enrollmentError) throw new Error(enrollmentError.message)
+      
+      // Get all selected courses for this student (not just teacher's courses)
+      const { data: allSelectedCourses, error: allCoursesError } = await admin
+        .from('selected_courses')
+        .select('id, student_id, course_id, session, semester, status, selected_at, reviewed_at, review_notes, course:courses(id, code, title, level, semester, credit_units, program_id, program:programs(id, title, department:departments(id, name)))')
+        .eq('student_id', studentId)
+        .eq('status', 'approved')
+        .order('session', { ascending: false })
+        .order('semester', { ascending: false })
+      
+      if (allCoursesError) throw new Error(allCoursesError.message)
+      
+      // Get all results for this student
+      const { data: results, error: resultsError } = await admin
+        .from('results')
+        .select('id, student_id, enrollment_id, assessment_id, course_name, score, grade, semester, academic_year, published, published_at')
+        .eq('student_id', studentId)
+        .eq('published', true)
+        .order('academic_year', { ascending: false })
+        .order('semester', { ascending: false })
+      
+      if (resultsError) throw new Error(resultsError.message)
+      
+      // Calculate CGPA
+      const gradePoints: { [key: string]: number } = { A: 5, B: 4, C: 3, D: 2, E: 1, F: 0 }
+      let totalGradePoints = 0
+      let totalCreditUnits = 0
+      
+      const resultsWithCredits = (results || []).map((result: any) => {
+        const course = allSelectedCourses?.find((sc: any) => sc.course?.title === result.course_name) as any
+        const creditUnits = course?.course?.credit_units || 3
+        const gradePoint = gradePoints[result.grade] || 0
+        totalGradePoints += gradePoint * creditUnits
+        totalCreditUnits += creditUnits
+        return {
+          ...result,
+          credit_units: creditUnits,
+          grade_point: gradePoint,
+          course_code: course?.course?.code || null
+        }
+      })
+      
+      const cgpa = totalCreditUnits > 0 ? (totalGradePoints / totalCreditUnits).toFixed(2) : '0.00'
+      
+      // Get assessments for this student in teacher's courses
+      let assessments: any[] = []
+      if (teacherCourseIds.length > 0) {
+        const { data: assessmentData, error: assessmentError } = await admin
+          .from('assessments')
+          .select('id, student_id, course_id, continuous_assessment, exam_score, total_score, grade, score_status, score_entered_at, approved_by, approved_at, semester_id, session_id, ca_1, ca_2, assignments, course:courses(id, code, title, credit_units), enrollment:enrollments(program:programs(title))')
+          .eq('student_id', studentId)
+          .in('course_id', teacherCourseIds)
+        
+        if (!assessmentError && assessmentData) {
+          assessments = assessmentData
+        }
+      }
+      
+      return {
+        ...student,
+        enrollments: enrollments || [],
+        selected_courses: allSelectedCourses || [],
+        results: resultsWithCredits,
+        assessments: assessments,
+        cgpa: cgpa,
+        total_credit_units: totalCreditUnits,
+        total_grade_points: totalGradePoints
+      }
+    } catch (error: any) {
+      console.error('[TeacherDashboardService] getTeacherStudentById error:', error)
+      throw error
+    }
   }
 
   static async getTeacherGrades() {

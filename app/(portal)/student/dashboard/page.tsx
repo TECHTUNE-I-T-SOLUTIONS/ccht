@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { BookOpen, CreditCard, FileText, ReceiptText, ArrowRight, BadgeCheck, UserRound, Award, Clock3, Bell, AlertTriangle } from 'lucide-react'
+import { BookOpen, CreditCard, FileText, ReceiptText, ArrowRight, BadgeCheck, UserRound, Award, Clock3, Bell, AlertTriangle, FolderOpen } from 'lucide-react'
 
 export default function StudentDashboard() {
   const [user, setUser] = useState<any>(null)
@@ -410,6 +410,22 @@ export default function StudentDashboard() {
                 ))
               )}
             </div>
+          </Card>
+
+          <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-primary/10 p-3 text-primary"><FolderOpen className="h-5 w-5" /></div>
+              <div>
+                <h2 className="text-2xl font-bold">Aspirant Documents</h2>
+                <p className="text-sm text-muted-foreground">View admission documents</p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-7 text-muted-foreground">
+              Access your admission letter, oath form, and other documents from your aspirant dashboard.
+            </p>
+            <Link href="/aspirant/dashboard" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary">
+              Go to Aspirant Dashboard <ArrowRight className="h-4 w-4" />
+            </Link>
           </Card>
 
           <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">

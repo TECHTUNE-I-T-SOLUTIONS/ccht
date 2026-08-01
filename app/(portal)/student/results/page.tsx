@@ -142,10 +142,13 @@ export default function ResultsPage() {
     const session = sessionKey ? sessionKey.split(' - ')[0] : filterSession === 'all' ? sessions[0] : filterSession
     const semester = sessionKey ? sessionKey.split(' - ')[1] : filterSemester === 'all' ? 'Semester 1' : `Semester ${filterSemester}`
     
-    // Fetch assessment data for each result to get CA and exam breakdown
-    const resultsWithAssessments = await Promise.all(
+    // Fetch assessment data and course codes for each result
+    const resultsWithDetails = await Promise.all(
       resultsToDownload.map(async (r: any) => {
         let assessment = null
+        let courseCode = r.course_code
+
+        // Try to fetch assessment by assessment_id
         if (r.assessment_id) {
           const { data } = await supabase
             .from('assessments')
@@ -153,13 +156,35 @@ export default function ResultsPage() {
             .eq('id', r.assessment_id)
             .single()
           assessment = data
+        } else {
+          // Fallback: try to find by course name and student
+          const parsedCourseCode = r.course_name?.split(' - ')[0]
+          if (parsedCourseCode) {
+            const { data: courses } = await supabase
+              .from('courses')
+              .select('id, code')
+              .ilike('code', parsedCourseCode)
+              .limit(1)
+            
+            if (courses && courses.length > 0) {
+              courseCode = courses[0].code
+              const { data: assessmentData } = await supabase
+                .from('assessments')
+                .select('*')
+                .eq('student_id', r.student_id)
+                .eq('course_id', courses[0].id)
+                .single()
+              assessment = assessmentData
+            }
+          }
         }
-        return { ...r, assessment }
+
+        return { ...r, assessment, courseCode }
       })
     )
     
-    const totalCredits = resultsWithAssessments.reduce((sum: number, r: any) => sum + (r.credit_units || 3), 0)
-    const totalGradePoints = resultsWithAssessments.reduce((sum: number, r: any) => {
+    const totalCredits = resultsWithDetails.reduce((sum: number, r: any) => sum + (r.credit_units || 3), 0)
+    const totalGradePoints = resultsWithDetails.reduce((sum: number, r: any) => {
       if (!r.grade) return sum
       const units = r.credit_units || 3
       return sum + (gradePoints[r.grade] || 0) * units
@@ -175,8 +200,8 @@ export default function ResultsPage() {
       session,
       semester,
       level: studentProfile?.current_level || '100',
-      results: resultsWithAssessments.map((r: any) => ({
-        courseCode: r.course_code || 'N/A',
+      results: resultsWithDetails.map((r: any) => ({
+        courseCode: r.courseCode || r.course_code || 'N/A',
         courseTitle: r.course_name,
         credit: r.credit_units || 3,
         ca: r.assessment?.continuous_assessment || 0,

@@ -84,7 +84,11 @@ export default function StudentCourseFormPage() {
       
       let filteredCourses = selectedRes.data || []
       if (selectedSemester !== 'all') {
-        filteredCourses = filteredCourses.filter((sc: any) => sc.semester === selectedSemester)
+        filteredCourses = filteredCourses.filter((sc: any) => {
+          const semesterNum = sc.course?.semester || 0
+          const semesterStr = semesterNum === 1 ? 'first' : semesterNum === 2 ? 'second' : 'unknown'
+          return semesterStr === selectedSemester
+        })
       }
       
       setSelectedCourses(filteredCourses)

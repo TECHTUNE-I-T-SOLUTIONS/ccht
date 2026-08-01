@@ -14,6 +14,7 @@ export interface LecturerSignupInput {
   specialization: string
   department?: string
   departments?: string[]
+  courses?: string[]
   employmentType?: 'full_time' | 'part_time' | 'adjunct' | 'contract'
   dateJoined?: string
   officeLocation?: string | null
@@ -99,6 +100,7 @@ export class LecturerAuthService {
         specialization: input.specialization || null,
         department: input.department || null,
         departments: input.departments || (input.department ? [input.department] : []),
+        courses: input.courses || [],
         employment_type: input.employmentType || 'full_time',
         date_joined: input.dateJoined || null,
         office_location: input.officeLocation || null,

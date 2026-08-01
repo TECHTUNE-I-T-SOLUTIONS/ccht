@@ -25,6 +25,8 @@ export default function LecturerSignupPage() {
   const [passportUrl, setPassportUrl] = useState('')
   const [departments, setDepartments] = useState<{id:string; name:string}[]>([])
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([])
+  const [courses, setCourses] = useState<{id:string; code:string; title:string}[]>([])
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([])
   const [nextEmployeeNumber, setNextEmployeeNumber] = useState('001')
   const [form, setForm] = useState({
     firstName: '',
@@ -48,12 +50,14 @@ export default function LecturerSignupPage() {
   useEffect(() => {
     ;(async () => {
       try {
-        const [{ data: setting }, { data: deptData }] = await Promise.all([
+        const [{ data: setting }, { data: deptData }, { data: courseData }] = await Promise.all([
           supabase.from('signup_settings').select('is_enabled').eq('signup_type', 'lecturer').single(),
           supabase.from('departments').select('id, name').eq('is_active', true).order('name'),
+          supabase.from('courses').select('id, code, title').eq('is_active', true).order('code'),
         ])
         setEnabled(Boolean(setting?.is_enabled))
         setDepartments((deptData || []) as any)
+        setCourses((courseData || []) as any)
         const nextRes = await fetch('/api/v1/public/signup/lecturer/next-employee-number')
         const nextData = await nextRes.json().catch(() => null)
         if (nextRes.ok && nextData?.nextEmployeeNumber) {
@@ -94,6 +98,7 @@ export default function LecturerSignupPage() {
           ...form,
           department: selectedDepartments[0] || '',
           departments: selectedDepartments,
+          courses: selectedCourses,
           passportPhotoUrl: passportUrl || null,
         }),
       })
@@ -208,6 +213,26 @@ export default function LecturerSignupPage() {
               </div>
               <div className="md:col-span-2"><Label>Office Location</Label><Input value={form.officeLocation} onChange={(e) => setForm({ ...form, officeLocation: e.target.value })} /></div>
               <div className="md:col-span-2"><Label>Office Hours</Label><Textarea value={form.officeHours} onChange={(e) => setForm({ ...form, officeHours: e.target.value })} /></div>
+              <div className="md:col-span-2">
+                <Label>Assigned Courses</Label>
+                <p className="text-xs text-muted-foreground mb-2">Select courses this lecturer will teach (optional)</p>
+                {selectedCourses.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {selectedCourses.map((courseId) => {
+                      const course = courses.find((c) => c.id === courseId)
+                      return (
+                        <button key={courseId} type="button" onClick={() => setSelectedCourses((prev) => prev.filter((id) => id !== courseId))} className="rounded-full border px-3 py-1 text-xs">
+                          {course?.code || courseId} x
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                <Select onValueChange={(value) => setSelectedCourses((prev) => prev.includes(value) ? prev : [...prev, value])}>
+                  <SelectTrigger><SelectValue placeholder="Add a course" /></SelectTrigger>
+                  <SelectContent>{courses.filter((c) => !selectedCourses.includes(c.id)).map((c) => <SelectItem key={c.id} value={c.id}>{c.code} - {c.title}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             </div>
           )}
 

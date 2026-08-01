@@ -450,6 +450,11 @@ export default function CoursesPage() {
                 Your course selection has been approved. Contact your department if you need to make changes.
               </p>
             </div>
+            <div>
+              <Link href="/student/course-form">
+                <Button variant="outline" className="border border-primary hover:shadow-lg hover:shadow-blue-600">View your Course Form</Button>
+              </Link>
+            </div>
           </div>
         </Card>
       )}
