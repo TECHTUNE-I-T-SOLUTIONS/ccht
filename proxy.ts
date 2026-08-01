@@ -20,6 +20,8 @@ export async function proxy(request: NextRequest) {
     '/login',
     '/register',
     '/forgot-password',
+    '/reset-password',
+    '/reset-password/confirm',
     '/secure/admin/login',
     '/secure/admin/signup',
     '/secure/signup',
