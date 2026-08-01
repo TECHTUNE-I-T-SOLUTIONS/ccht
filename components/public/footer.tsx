@@ -110,7 +110,6 @@ export function Footer() {
            <div className="flex gap-8 text-[11px] font-technical tracking-widest text-muted-foreground/30 uppercase">
              <Link href={ROUTES.privacy} className="hover:text-primary transition-colors">Privacy Policy</Link>
              <Link href={ROUTES.terms} className="hover:text-primary transition-colors">Terms of Use</Link>
-             <Link href="#" className="hover:text-primary transition-colors">Cookie Policy</Link>
            </div>
         </div>
       </div>

@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
       stateOfOrigin,
       lga,
       address,
+      addressLine2,
       city,
       state,
       guardianName,
@@ -38,7 +39,13 @@ export async function POST(request: NextRequest) {
       genotype,
       passportPhotoUrl,
       program,
+      programId,
       department,
+      academicSession,
+      academicSessionId,
+      level,
+      admissionDate,
+      expectedGraduationDate,
     } = body
 
     if (!email || !password || !firstName || !lastName || !dateOfBirth || !gender || !studentNumber || !matricNumber) {
@@ -89,12 +96,15 @@ export async function POST(request: NextRequest) {
       profile_id: userId,
       student_number: studentNumber,
       matric_number: matricNumber,
+      admission_session: academicSession || null,
+      admission_date: admissionDate || null,
       date_of_birth: dateOfBirth,
       gender,
       nationality: nationality || 'Nigerian',
       state_of_origin: stateOfOrigin || null,
       local_government_area: lga || null,
       address_line_1: address || null,
+      address_line_2: addressLine2 || null,
       city: city || null,
       state: state || null,
       guardian_name: guardianName || null,
@@ -104,12 +114,29 @@ export async function POST(request: NextRequest) {
       emergency_contact_phone: emergencyContactPhone || null,
       blood_group: bloodGroup || null,
       genotype: genotype || null,
+      current_level: level || null,
       admission_status: 'active',
     })
 
     if (studentError) {
       await admin.auth.admin.deleteUser(userId)
       return NextResponse.json({ error: studentError.message }, { status: 500 })
+    }
+
+    // Create enrollment record if program and session are provided
+    if (programId && academicSessionId) {
+      const { error: enrollmentError } = await admin.from('enrollments').insert({
+        student_id: userId,
+        program_id: programId,
+        session_id: academicSessionId,
+        expected_graduation_date: expectedGraduationDate || null,
+        status: 'active',
+      })
+
+      if (enrollmentError) {
+        console.error('Failed to create enrollment:', enrollmentError)
+        // Don't fail the signup if enrollment creation fails, just log the error
+      }
     }
 
     // Send welcome email to the new student

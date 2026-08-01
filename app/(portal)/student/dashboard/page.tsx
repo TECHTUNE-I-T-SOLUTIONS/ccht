@@ -5,7 +5,11 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { BookOpen, CreditCard, FileText, ReceiptText, ArrowRight, BadgeCheck, UserRound, Award, Clock3, Bell } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { BookOpen, CreditCard, FileText, ReceiptText, ArrowRight, BadgeCheck, UserRound, Award, Clock3, Bell, AlertTriangle } from 'lucide-react'
 
 export default function StudentDashboard() {
   const [user, setUser] = useState<any>(null)
@@ -16,13 +20,18 @@ export default function StudentDashboard() {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [notices, setNotices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [missingFields, setMissingFields] = useState<string[]>([])
+  const [profileForm, setProfileForm] = useState<Record<string, string>>({})
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [academicSessions, setAcademicSessions] = useState<{ id: string; name: string }[]>([])
   const supabase = createClient()
 
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const [profileRes, studentProfileRes, paymentsRes, aspirantPaymentsRes, resultsRes, enrollmentsRes, announcementsRes, noticesRes] = await Promise.all([
+        const [profileRes, studentProfileRes, paymentsRes, aspirantPaymentsRes, resultsRes, enrollmentsRes, announcementsRes, noticesRes, sessionRes] = await Promise.all([
           supabase.from('profiles').select('id, email, first_name, last_name, phone, role, avatar_url').eq('id', user.id).single(),
           supabase.from('student_profiles').select('*').eq('profile_id', user.id).single(),
           supabase.from('payments').select('id, amount, status, created_at, description').order('created_at', { ascending: false }).limit(4),
@@ -31,9 +40,49 @@ export default function StudentDashboard() {
           supabase.from('enrollments').select('*, program:programs(title)').eq('student_id', user.id).eq('status', 'active'),
           supabase.from('announcements').select('*').eq('is_published', true).order('published_at', { ascending: false }).limit(3),
           supabase.from('notices').select('*').eq('is_published', true).in('audience', ['all', 'students']).order('published_at', { ascending: false }).limit(3),
+          supabase.from('academic_sessions').select('id, name').eq('is_active', true).order('name'),
         ])
         setUser(profileRes.data)
         setStudentProfile(studentProfileRes.data)
+        setAcademicSessions(sessionRes.data || [])
+        
+        // Check for missing fields
+        if (studentProfileRes.data) {
+          const requiredFields = [
+            { key: 'admission_session', label: 'Academic Session', type: 'select' },
+            { key: 'admission_date', label: 'Admission Date', type: 'date' },
+            { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+            { key: 'gender', label: 'Gender', type: 'select', options: ['male', 'female', 'other'] },
+            { key: 'blood_group', label: 'Blood Group', type: 'select', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
+            { key: 'genotype', label: 'Genotype', type: 'select', options: ['AA', 'AS', 'AC', 'SS', 'SC'] },
+            { key: 'nationality', label: 'Nationality', type: 'select', options: ['Nigerian', 'Ghanaian', 'Beninese', 'Nigerien', 'Cameroonian', 'Other'] },
+            { key: 'state_of_origin', label: 'State of Origin', type: 'text' },
+            { key: 'local_government_area', label: 'Local Government Area', type: 'text' },
+            { key: 'address_line_1', label: 'Address Line 1', type: 'text' },
+            { key: 'city', label: 'City', type: 'text' },
+            { key: 'state', label: 'State (Residence)', type: 'text' },
+            { key: 'guardian_name', label: 'Guardian Name', type: 'text' },
+            { key: 'guardian_phone', label: 'Guardian Phone', type: 'text' },
+            { key: 'guardian_email', label: 'Guardian Email', type: 'email' },
+            { key: 'emergency_contact_name', label: 'Emergency Contact Name', type: 'text' },
+            { key: 'emergency_contact_phone', label: 'Emergency Contact Phone', type: 'text' },
+            { key: 'current_level', label: 'Current Level', type: 'select', options: ['100', '200', '300', '400', '500'] },
+          ]
+          
+          const missing = requiredFields.filter(field => {
+            const value = studentProfileRes.data[field.key]
+            return value === null || value === '' || value === undefined
+          })
+          
+          if (missing.length > 0) {
+            setMissingFields(missing.map(f => f.key))
+            setProfileForm(missing.reduce((acc, field) => {
+              acc[field.key] = studentProfileRes.data[field.key] || ''
+              return acc
+            }, {} as Record<string, string>))
+            setShowProfileModal(true)
+          }
+        }
         
         // Combine regular payments and aspirant payments
         const allPayments = [
@@ -72,11 +121,58 @@ export default function StudentDashboard() {
       'guardian_phone',
       'guardian_email',
       'emergency_contact_name',
-      'emergency_contact_phone'
+      'emergency_contact_phone',
+      'admission_session',
+      'admission_date',
+      'current_level'
     ]
     const filledFields = fields.filter(field => studentProfile[field] !== null && studentProfile[field] !== '').length
     return Math.round((filledFields / fields.length) * 100)
   }
+
+  const saveProfile = async () => {
+    setSavingProfile(true)
+    try {
+      const { error } = await supabase
+        .from('student_profiles')
+        .update(profileForm)
+        .eq('profile_id', user.id)
+      
+      if (error) throw error
+      
+      // Refresh student profile
+      const { data: updatedProfile } = await supabase.from('student_profiles').select('*').eq('profile_id', user.id).single()
+      setStudentProfile(updatedProfile)
+      setShowProfileModal(false)
+      setMissingFields([])
+    } catch (error) {
+      console.error('Failed to update profile:', error)
+      alert('Failed to update profile. Please try again.')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const requiredFields = [
+    { key: 'admission_session', label: 'Academic Session', type: 'select' },
+    { key: 'admission_date', label: 'Admission Date', type: 'date' },
+    { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+    { key: 'gender', label: 'Gender', type: 'select', options: ['male', 'female', 'other'] },
+    { key: 'blood_group', label: 'Blood Group', type: 'select', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
+    { key: 'genotype', label: 'Genotype', type: 'select', options: ['AA', 'AS', 'AC', 'SS', 'SC'] },
+    { key: 'nationality', label: 'Nationality', type: 'select', options: ['Nigerian', 'Ghanaian', 'Beninese', 'Nigerien', 'Cameroonian', 'Other'] },
+    { key: 'state_of_origin', label: 'State of Origin', type: 'text' },
+    { key: 'local_government_area', label: 'Local Government Area', type: 'text' },
+    { key: 'address_line_1', label: 'Address Line 1', type: 'text' },
+    { key: 'city', label: 'City', type: 'text' },
+    { key: 'state', label: 'State (Residence)', type: 'text' },
+    { key: 'guardian_name', label: 'Guardian Name', type: 'text' },
+    { key: 'guardian_phone', label: 'Guardian Phone', type: 'text' },
+    { key: 'guardian_email', label: 'Guardian Email', type: 'email' },
+    { key: 'emergency_contact_name', label: 'Emergency Contact Name', type: 'text' },
+    { key: 'emergency_contact_phone', label: 'Emergency Contact Phone', type: 'text' },
+    { key: 'current_level', label: 'Current Level', type: 'select', options: ['100', '200', '300', '400', '500'] },
+  ]
 
   // Calculate pending fees (unpaid payments)
   const pendingFees = payments.filter(p => p.status !== 'success' && p.status !== 'paid').reduce((sum, p) => sum + (p.amount || 0), 0)
@@ -90,6 +186,70 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-8">
+      <Dialog open={showProfileModal} onOpenChange={() => {}}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Complete Your Profile
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Please complete the following required fields to continue using the student portal. These fields are mandatory for your academic records.
+            </p>
+            <div className="grid gap-4">
+              {requiredFields.filter(field => missingFields.includes(field.key)).map((field) => (
+                <div key={field.key}>
+                  <Label>{field.label}</Label>
+                  {field.type === 'select' ? (
+                    <Select 
+                      value={profileForm[field.key] || ''} 
+                      onValueChange={(value) => setProfileForm({ ...profileForm, [field.key]: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {field.key === 'admission_session' ? (
+                          academicSessions.map((session) => (
+                            <SelectItem key={session.id} value={session.name}>{session.name}</SelectItem>
+                          ))
+                        ) : (
+                          field.options?.map((option) => (
+                            <SelectItem key={option} value={option}>{option}</SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  ) : field.type === 'date' ? (
+                    <Input 
+                      type="date" 
+                      value={profileForm[field.key] || ''} 
+                      onChange={(e) => setProfileForm({ ...profileForm, [field.key]: e.target.value })} 
+                    />
+                  ) : (
+                    <Input 
+                      type={field.type} 
+                      value={profileForm[field.key] || ''} 
+                      onChange={(e) => setProfileForm({ ...profileForm, [field.key]: e.target.value })} 
+                      placeholder={`Enter ${field.label.toLowerCase()}`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            <Button 
+              className="w-full" 
+              onClick={saveProfile} 
+              disabled={savingProfile || missingFields.some(key => !profileForm[key] || profileForm[key] === '')}
+            >
+              {savingProfile ? 'Saving...' : 'Complete Profile'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="rounded-[2rem] border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--accent-soft)))] p-6 md:p-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex items-center gap-4">

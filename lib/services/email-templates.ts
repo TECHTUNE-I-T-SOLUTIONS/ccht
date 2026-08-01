@@ -154,7 +154,7 @@ export function wrapEmailContent(content: string, title: string): string {
         .button {
           display: inline-block;
           padding: 16px 32px;
-          background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+          background: linear-gradient(135deg, #767A87 0%, #7C8797 100%);
           color: white;
           text-decoration: none;
           border-radius: 8px;

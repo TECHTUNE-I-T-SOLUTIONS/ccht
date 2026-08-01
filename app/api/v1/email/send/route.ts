@@ -70,9 +70,11 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'Invalid template' }, { status: 400 })
       }
     } else if (to && (subject || html)) {
-      // Use custom email - wrap with professional template
+      // Use custom email - check if already wrapped, if not wrap with professional template
       const customContent = html || '<p>No message content</p>'
-      const wrappedHtml = wrapEmailContent(customContent, subject || 'Email from CCHT')
+      // Check if content is already wrapped (contains the email wrapper class)
+      const isAlreadyWrapped = customContent.includes('email-wrapper')
+      const wrappedHtml = isAlreadyWrapped ? customContent : wrapEmailContent(customContent, subject || 'Email from CCHT')
       
       emailTemplate = {
         to,

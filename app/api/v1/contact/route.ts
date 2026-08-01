@@ -1,5 +1,6 @@
 import { ContactFormSchema } from '@/lib/validation';
-import { EmailService } from '@/lib/services/email.service';
+import { emailService } from '@/lib/services/email.service';
+import { wrapEmailContent } from '@/lib/services/email-templates';
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -42,7 +43,27 @@ export async function POST(request: NextRequest) {
 
     // Try to send email (don't fail if email service is down)
     try {
-      await EmailService.sendContactFormEmail(name, email, subject, message);
+      const emailContent = `
+        <div class="greeting">New Contact Form Submission</div>
+        <div class="info-box">
+          <h3>Contact Details</h3>
+          <ul>
+            <li><strong>Name:</strong> ${name}</li>
+            <li><strong>Email:</strong> ${email}</li>
+            <li><strong>Subject:</strong> ${subject}</li>
+          </ul>
+        </div>
+        <div class="message">
+          <strong>Message:</strong>
+          <p style="margin-top: 10px; padding: 15px; background: #f8fafc; border-radius: 8px;">${message}</p>
+        </div>
+      `
+      
+      await emailService.sendEmail({
+        to: 'info@covenantcollegeofhealthtech.com.ng',
+        subject: `Contact Form: ${subject} - ${name}`,
+        html: wrapEmailContent(emailContent, 'Contact Form Submission'),
+      })
     } catch (emailError) {
       // Silently fail - message is already saved to DB
       // Email service may not be configured
