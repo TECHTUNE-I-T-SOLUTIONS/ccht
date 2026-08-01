@@ -198,7 +198,7 @@ function ResetPasswordConfirmContent() {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full"
+            className="w-full border border-primary hover:shadow-lg hover:shadow-blue-600"
           >
             {loading ? 'Updating...' : 'Update password'}
           </Button>
