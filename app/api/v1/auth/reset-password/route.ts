@@ -11,10 +11,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
-    // Use Supabase's built-in password reset functionality
-    // Supabase will handle sending the email using their configured email template
+    // Use Supabase's built-in password reset functionality.
+    //
+    // The `redirectTo` URL must be registered in the Supabase dashboard under
+    // Authentication → URL Configuration → Redirect URLs. We point it at the
+    // server-side `/auth/confirm` token-exchange endpoint (PKCE flow) so that
+    // the recovery token is verified server-side, then the user is redirected
+    // to `/reset-password/confirm` with a valid session cookie already set.
+    //
+    // NOTE: For this to work end-to-end, the Supabase "Reset password" email
+    // template MUST link to:
+    //   {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next={{ .RedirectTo }}
+    // See supabase/PASSWORD_RESET_SETUP.md for setup instructions.
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL || 'https://www.covenantcollegeofhealthtech.com.ng'
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.covenantcollegeofhealthtech.com.ng'}/reset-password/confirm`,
+      redirectTo: `${appUrl}/auth/confirm?next=/reset-password/confirm`,
     })
 
     if (error) {

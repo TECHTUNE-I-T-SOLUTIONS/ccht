@@ -169,3 +169,18 @@
   animation: marquee 10s linear infinite;
 }
 
+@keyframes scroll-notices {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-scroll {
+  animation: scroll-notices 30s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-scroll {
+    animation: none;
+  }
+}
+

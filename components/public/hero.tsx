@@ -11,9 +11,9 @@ import { TypographyH1, TypographyLead } from '@/components/ui/typography'
 
 export function Hero() {
   return (
-    <section className="relative min-h-[90vh] lg:min-h-[85vh] flex flex-col lg:flex-row overflow-hidden pt-24">
+    <section className="relative min-h-[90vh] lg:min-h-[85vh] flex flex-col lg:flex-row overflow-hidden pt-2">
       {/* Left Content Area */}
-      <div className="flex-1 bg-gradient-to-br from-blue-50 to-white dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 relative z-10 flex items-center pt-20 pb-20 lg:py-0">
+      <div className="flex-1 bg-gradient-to-br from-blue-50 to-white dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 relative z-10 flex items-center pt-6 pb-20 lg:py-0">
         <div className="mx-auto px-6 sm:px-12 lg:px-24 xl:px-32 max-w-auto">
           <motion.div
             initial={{ opacity: 0, x: -30 }}

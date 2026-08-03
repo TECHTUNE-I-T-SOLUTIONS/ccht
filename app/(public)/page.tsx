@@ -8,6 +8,8 @@ import { Hero } from '@/components/public/hero'
 import { AdmissionsGuide } from '@/components/public/admissions-guide'
 import { CampusLife } from '@/components/public/campus-life'
 import { CTASection } from '@/components/public/cta-section'
+import { NoticeBar } from '@/components/public/notice-bar'
+import { ScamWarningModal } from '@/components/public/scam-warning-modal'
 
 // Server Components with Suspense
 import { ProgramsTrack } from '@/components/public/programs-track'
@@ -74,6 +76,7 @@ export default async function HomePage() {
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
+      <NoticeBar />
       <main className="flex-1 overflow-hidden">
         <Hero />
         <Suspense fallback={<ProgramsLoading />}>
@@ -87,6 +90,7 @@ export default async function HomePage() {
         <CTASection />
       </main>
       <Footer />
+      <ScamWarningModal />
     </div>
   )
 }

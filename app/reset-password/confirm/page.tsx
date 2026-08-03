@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AlertCircle, CheckCircle, Lock, Eye, EyeOff } from 'lucide-react'
+import { AlertCircle, CheckCircle, Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,17 +17,59 @@ function ResetPasswordConfirmContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [verifying, setVerifying] = useState(true)
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    // Check if we have the necessary tokens in the URL
-    const code = searchParams.get('code')
-    const accessToken = searchParams.get('access_token')
-    const refreshToken = searchParams.get('refresh_token')
+    // The PKCE token exchange now happens server-side at /auth/confirm, which
+    // redirects here with a valid session cookie already set. We just need to
+    // confirm the user is authenticated before showing the password form.
+    const verifySession = async () => {
+      // If the server-side exchange failed, /auth/confirm redirects here with
+      // ?error=invalid_or_expired (or the old ?code=... / ?error=... params).
+      const errorParam = searchParams.get('error')
 
-    if (!code && !accessToken) {
-      setError('Invalid or expired reset link. Please request a new password reset.')
+      if (errorParam === 'invalid_or_expired') {
+        setError('This password reset link is invalid or has expired. Please request a new one.')
+        setVerifying(false)
+        return
+      }
+
+      // Legacy links may still arrive with a `code` (PKCE) or `access_token`
+      // (implicit) in the URL. If so, the server-side /auth/confirm route was
+      // bypassed (e.g. old email still in the user's inbox). We can't reliably
+      // exchange a PKCE code in the browser because the code_verifier was
+      // generated in a different session, so we show an explanatory error and
+      // ask the user to request a fresh link.
+      const code = searchParams.get('code')
+      const accessToken = searchParams.get('access_token')
+
+      if (code || accessToken) {
+        setError(
+          'This password reset link is no longer valid (it may have been used already or was generated for a different session). Please request a new reset link.'
+        )
+        setVerifying(false)
+        return
+      }
+
+      // Confirm we have an active session (set by /auth/confirm).
+      try {
+        const supabase = createClient()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) {
+          setError('Your session could not be verified. Please request a new password reset link.')
+        }
+      } catch (err) {
+        setError('Your session could not be verified. Please request a new password reset link.')
+      } finally {
+        setVerifying(false)
+      }
     }
+
+    verifySession()
   }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,32 +89,10 @@ function ResetPasswordConfirmContent() {
     setLoading(true)
 
     try {
+      // The session was established server-side by /auth/confirm, so the
+      // browser client already has the session cookie. We can call
+      // updateUser directly — no client-side code exchange needed.
       const supabase = createClient()
-      const code = searchParams.get('code')
-      const accessToken = searchParams.get('access_token')
-      const refreshToken = searchParams.get('refresh_token')
-
-      if (code) {
-        // Exchange the code for a session
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-        if (exchangeError) {
-          throw new Error('Invalid or expired reset link')
-        }
-      } else if (accessToken && refreshToken) {
-        // Set the session with the tokens from the URL
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        })
-
-        if (sessionError) {
-          throw new Error('Invalid or expired reset link')
-        }
-      } else {
-        throw new Error('Missing reset tokens')
-      }
-
-      // Update the user's password
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
       })
@@ -84,9 +104,15 @@ function ResetPasswordConfirmContent() {
       setSuccess(true)
       toast.success('Password updated successfully')
 
-      // Redirect to login after 2 seconds
-      setTimeout(() => {
-        router.push('/auth/login')
+      // Sign the user out and redirect to login after a short delay so they
+      // can sign in with the new password.
+      setTimeout(async () => {
+        try {
+          await supabase.auth.signOut()
+        } catch {
+          // ignore sign-out errors
+        }
+        router.push('/login')
       }, 2000)
     } catch (error: any) {
       setError(error.message || 'Failed to reset password')
@@ -96,20 +122,33 @@ function ResetPasswordConfirmContent() {
     }
   }
 
+  // Loading state while we verify the session
+  if (verifying) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-slate-950">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto" />
+          <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">Verifying your reset link…</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state — link invalid/expired
   if (error && !success) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-slate-950">
         <div className="w-full max-w-md space-y-6">
-          <div className="flex gap-3 rounded-lg border border-red-400/30 bg-red-500/10 p-4 text-red-900">
+          <div className="flex gap-3 rounded-lg border border-red-400/30 bg-red-500/10 p-4 text-red-900 dark:text-red-200">
             <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
             <div>
-              <p className="font-semibold">Error</p>
+              <p className="font-semibold">Unable to reset password</p>
               <p className="text-sm">{error}</p>
             </div>
           </div>
           <Button
-            onClick={() => router.push('/auth/forgot-password')}
-            className="w-full"
+            onClick={() => router.push('/forgot-password')}
+            className="w-full border border-primary hover:shadow-lg hover:shadow-blue-600"
           >
             Request new reset link
           </Button>
@@ -118,15 +157,16 @@ function ResetPasswordConfirmContent() {
     )
   }
 
+  // Success state
   if (success) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-slate-950">
         <div className="w-full max-w-md space-y-6">
-          <div className="flex gap-3 rounded-lg border border-green-400/30 bg-green-500/10 p-4 text-green-900">
+          <div className="flex gap-3 rounded-lg border border-green-400/30 bg-green-500/10 p-4 text-green-900 dark:text-green-200">
             <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
             <div>
               <p className="font-semibold">Password updated successfully!</p>
-              <p className="text-sm">Redirecting to login...</p>
+              <p className="text-sm">Redirecting to login…</p>
             </div>
           </div>
         </div>
@@ -134,6 +174,7 @@ function ResetPasswordConfirmContent() {
     )
   }
 
+  // Form state
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-slate-950">
       <div className="w-full max-w-md space-y-8">
@@ -143,13 +184,6 @@ function ResetPasswordConfirmContent() {
             Enter your new password below
           </p>
         </div>
-
-        {error && (
-          <div className="flex gap-3 rounded-lg border border-red-400/30 bg-red-500/10 p-4 text-red-900">
-            <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
           <div className="space-y-4">
@@ -166,6 +200,7 @@ function ResetPasswordConfirmContent() {
                   placeholder="Enter new password"
                   required
                   minLength={6}
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"
@@ -190,6 +225,7 @@ function ResetPasswordConfirmContent() {
                   placeholder="Confirm new password"
                   required
                   minLength={6}
+                  autoComplete="new-password"
                 />
               </div>
             </div>
@@ -200,7 +236,7 @@ function ResetPasswordConfirmContent() {
             disabled={loading}
             className="w-full border border-primary hover:shadow-lg hover:shadow-blue-600"
           >
-            {loading ? 'Updating...' : 'Update password'}
+            {loading ? 'Updating…' : 'Update password'}
           </Button>
         </form>
       </div>
@@ -210,14 +246,16 @@ function ResetPasswordConfirmContent() {
 
 export default function ResetPasswordConfirmPage() {
   return (
-    <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-slate-950">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600 mx-auto"></div>
-          <p className="mt-4 text-sm text-gray-600">Loading...</p>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-slate-950">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto" />
+            <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">Loading…</p>
+          </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <ResetPasswordConfirmContent />
     </Suspense>
   )

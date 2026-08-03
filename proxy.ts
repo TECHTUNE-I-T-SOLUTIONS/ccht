@@ -22,6 +22,8 @@ export async function proxy(request: NextRequest) {
     '/forgot-password',
     '/reset-password',
     '/reset-password/confirm',
+    '/auth/callback',
+    '/auth/confirm',
     '/secure/admin/login',
     '/secure/admin/signup',
     '/secure/signup',

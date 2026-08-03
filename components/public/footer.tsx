@@ -22,7 +22,7 @@ export function Footer() {
               </span>
             </Link>
             
-            <TypographyP className="text-muted-foreground/60 text-lg leading-relaxed max-w-sm p-2">
+            <TypographyP className="text-muted-foreground/60 text-sm leading-relaxed max-w-sm p-2">
               Dedicated to excellence in health technology education. Shaping future leaders through discipline, skill, and professional ethics.
             </TypographyP>
 
@@ -32,7 +32,7 @@ export function Footer() {
                  <input 
                    type="email" 
                    placeholder="Enter your email" 
-                   className="bg-white/5 border border-black dark:border-white/10 rounded-full px-4 py-3 text-sm flex-1 outline-none focus:border-primary/50 transition-colors shadow-lg" 
+                   className="bg-white/5 border border-black dark:border-white/10 rounded-full px-4 py-3 text-sm flex-1 outline-none focus:border-primary/50 transition-colors shadow-lg w-[8px]" 
                  />
                  <Button size="icon" className="rounded-full h-12 w-12 shrink-0">
                     <ArrowRight className="h-4 w-4" />
@@ -56,7 +56,7 @@ export function Footer() {
 
             <div className="space-y-6">
               <TypographyTechnical className="text-muted-foreground font-bold opacity-40">Resources</TypographyTechnical>
-              <ul className="space-y-4">
+              <ul className="space-y-4 text-sm">
                 <li><FooterLink href={ROUTES.blog}>Latest News</FooterLink></li>
                 <li><FooterLink href={ROUTES.events}>Upcoming Events</FooterLink></li>
                 <li><FooterLink href={ROUTES.faq}>FAQ Support</FooterLink></li>
@@ -85,7 +85,7 @@ export function Footer() {
                   </div>
                   <div className="flex gap-4">
                     <Mail className="h-5 w-5 text-primary shrink-0" />
-                    <a href={`mailto:${SCHOOL_INFO.email}`} className="text-sm md:text-sm lg:text-xs text-muted-foreground/70 hover:text-primary transition-colors">
+                    <a href={`mailto:${SCHOOL_INFO.email}`} className="text-[10px] md:text-sm lg:text-xs text-muted-foreground/70 hover:text-primary transition-colors">
                       {SCHOOL_INFO.email}
                     </a>
                   </div>
