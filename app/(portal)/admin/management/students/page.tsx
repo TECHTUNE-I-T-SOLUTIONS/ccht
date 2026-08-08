@@ -85,7 +85,7 @@ export default function StudentManagementPage() {
       icon: GraduationCap,
       color: 'bg-blue-500/10 text-blue-600',
       links: [
-        { label: 'All Students', href: '/admin/management/students', description: 'View and manage all students' },
+        { label: 'All Students', href: '/admin/management/students/all', description: 'View and manage all students' },
         { label: 'New Admissions', href: '/admin/admissions', description: 'Recently admitted students' },
         { label: 'Enrollment History', href: '/admin/analytics/performance', description: 'Historical enrollment data' },
         { label: 'Transfer Students', href: '/admin/admissions', description: 'Manage transfer requests' },
@@ -368,7 +368,7 @@ export default function StudentManagementPage() {
                       {student.admissionStatus.replace('_', ' ')}
                     </Badge>
                   </div>
-                  <Link href={`/admin/students/${student.id}`}>
+                  <Link href={`/admin/management/students/${student.id}`}>
                     <Button variant="ghost" size="sm">
                       <Eye className="h-4 w-4" />
                     </Button>
