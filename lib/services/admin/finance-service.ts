@@ -6,7 +6,7 @@ export class AdminFinanceService {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from('fees')
-      .select('*, program:programs(title, slug)')
+      .select('*, program:programs(title, slug), session:academic_sessions(name)')
       .order('created_at', { ascending: false });
 
     if (error) throw new Error('Failed to fetch fees: ' + error.message);
@@ -24,6 +24,7 @@ export class AdminFinanceService {
         amount: payload.amount,
         description: payload.description,
         due_in_days: payload.dueInDays,
+        session_id: payload.sessionId || null,
         is_active: payload.isActive ?? true,
       })
       .select()
@@ -53,6 +54,7 @@ export class AdminFinanceService {
         amount: payload.amount,
         description: payload.description,
         due_in_days: payload.dueInDays,
+        session_id: payload.sessionId || null,
         is_active: payload.isActive,
       })
       .eq('id', id)

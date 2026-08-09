@@ -208,7 +208,7 @@ export default function AllStudentsPage() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold truncate">{student.firstName} {student.lastName}</h3>
                   <p className="text-sm text-muted-foreground truncate">{student.email}</p>
-                  <Badge className={getStatusColor(student.admissionStatus)} variant="outline" className="mt-1 text-xs">
+                  <Badge className={`${getStatusColor(student.admissionStatus)} mt-1 text-xs`} variant="outline">
                     {student.admissionStatus.replace('_', ' ')}
                   </Badge>
                 </div>

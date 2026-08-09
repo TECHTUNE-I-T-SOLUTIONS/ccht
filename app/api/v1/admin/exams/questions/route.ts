@@ -5,16 +5,23 @@ export async function GET(request: NextRequest) {
   try {
     const admin = createAdminClient()
     const sessionId = request.nextUrl.searchParams.get('sessionId')
+    const configId = request.nextUrl.searchParams.get('configId')
 
-    if (!sessionId) {
-      return NextResponse.json({ error: 'sessionId is required' }, { status: 400 })
+    if (!sessionId && !configId) {
+      return NextResponse.json({ error: 'sessionId or configId is required' }, { status: 400 })
     }
 
-    const { data: questions, error } = await admin
+    let query = admin
       .from('student_exam_questions')
       .select('*')
-      .eq('exam_session_id', sessionId)
-      .order('question_number', { ascending: true })
+
+    if (sessionId) {
+      query = query.eq('exam_session_id', sessionId)
+    } else if (configId) {
+      query = query.eq('exam_config_id', configId)
+    }
+
+    const { data: questions, error } = await query.order('question_number', { ascending: true })
 
     if (error) {
       console.error('[admin/exams/questions] Error fetching questions:', error)

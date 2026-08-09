@@ -393,26 +393,38 @@ class EmailService {
   }
 
   async sendEmail(template: EmailTemplate): Promise<boolean> {
-    try {
-      const config = this.getConfig()
-      const transporter = this.getTransporter()
+    const maxRetries = 3
+    const retryDelay = 60000 // 1 minute in milliseconds
 
-      const mailOptions = {
-        from: `${config.fromName} <${config.fromEmail}>`,
-        to: template.to,
-        subject: template.subject,
-        html: template.html,
-        attachments: template.attachments,
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const config = this.getConfig()
+        const transporter = this.getTransporter()
+
+        const mailOptions = {
+          from: `${config.fromName} <${config.fromEmail}>`,
+          to: template.to,
+          subject: template.subject,
+          html: template.html,
+          attachments: template.attachments,
+        }
+
+        const info = await transporter.sendMail(mailOptions)
+        console.log('Email sent successfully:', info.messageId)
+        return true
+      } catch (error) {
+        console.error(`Failed to send email (attempt ${attempt}/${maxRetries}):`, error)
+        
+        if (attempt < maxRetries) {
+          console.log(`Retrying in ${retryDelay / 1000} seconds...`)
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
+        } else {
+          console.error('Max retries reached. Email sending failed.')
+          return false
+        }
       }
-
-      const info = await transporter.sendMail(mailOptions)
-      console.log('Email sent successfully:', info.messageId)
-      return true
-    } catch (error) {
-      console.error('Failed to send email:', error)
-      // Don't throw - we want the service to continue even if email fails
-      return false
     }
+    return false
   }
 
   // Helper method to send email asynchronously (fire and forget)

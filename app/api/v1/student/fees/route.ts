@@ -28,10 +28,10 @@ export async function GET(request: NextRequest) {
       .eq('status', 'active')
       .single()
 
-    // Get fees from the fees table for the student's program
+    // Get fees from the fees table for the student's program with session data
     const { data: fees } = await supabase
       .from('fees')
-      .select('*, program:programs(id, title)')
+      .select('*, program:programs(id, title), session:academic_sessions(id, name)')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
 
@@ -45,7 +45,8 @@ export async function GET(request: NextRequest) {
       return true
     }).map((fee: any) => ({
       id: fee.id,
-      session: currentSession,
+      session: fee.session?.name || currentSession,
+      session_id: fee.session_id,
       semester: 'all',
       fee_type: fee.fee_type,
       amount: parseFloat(fee.amount),

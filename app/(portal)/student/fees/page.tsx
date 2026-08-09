@@ -13,11 +13,13 @@ import { createClient } from '@/lib/supabase/client'
 type FeeStructure = {
   id: string
   session: string
+  session_id?: string
   semester: string
   fee_type: string
   amount: number
   due_date: string
   description: string
+  program_id?: string
 }
 
 type Payment = {
@@ -38,12 +40,12 @@ export default function StudentFeesPage() {
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([])
   const [loading, setLoading] = useState(true)
   const [initiating, setInitiating] = useState(false)
-  const [selectedSession, setSelectedSession] = useState('2024/2025')
+  const [selectedSession, setSelectedSession] = useState('')
   const [selectedSemester, setSelectedSemester] = useState('all')
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [selectedFee, setSelectedFee] = useState<FeeStructure | null>(null)
+  const [availableSessions, setAvailableSessions] = useState<string[]>([])
 
-  const sessions = ['2031/2032', '2030/2031', '2029/2030', '2028/2029', '2027/2028', '2026/2027', '2025/2026', '2024/2025', '2023/2024', '2022/2023']
   const semesters = ['all', 'first', 'second']
 
   const loadPaymentData = async () => {
@@ -75,8 +77,16 @@ export default function StudentFeesPage() {
       if (feeData?.data) {
         setFeeStructures(feeData.data.fees || [])
         setPayments(feeData.data.payments || [])
+        
+        // Extract unique sessions from fees
+        const uniqueSessions = Array.from(new Set(feeData.data.fees?.map((f: FeeStructure) => f.session) || [])) as string[]
+        setAvailableSessions(uniqueSessions)
+        
+        // Set default session to current session from API or first available
         if (feeData.data.summary?.currentSession) {
           setSelectedSession(feeData.data.summary.currentSession)
+        } else if (uniqueSessions.length > 0) {
+          setSelectedSession(uniqueSessions[0] as string)
         }
       }
     } finally {
@@ -267,9 +277,13 @@ export default function StudentFeesPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {sessions.map(session => (
-                  <SelectItem key={session} value={session}>{session}</SelectItem>
-                ))}
+                {availableSessions.length === 0 ? (
+                  <SelectItem value="none" disabled>No sessions available</SelectItem>
+                ) : (
+                  availableSessions.map(session => (
+                    <SelectItem key={session} value={session}>{session}</SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>

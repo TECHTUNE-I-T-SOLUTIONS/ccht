@@ -456,18 +456,32 @@ export default function StudentAssessmentEntriesPage() {
                       <SelectValue placeholder="Select course" />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {courses.filter(course => 
-                        enrollments.some(e => 
-                          e.selected_courses?.some(sc => 
-            sc.course[0]?.id === course.id && sc.status === 'approved'
-          )
-        )
-      ).map((course) => (
-        <SelectItem key={course.id} value={course.id}>
-          {course.code} - {course.title}
-        </SelectItem>
-      ))}
-    </SelectContent>
+                      {(() => {
+                        // Get all courses the student is enrolled in
+                        const enrolledCourses = enrollments.flatMap(enrollment => 
+                          enrollment.selected_courses?.filter(sc => sc.status === 'approved').map(sc => sc.course[0]) || []
+                        )
+                        
+                        // Filter courses to only show enrolled ones
+                        const availableCourses = courses.filter(course => 
+                          enrolledCourses.some(ec => ec?.id === course.id)
+                        )
+                        
+                        if (availableCourses.length === 0) {
+                          return (
+                            <div className="p-2 text-sm text-muted-foreground">
+                              No approved courses found for this student
+                            </div>
+                          )
+                        }
+                        
+                        return availableCourses.map((course) => (
+                          <SelectItem key={course.id} value={course.id}>
+                            {course.code} - {course.title}
+                          </SelectItem>
+                        ))
+                      })()}
+                    </SelectContent>
                   </Select>
                 </div>
                 <div>
