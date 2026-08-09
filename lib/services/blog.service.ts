@@ -22,7 +22,7 @@ export type BlogPost = {
     first_name?: string;
     last_name?: string;
     avatar_url?: string;
-  }[];
+  };
 };
 
 export class BlogService {

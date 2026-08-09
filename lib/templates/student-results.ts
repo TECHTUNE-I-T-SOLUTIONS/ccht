@@ -68,7 +68,7 @@ export function generateStudentResults(data: StudentResultData): jsPDF {
     doc.setTextColor(100)
     doc.text('This document is official and confidential. Unauthorized reproduction is prohibited.', margin, footerY)
     doc.setFont('helvetica', 'normal')
-    doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - margin - 10, footerY)
+    doc.text(`Page ${doc.getNumberOfPages()}`, pageWidth - margin - 10, footerY)
     doc.setTextColor(0)
   }
 

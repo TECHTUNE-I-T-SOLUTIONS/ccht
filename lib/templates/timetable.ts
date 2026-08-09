@@ -156,7 +156,7 @@ export function generateTimetablePDF(data: TimetableData): jsPDF {
     // Check if we need a new page
     if (y + rowH > ph - margin - 5) {
       drawFooter()
-      doc.addPage('l', 'a4')
+      doc.addPage('a4', 'l')
       pageNum++
       y = margin
       drawPageHeader()
@@ -257,7 +257,7 @@ export function generateTimetablePDF(data: TimetableData): jsPDF {
   y += 8
   if (y + 40 > ph - margin) {
     drawFooter()
-    doc.addPage('l', 'a4')
+    doc.addPage('a4', 'l')
     pageNum++
     y = margin
     drawPageHeader()
@@ -300,7 +300,7 @@ export function generateTimetablePDF(data: TimetableData): jsPDF {
     y += 3
     if (y + 25 > ph - margin - 8) {
       drawFooter()
-      doc.addPage('l', 'a4')
+      doc.addPage('a4', 'l')
       pageNum++
       y = margin
       drawPageHeader()
@@ -328,7 +328,7 @@ export function generateTimetablePDF(data: TimetableData): jsPDF {
 
       if (y + 4 > ph - margin - 8) {
         drawFooter()
-        doc.addPage('l', 'a4')
+        doc.addPage('a4', 'l')
         pageNum++
         y = margin
         drawPageHeader()

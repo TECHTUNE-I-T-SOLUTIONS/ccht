@@ -157,16 +157,12 @@ export async function POST(request: Request) {
                 const resultEmail = EmailTemplates.studentResultPublished({
                   email: student.email,
                   fullName: `${student.first_name} ${student.last_name}`,
-                  courseName: course?.title || 'Course',
+                  course: course?.title || 'Course',
                   courseCode: course?.code || 'N/A',
-                  examTitle: body.exam_title,
-                  examDate: new Date(body.start_date).toLocaleDateString('en-NG', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  }),
-                  resultUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/student/results`,
+                  score: 0,
+                  grade: 'N/A',
+                  semester: 'N/A',
+                  academicYear: 'N/A',
                 })
                 emailService.sendEmailAsync(resultEmail)
               } catch (emailError) {

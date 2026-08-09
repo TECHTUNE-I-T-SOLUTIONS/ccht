@@ -30,6 +30,10 @@ export async function proxy(request: NextRequest) {
     '/sw.js',
     '/lecturer-signup',
     '/student-signup',
+    '/error',
+    '/500',
+    '/offline',
+    '/not-found',
   ]
 
   const isPublicRoute = publicRoutes.some(
@@ -124,6 +128,6 @@ export const config = {
      * - images (public image assets)
      * - favicon.ico (favicon file)
      */
-    '/((?!api|_next/static|_next/image|images|favicon.ico|apple-icon.png|icon.svg|icon-dark-32x32.png|icon-light-32x32.png|placeholder.*).*)',
+    '/((?!api|_next/static|_next/image|images|favicon.ico|apple-icon.png|icon.svg|icon-dark-32x32.png|icon-light-32x32.png|placeholder.*|sw.js).*)',
   ],
 }

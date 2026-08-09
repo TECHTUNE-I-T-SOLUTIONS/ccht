@@ -49,6 +49,14 @@ export default function LoginPage() {
     checkSession()
   }, [])
 
+  const getRedirectFromUrl = () => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      return urlParams.get('redirect')
+    }
+    return null
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     console.log('Form submitted', { email, password: password ? '***' : '' })
@@ -86,7 +94,7 @@ export default function LoginPage() {
       const { user, redirectTo } = data
       toast.success('Login successful.')
       
-      let targetRoute = redirectTo
+      let targetRoute = redirectTo || getRedirectFromUrl()
       
       if (!targetRoute) {
         if (user.role === 'admin') {

@@ -117,11 +117,10 @@ export async function PATCH(request: NextRequest) {
               const courseEmail = EmailTemplates.studentCourseRegistration({
                 email: selection.student.email,
                 fullName: `${selection.student.first_name} ${selection.student.last_name}`,
-                courseName: selection.course.title,
-                courseCode: selection.course.code,
-                session: selection.session,
+                courses: [{ code: selection.course.code, title: selection.course.title, creditUnits: 3 }],
                 semester: selection.semester,
-                registrationUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/student/courses`,
+                academicYear: selection.session,
+                totalCredits: 3,
               })
               emailService.sendEmailAsync(courseEmail)
             } catch (emailError) {

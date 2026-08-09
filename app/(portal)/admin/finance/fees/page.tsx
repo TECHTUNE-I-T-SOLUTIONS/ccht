@@ -192,10 +192,10 @@ export default function AdminFeeSchedulesPage() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Academic Session</label>
-                  <Select value={formData.sessionId} onValueChange={(val) => setFormData({ ...formData, sessionId: val })}>
+                  <Select value={formData.sessionId} onValueChange={(val) => setFormData({ ...formData, sessionId: val === 'all' ? '' : val })}>
                     <SelectTrigger><SelectValue placeholder="Select session (optional)" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Sessions</SelectItem>
+                      <SelectItem value="all">All Sessions</SelectItem>
                       {sessions.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -410,10 +410,10 @@ export default function AdminFeeSchedulesPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Academic Session</label>
-              <Select value={formData.sessionId} onValueChange={(val) => setFormData({ ...formData, sessionId: val })}>
+              <Select value={formData.sessionId || 'all'} onValueChange={(val) => setFormData({ ...formData, sessionId: val === 'all' ? '' : val })}>
                 <SelectTrigger><SelectValue placeholder="Select session (optional)" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Sessions</SelectItem>
+                  <SelectItem value="all">All Sessions</SelectItem>
                   {sessions.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
