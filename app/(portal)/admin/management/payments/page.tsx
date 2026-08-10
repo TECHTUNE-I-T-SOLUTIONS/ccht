@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,16 +13,19 @@ import { Plus, Search, DollarSign, Calendar, User, CheckCircle, XCircle, Clock, 
 import { createClient } from '@/lib/supabase/client'
 
 type StudentProfile = {
-  id: string
   profile_id: string
-  matric_number: string
-  current_level: string
+  student_number?: string
+  matric_number?: string
+  current_level?: string
+  admission_status?: string
   profile?: {
+    id: string
     first_name: string
     last_name: string
     email: string
   }
-  enrollment?: {
+  enrollments?: Array<{
+    id: string
     program: {
       title: string
       department: {
@@ -30,21 +33,43 @@ type StudentProfile = {
       }
     }
     status: string
-  }
+  }>
 }
 
 type Payment = {
   id: string
   student_id: string
+  enrollment_id?: string
+  invoice_id?: string
   amount: number
-  payment_type: string
-  session: string
-  semester?: string
-  status: 'pending' | 'completed' | 'failed'
-  payment_reference: string
-  is_manual: boolean
+  currency: string
+  payment_method?: string
+  paystack_reference?: string
+  status: 'pending' | 'success' | 'failed' | 'abandoned' | 'refunded'
+  description?: string
+  paid_at?: string
   created_at: string
   updated_at: string
+  invoice?: {
+    id: string
+    session_id?: string
+    session?: {
+      id: string
+      name: string
+      is_current: boolean
+    }
+  }
+  enrollment?: {
+    id: string
+    student_id: string
+    session_id?: string
+    program?: {
+      title: string
+      department?: {
+        name: string
+      }
+    }
+  }
 }
 
 type PaymentEvent = {
@@ -66,21 +91,18 @@ export default function PaymentsManagementPage() {
   const [students, setStudents] = useState<StudentProfile[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [sessions, setSessions] = useState<AcademicSession[]>([])
-  const [selectedSession, setSelectedSession] = useState<string>('')
+  const [selectedSession, setSelectedSession] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [manualPaymentDialogOpen, setManualPaymentDialogOpen] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<StudentProfile | null>(null)
   const [manualPaymentAmount, setManualPaymentAmount] = useState('')
   const [manualPaymentType, setManualPaymentType] = useState('')
-  const [manualPaymentSemester, setManualPaymentSemester] = useState('')
   const [creatingPayment, setCreatingPayment] = useState(false)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       
@@ -92,37 +114,66 @@ export default function PaymentsManagementPage() {
       
       setSessions(sessionsData || [])
       
-      // Set current session as default
-      const currentSession = sessionsData?.find(s => s.is_current)
-      setSelectedSession(currentSession?.id || sessionsData?.[0]?.id || '')
+      // Only set current session as default on initial load
+      if (isInitialLoad) {
+        const currentSession = sessionsData?.find(s => s.is_current)
+        setSelectedSession(currentSession?.id || sessionsData?.[0]?.id || 'all')
+        setIsInitialLoad(false)
+      }
 
-      // Load students with their profiles and enrollments
+      // Load all students with their profiles
       const { data: studentsData } = await supabase
         .from('student_profiles')
         .select(`
-          *,
-          profile:profiles(first_name, last_name, email),
-          enrollments(
-            program:programs(title, department:departments(name)),
-            status
-          )
+          profile_id,
+          student_number,
+          matric_number,
+          current_level,
+          admission_status,
+          profile:profiles(id, first_name, last_name, email)
         `)
       
-      // Filter students to only include those with active enrollments
-      const studentsWithActiveEnrollments = studentsData?.map(student => {
-        const activeEnrollment = student.enrollments?.find(e => e.status === 'active')
+      // Load enrollments separately to avoid nested query issues
+      const { data: enrollmentsData } = await supabase
+        .from('enrollments')
+        .select(`
+          student_id,
+          program:programs(title, department:departments(name)),
+          status
+        `)
+      
+      // Process students to get their most recent enrollment (active if available)
+      const processedStudents = studentsData?.map(student => {
+        const studentEnrollments = enrollmentsData?.filter(e => e.student_id === student.profile_id) || []
+        const activeEnrollment = studentEnrollments.find(e => e.status === 'active')
+        const mostRecentEnrollment = studentEnrollments[0] // Get most recent if no active
+        
         return {
           ...student,
-          enrollment: activeEnrollment
+          enrollment: activeEnrollment || mostRecentEnrollment || null,
+          enrollments: studentEnrollments
         }
-      }).filter(student => student.enrollment) || []
+      }) || []
       
-      setStudents(studentsWithActiveEnrollments)
+      setStudents(processedStudents)
 
-      // Load payments
+      // Load payments with invoice, session, and enrollment information
       const { data: paymentsData } = await supabase
         .from('payments')
-        .select('*')
+        .select(`
+          *,
+          invoice:invoices(
+            id,
+            session_id,
+            session:academic_sessions(id, name, is_current)
+          ),
+          enrollment:enrollments(
+            id,
+            student_id,
+            session_id,
+            program:programs(title, department:departments(name))
+          )
+        `)
         .order('created_at', { ascending: false })
       
       setPayments(paymentsData || [])
@@ -132,32 +183,45 @@ export default function PaymentsManagementPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase, isInitialLoad])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  // Session filtering now works through the invoice table which contains session information
 
   const getStudentPayments = (studentId: string) => {
-    const selectedSessionName = sessions.find(s => s.id === selectedSession)?.name
-    return payments.filter(p => 
-      p.student_id === studentId && 
-      (selectedSessionName ? p.session === selectedSessionName : true)
+    return payments.filter(p => p.student_id === studentId)
+  }
+
+  const getSessionFilteredPayments = (studentId: string) => {
+    const studentPayments = getStudentPayments(studentId)
+    
+    if (!selectedSession || selectedSession === 'all') return studentPayments
+    
+    // Filter by session through invoice
+    return studentPayments.filter(p => 
+      p.invoice?.session_id === selectedSession
     )
   }
 
   const getPaymentStatus = (studentId: string) => {
-    const studentPayments = getStudentPayments(studentId)
+    const studentPayments = getSessionFilteredPayments(studentId)
     if (studentPayments.length === 0) return 'none'
     
-    const hasCompleted = studentPayments.some(p => p.status === 'completed')
+    const hasSuccess = studentPayments.some(p => p.status === 'success')
     const hasPending = studentPayments.some(p => p.status === 'pending')
     
-    if (hasCompleted) return 'completed'
+    if (hasSuccess) return 'completed'
     if (hasPending) return 'pending'
     return 'failed'
   }
 
   const getTotalPaid = (studentId: string) => {
-    return getStudentPayments(studentId)
-      .filter(p => p.status === 'completed')
-      .reduce((sum, p) => sum + p.amount, 0)
+    return getSessionFilteredPayments(studentId)
+      .filter(p => p.status === 'success')
+      .reduce((sum, p) => sum + Number(p.amount), 0)
   }
 
   const getFilteredStudents = () => {
@@ -167,15 +231,25 @@ export default function PaymentsManagementPage() {
       const matricNumber = student.matric_number.toLowerCase()
       const email = student.profile?.email?.toLowerCase() || ''
       
-      return fullName.includes(searchLower) || 
-             matricNumber.includes(searchLower) || 
-             email.includes(searchLower)
+      const matchesSearch = fullName.includes(searchLower) || 
+                           matricNumber.includes(searchLower) || 
+                           email.includes(searchLower)
+      
+      const status = getPaymentStatus(student.id)
+      const matchesStatus = paymentStatusFilter === 'all' || status === paymentStatusFilter
+      
+      return matchesSearch && matchesStatus
     })
   }
 
   const handleCreateManualPayment = async () => {
     if (!selectedStudent || !manualPaymentAmount || !manualPaymentType) {
       toast.error('Please fill in all required fields')
+      return
+    }
+
+    if (!selectedSession || selectedSession === 'all') {
+      toast.error('Please select a specific session to create a payment')
       return
     }
 
@@ -188,19 +262,76 @@ export default function PaymentsManagementPage() {
         return
       }
       
-      const paymentReference = `MANUAL-${Date.now()}-${selectedStudent.matric_number}`
+      const paymentReference = `MANUAL-${Date.now()}-${selectedStudent.matric_number || selectedStudent.student_number}`
       
+      // Get the student's enrollment for this session if available
+      const { data: enrollmentData } = await supabase
+        .from('enrollments')
+        .select('*')
+        .eq('student_id', selectedStudent.profile_id)
+        .eq('session_id', sessionData.id)
+        .single()
+      
+      const enrollmentId = enrollmentData?.id
+      
+      // First, create or find an invoice for this student and session
+      const { data: existingInvoice } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('student_id', selectedStudent.profile_id)
+        .eq('session_id', sessionData.id)
+        .single()
+      
+      let invoiceId: string
+      
+      if (existingInvoice) {
+        invoiceId = existingInvoice.id
+        // Update the invoice amount_paid
+        await supabase
+          .from('invoices')
+          .update({
+            amount_paid: Number(existingInvoice.amount_paid) + parseFloat(manualPaymentAmount),
+            status: 'paid',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingInvoice.id)
+      } else {
+        // Create a new invoice
+        const { data: newInvoice } = await supabase
+          .from('invoices')
+          .insert({
+            student_id: selectedStudent.profile_id,
+            enrollment_id: enrollmentId,
+            session_id: sessionData.id,
+            invoice_number: `INV-${Date.now()}`,
+            description: `${manualPaymentType} - ${sessionData.name}`,
+            amount_due: parseFloat(manualPaymentAmount),
+            amount_paid: parseFloat(manualPaymentAmount),
+            currency: 'NGN',
+            status: 'paid',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single()
+        
+        invoiceId = newInvoice.id
+      }
+      
+      // Create the payment linked to the invoice and enrollment
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments')
         .insert({
-          student_id: selectedStudent.id,
+          student_id: selectedStudent.profile_id,
+          enrollment_id: enrollmentId,
+          invoice_id: invoiceId,
           amount: parseFloat(manualPaymentAmount),
-          payment_type: manualPaymentType,
-          session: sessionData?.name || '',
-          semester: manualPaymentSemester || null,
-          status: 'completed',
-          payment_reference: paymentReference,
-          is_manual: true,
+          currency: 'NGN',
+          payment_method: 'cash',
+          paystack_reference: paymentReference,
+          status: 'success',
+          description: `${manualPaymentType} - ${sessionData.name}`,
+          paid_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -209,12 +340,24 @@ export default function PaymentsManagementPage() {
 
       if (paymentError) throw paymentError
 
-      // Create payment event
+      // Create payment event record with proper schema
       await supabase.from('payment_events').insert({
         payment_id: paymentData.id,
+        invoice_id: invoiceId,
         event_type: 'manual_payment_created',
-        description: `Manual payment created by admin for ${manualPaymentType}`,
-        created_at: new Date().toISOString()
+        provider: 'manual',
+        provider_reference: paymentReference,
+        payload: {
+          amount: parseFloat(manualPaymentAmount),
+          currency: 'NGN',
+          payment_type: manualPaymentType,
+          session: sessionData.name,
+          session_id: sessionData.id,
+          created_by: 'admin',
+          manual_payment: true
+        },
+        processed: true,
+        processed_at: new Date().toISOString()
       })
 
       toast.success('Manual payment created successfully')
@@ -222,12 +365,24 @@ export default function PaymentsManagementPage() {
       setSelectedStudent(null)
       setManualPaymentAmount('')
       setManualPaymentType('')
-      setManualPaymentSemester('')
       
-      // Reload payments
+      // Reload payments data to reflect the new payment
       const { data: paymentsData } = await supabase
         .from('payments')
-        .select('*')
+        .select(`
+          *,
+          invoice:invoices(
+            id,
+            session_id,
+            session:academic_sessions(id, name, is_current)
+          ),
+          enrollment:enrollments(
+            id,
+            student_id,
+            session_id,
+            program:programs(title, department:departments(name))
+          )
+        `)
         .order('created_at', { ascending: false })
       setPayments(paymentsData || [])
     } catch (error) {
@@ -267,14 +422,48 @@ export default function PaymentsManagementPage() {
     }
   }
 
-  const getSessionName = (sessionNameOrId: string) => {
-    // First try to find by ID
-    const session = sessions.find(s => s.id === sessionNameOrId)
-    if (session) return session.name
-    
-    // If not found, assume it's already a session name
-    return sessionNameOrId || 'Unknown Session'
+  const getPaymentStatusBadge = (status: string) => {
+    switch (status) {
+      case 'success':
+        return (
+          <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+            <CheckCircle className="h-3 w-3 mr-1" /> Success
+          </Badge>
+        )
+      case 'pending':
+        return (
+          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+            <Clock className="h-3 w-3 mr-1" /> Pending
+          </Badge>
+        )
+      case 'failed':
+        return (
+          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+            <XCircle className="h-3 w-3 mr-1" /> Failed
+          </Badge>
+        )
+      case 'abandoned':
+        return (
+          <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">
+            <AlertCircle className="h-3 w-3 mr-1" /> Abandoned
+          </Badge>
+        )
+      case 'refunded':
+        return (
+          <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+            <AlertCircle className="h-3 w-3 mr-1" /> Refunded
+          </Badge>
+        )
+      default:
+        return (
+          <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">
+            {status}
+          </Badge>
+        )
+    }
   }
+
+
 
   return (
     <div className="space-y-6">
@@ -304,6 +493,7 @@ export default function PaymentsManagementPage() {
                 <SelectValue placeholder="Select session" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem key="all" value="all">All Sessions</SelectItem>
                 {sessions.map(session => (
                   <SelectItem key={session.id} value={session.id}>
                     {session.name} {session.is_current && '(Current)'}
@@ -312,6 +502,24 @@ export default function PaymentsManagementPage() {
               </SelectContent>
             </Select>
           </div>
+          <div className="w-full md:w-48">
+            <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Payment status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem key="all" value="all">All Status</SelectItem>
+                <SelectItem key="completed" value="completed">Paid</SelectItem>
+                <SelectItem key="pending" value="pending">Pending</SelectItem>
+                <SelectItem key="failed" value="failed">Failed</SelectItem>
+                <SelectItem key="none" value="none">No Payments</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">All Students ({getFilteredStudents().length})</h2>
         </div>
 
         {loading ? (
@@ -323,12 +531,12 @@ export default function PaymentsManagementPage() {
         ) : (
           <div className="space-y-4">
             {getFilteredStudents().map((student) => {
-              const studentPayments = getStudentPayments(student.id)
-              const status = getPaymentStatus(student.id)
-              const totalPaid = getTotalPaid(student.id)
+              const studentPayments = getSessionFilteredPayments(student.profile_id)
+              const status = getPaymentStatus(student.profile_id)
+              const totalPaid = getTotalPaid(student.profile_id)
 
               return (
-                <Card key={student.id} className="p-4 hover:border-primary/50 transition-colors">
+                <Card key={student.profile_id} className="p-4 hover:border-primary/50 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-3">
@@ -338,33 +546,39 @@ export default function PaymentsManagementPage() {
                             {student.profile?.first_name} {student.profile?.last_name}
                           </h3>
                         </div>
-                        {getStatusBadge(status)}
+                        <div key={`status-${student.profile_id}`}>
+                          {getStatusBadge(status)}
+                        </div>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                        <div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                        <div key={`matric-${student.profile_id}`}>
                           <span className="text-muted-foreground">Matric Number:</span>
-                          <span className="ml-2 font-medium">{student.matric_number}</span>
+                          <span className="ml-2 font-medium">{student.matric_number || student.student_number || 'N/A'}</span>
                         </div>
-                        <div>
+                        <div key={`program-${student.profile_id}`}>
                           <span className="text-muted-foreground">Program:</span>
-                          <span className="ml-2 font-medium">{student.enrollment?.program?.title || 'N/A'}</span>
+                          <span className="ml-2 font-medium">{student.enrollment?.program?.title || 'Not enrolled'}</span>
                         </div>
-                        <div>
+                        <div key={`department-${student.profile_id}`}>
                           <span className="text-muted-foreground">Department:</span>
                           <span className="ml-2 font-medium">{student.enrollment?.program?.department?.name || 'N/A'}</span>
                         </div>
-                        <div>
-                          <span className="text-muted-foreground">Level:</span>
-                          <span className="ml-2 font-medium">{student.current_level}L</span>
+                        <div key={`status-${student.profile_id}`}>
+                          <span className="text-muted-foreground">Status:</span>
+                          <span className="ml-2 font-medium capitalize">{student.admission_status || 'N/A'}</span>
                         </div>
-                        <div>
+                        <div key={`level-${student.profile_id}`}>
+                          <span className="text-muted-foreground">Level:</span>
+                          <span className="ml-2 font-medium">{student.current_level ? `${student.current_level}L` : 'N/A'}</span>
+                        </div>
+                        <div key={`total-${student.profile_id}`}>
                           <span className="text-muted-foreground">Total Paid:</span>
                           <span className="ml-2 font-medium text-emerald-600">
                             ₦{totalPaid.toLocaleString()}
                           </span>
                         </div>
-                        <div>
+                        <div key={`email-${student.profile_id}`}>
                           <span className="text-muted-foreground">Email:</span>
                           <span className="ml-2 font-medium">{student.profile?.email || 'N/A'}</span>
                         </div>
@@ -375,19 +589,21 @@ export default function PaymentsManagementPage() {
                           <h4 className="text-sm font-semibold mb-2">Payment History</h4>
                           <div className="space-y-2">
                             {studentPayments.map((payment) => (
-                              <div key={payment.id} className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded">
+                              <div key={payment.id || payment.paystack_reference} className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded">
                                 <div className="flex items-center gap-3">
                                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                                   <div>
-                                    <div className="font-medium">₦{payment.amount.toLocaleString()}</div>
+                                    <div className="font-medium">₦{Number(payment.amount).toLocaleString()}</div>
                                     <div className="text-xs text-muted-foreground">
-                                      {payment.payment_type} • {getSessionName(payment.session)}
-                                      {payment.semester && ` • ${payment.semester}`}
+                                      {payment.description || payment.payment_method || 'Payment'} • {payment.currency}
+                                      {payment.invoice?.session && ` • ${payment.invoice.session.name}`}
+                                      {payment.enrollment?.program && ` • ${payment.enrollment.program.title}`}
                                     </div>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  {payment.is_manual && (
+                                  {getPaymentStatusBadge(payment.status)}
+                                  {payment.paystack_reference?.startsWith('MANUAL-') && (
                                     <Badge variant="outline" className="text-xs">
                                       Manual
                                     </Badge>
@@ -404,12 +620,13 @@ export default function PaymentsManagementPage() {
                     </div>
 
                     <div className="ml-4">
-                      <Dialog open={manualPaymentDialogOpen && selectedStudent?.id === student.id} onOpenChange={(open) => {
+                      <Dialog open={manualPaymentDialogOpen && selectedStudent?.profile_id === student.profile_id} onOpenChange={(open) => {
                         setManualPaymentDialogOpen(open)
                         if (!open) setSelectedStudent(null)
                       }}>
                         <DialogTrigger asChild>
                           <Button
+                            key={`add-payment-${student.profile_id}`}
                             variant="outline"
                             size="sm"
                             onClick={() => setSelectedStudent(student)}
@@ -443,24 +660,12 @@ export default function PaymentsManagementPage() {
                                   <SelectValue placeholder="Select payment type" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="school_fees">School Fees</SelectItem>
-                                  <SelectItem value="acceptance_fee">Acceptance Fee</SelectItem>
-                                  <SelectItem value="hostel_fees">Hostel Fees</SelectItem>
-                                  <SelectItem value="laboratory_fees">Laboratory Fees</SelectItem>
-                                  <SelectItem value="library_fees">Library Fees</SelectItem>
-                                  <SelectItem value="other">Other</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label htmlFor="semester">Semester (Optional)</Label>
-                              <Select value={manualPaymentSemester} onValueChange={setManualPaymentSemester}>
-                                <SelectTrigger id="semester">
-                                  <SelectValue placeholder="Select semester" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="first">First Semester</SelectItem>
-                                  <SelectItem value="second">Second Semester</SelectItem>
+                                  <SelectItem key="school_fees" value="school_fees">School Fees</SelectItem>
+                                  <SelectItem key="acceptance_fee" value="acceptance_fee">Acceptance Fee</SelectItem>
+                                  <SelectItem key="hostel_fees" value="hostel_fees">Hostel Fees</SelectItem>
+                                  <SelectItem key="laboratory_fees" value="laboratory_fees">Laboratory Fees</SelectItem>
+                                  <SelectItem key="library_fees" value="library_fees">Library Fees</SelectItem>
+                                  <SelectItem key="other" value="other">Other</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
