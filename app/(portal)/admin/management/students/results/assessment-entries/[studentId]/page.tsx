@@ -15,6 +15,7 @@ import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus, Trash2 } from 'lucide-
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { createClient } from '@/lib/supabase/client'
+import { ManagementService } from '@/lib/services/admin/management-service'
 
 type Student = {
   matric_number: string
@@ -78,16 +79,21 @@ type Enrollment = {
   program?: {
     title: string
   }[]
-  selected_courses?: {
-    course: {
-      id: string
-      code: string
-      title: string
-    }[]
-    status: string
-    session: string
-    semester: string
-  }[]
+}
+
+type SelectedCourse = {
+  id: string
+  studentId: string
+  courseId: string
+  enrollmentId: string
+  session: string
+  semester: string
+  status: string
+  course?: {
+    id: string
+    code: string
+    title: string
+  }
 }
 
 export default function StudentAssessmentEntriesPage() {
@@ -102,6 +108,7 @@ export default function StudentAssessmentEntriesPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [semesters, setSemesters] = useState<Semester[]>([])
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
+  const [selectedCourses, setSelectedCourses] = useState<SelectedCourse[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [courseFilter, setCourseFilter] = useState('all')
@@ -174,8 +181,8 @@ export default function StudentAssessmentEntriesPage() {
       if (assessmentsError) throw assessmentsError
       setAssessments(assessmentsData || [])
 
-      // Load dropdown data
-      const [coursesRes, sessionsRes, semestersRes, enrollmentsRes] = await Promise.all([
+      // Load dropdown data using service layer
+      const [coursesRes, sessionsRes, semestersRes, enrollmentsRes, selectedCoursesRes] = await Promise.all([
         supabase.from('courses').select('id, code, title').order('code'),
         supabase.from('academic_sessions').select('id, name').order('name'),
         supabase.from('academic_semesters').select('id, semester_name').order('semester_name'),
@@ -185,15 +192,10 @@ export default function StudentAssessmentEntriesPage() {
             id,
             student_id,
             program_id,
-            program:programs(title),
-            selected_courses:selected_courses(
-              course:courses(id, code, title),
-              status,
-              session,
-              semester
-            )
+            program:programs(title)
           `)
-          .eq('student_id', studentId)
+          .eq('student_id', studentId),
+        ManagementService.getStudentSelectedCourses(studentId)
       ])
 
       if (coursesRes.error) throw coursesRes.error
@@ -205,6 +207,7 @@ export default function StudentAssessmentEntriesPage() {
       setSessions(sessionsRes.data || [])
       setSemesters(semestersRes.data || [])
       setEnrollments(enrollmentsRes.data || [])
+      setSelectedCourses(selectedCoursesRes)
       
       // Load teachers for teacher dropdown
       // Query teacher_profiles first, then fetch profiles separately
@@ -432,11 +435,9 @@ export default function StudentAssessmentEntriesPage() {
                     onValueChange={async (value) => {
                       setNewAssessment({ ...newAssessment, course_id: value })
                       // Auto-select enrollment when course is selected
-                      const enrollmentWithCourse = enrollments.find(e => 
-                        e.selected_courses?.some(sc => sc.course[0]?.id === value)
-                      )
-                      if (enrollmentWithCourse) {
-                        setNewAssessment(prev => ({ ...prev, enrollment_id: enrollmentWithCourse.id }))
+                      const selectedCourse = selectedCourses.find(sc => sc.courseId === value)
+                      if (selectedCourse && selectedCourse.enrollmentId) {
+                        setNewAssessment(prev => ({ ...prev, enrollment_id: selectedCourse.enrollmentId }))
                       }
                       // Auto-calculate exam score from 100 to 60 scale if existing assessment exists
                       const { data: existingAssessment } = await supabase
@@ -457,15 +458,10 @@ export default function StudentAssessmentEntriesPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
                       {(() => {
-                        // Get all courses the student is enrolled in
-                        const enrolledCourses = enrollments.flatMap(enrollment => 
-                          enrollment.selected_courses?.filter(sc => sc.status === 'approved').map(sc => sc.course[0]) || []
-                        )
-                        
-                        // Filter courses to only show enrolled ones
-                        const availableCourses = courses.filter(course => 
-                          enrolledCourses.some(ec => ec?.id === course.id)
-                        )
+                        // Get all courses the student has selected and approved
+                        const availableCourses = selectedCourses
+                          .filter(sc => sc.status === 'approved' && sc.course)
+                          .map(sc => sc.course!)
                         
                         if (availableCourses.length === 0) {
                           return (

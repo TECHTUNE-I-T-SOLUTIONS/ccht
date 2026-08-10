@@ -397,4 +397,81 @@ export class ManagementService {
       }
     }
   }
+
+  // Student Selected Courses for Assessment Entries
+  static async getStudentSelectedCourses(studentId: string) {
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    
+    try {
+      const { data, error } = await supabase
+        .from('selected_courses')
+        .select(`
+          id,
+          student_id,
+          course_id,
+          enrollment_id,
+          session,
+          semester,
+          status,
+          course:courses(id, code, title)
+        `)
+        .eq('student_id', studentId)
+        .eq('status', 'approved')
+        .order('selected_at', { ascending: false })
+
+      if (error) throw error
+
+      return data?.map((sc: any) => ({
+        id: sc.id,
+        studentId: sc.student_id,
+        courseId: sc.course_id,
+        enrollmentId: sc.enrollment_id,
+        session: sc.session,
+        semester: sc.semester,
+        status: sc.status,
+        course: sc.course
+      })) || []
+    } catch (error) {
+      console.error('[ManagementService] Failed to get student selected courses:', error)
+      return []
+    }
+  }
+
+  // Student Enrollments for Exam Entries
+  static async getStudentEnrollments(studentId: string) {
+    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    
+    try {
+      const { data, error } = await supabase
+        .from('enrollments')
+        .select(`
+          id,
+          student_id,
+          program_id,
+          enrollment_date,
+          expected_graduation_date,
+          status,
+          program:programs(id, title, code),
+          academic_session:academic_sessions(id, name)
+        `)
+        .eq('student_id', studentId)
+        .order('enrollment_date', { ascending: false })
+
+      if (error) throw error
+
+      return data?.map((enrollment: any) => ({
+        id: enrollment.id,
+        studentId: enrollment.student_id,
+        programId: enrollment.program_id,
+        enrollmentDate: enrollment.enrollment_date,
+        expectedGraduationDate: enrollment.expected_graduation_date,
+        status: enrollment.status,
+        program: enrollment.program,
+        academicSession: enrollment.academic_session
+      })) || []
+    } catch (error) {
+      console.error('[ManagementService] Failed to get student enrollments:', error)
+      return []
+    }
+  }
 }

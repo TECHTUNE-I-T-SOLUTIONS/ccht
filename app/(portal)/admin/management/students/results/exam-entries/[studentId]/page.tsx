@@ -15,6 +15,7 @@ import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus, Trash2 } from 'lucide-
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { createClient } from '@/lib/supabase/client'
+import { ManagementService } from '@/lib/services/admin/management-service'
 
 type Student = {
   matric_number: string
@@ -61,18 +62,20 @@ type Course = {
 
 type Enrollment = {
   id: string
-  student_id: string
-  program_id: string
+  studentId: string
+  programId: string
+  enrollmentDate: string
+  expectedGraduationDate: string | null
+  status: string
   program?: {
+    id: string
     title: string
+    code: string
   }[]
-  selected_courses?: {
-    course: {
-      id: string
-      code: string
-      title: string
-    }[]
-  }[]
+  academicSession?: {
+    id: string
+    name: string
+  }
 }
 
 export default function ExamEntriesPage() {
@@ -148,10 +151,7 @@ export default function ExamEntriesPage() {
             id,
             student_id,
             program_id,
-            program:programs(title),
-            selected_courses:selected_courses(
-              course:courses(id, code, title)
-            )
+            program:programs(title)
           )
         `)
         .eq('student_id', studentId)
@@ -160,31 +160,19 @@ export default function ExamEntriesPage() {
       if (examsError) throw examsError
       setExamAttempts(examsData || [])
 
-      // Load dropdown data
+      // Load dropdown data using service layer
       const [coursesRes, examSessionsRes, enrollmentsRes] = await Promise.all([
         supabase.from('courses').select('id, code, title').order('code'),
         supabase.from('student_exam_sessions').select('id, exam_title, course_id, total_marks, passing_marks, course:courses(code, title)').order('exam_title'),
-        supabase
-          .from('enrollments')
-          .select(`
-            id,
-            student_id,
-            program_id,
-            program:programs!enrollments_program_id_fkey(title),
-            selected_courses:selected_courses(
-              course:courses(id, code, title)
-            )
-          `)
-          .eq('student_id', studentId)
+        ManagementService.getStudentEnrollments(studentId)
       ])
 
       if (coursesRes.error) throw coursesRes.error
       if (examSessionsRes.error) throw examSessionsRes.error
-      if (enrollmentsRes.error) throw enrollmentsRes.error
 
       setCourses(coursesRes.data || [])
       setExamSessions(examSessionsRes.data || [])
-      setEnrollments(enrollmentsRes.data || [])
+      setEnrollments(enrollmentsRes)
     } catch (error) {
       console.error('Failed to load data:', error)
       toast.error('Failed to load student data')
@@ -194,30 +182,11 @@ export default function ExamEntriesPage() {
   }
 
   const handleEditExam = (exam: StudentExamAttempt) => {
-    // If enrollment data is not already loaded, fetch it
-    if (!exam.enrollment && exam.enrollment_id) {
-      const enrollment = enrollments.find(e => e.id === exam.enrollment_id)
-      if (enrollment) {
-        setEditingExam({
-          ...exam,
-          enrollment,
-          total_score: exam.total_score || 0,
-          percentage_score: exam.percentage_score || 0
-        })
-      } else {
-        setEditingExam({
-          ...exam,
-          total_score: exam.total_score || 0,
-          percentage_score: exam.percentage_score || 0
-        })
-      }
-    } else {
-      setEditingExam({
-        ...exam,
-        total_score: exam.total_score || 0,
-        percentage_score: exam.percentage_score || 0
-      })
-    }
+    setEditingExam({
+      ...exam,
+      total_score: exam.total_score || 0,
+      percentage_score: exam.percentage_score || 0
+    })
     setEditDialogOpen(true)
   }
 
@@ -398,13 +367,9 @@ export default function ExamEntriesPage() {
                     onValueChange={(value) => {
                       setNewExam({ ...newExam, exam_session_id: value })
                       const selectedSession = examSessions.find(es => es.id === value)
-                      if (selectedSession) {
-                        const enrollmentWithCourse = enrollments.find(e => 
-                          e.selected_courses?.some(sc => sc.course[0]?.id === selectedSession.course_id)
-                        )
-                        if (enrollmentWithCourse) {
-                          setNewExam(prev => ({ ...prev, enrollment_id: enrollmentWithCourse.id }))
-                        }
+                      if (selectedSession && enrollments.length > 0) {
+                        // Auto-select the first enrollment
+                        setNewExam(prev => ({ ...prev, enrollment_id: enrollments[0].id }))
                       }
                     }}
                   >
@@ -432,7 +397,7 @@ export default function ExamEntriesPage() {
                     <SelectContent className="max-h-60">
                       {enrollments.map((enrollment) => (
                         <SelectItem key={enrollment.id} value={enrollment.id}>
-                          {enrollment.program?.[0]?.title || 'No Program'}
+                          {enrollment.program && enrollment.program.length > 0 ? enrollment.program[0].title : 'No Program'}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -738,7 +703,7 @@ export default function ExamEntriesPage() {
                 </p>
                 {editingExam.enrollment && (
                   <p className="text-sm text-muted-foreground mt-2">
-                    Program: {editingExam.enrollment.program?.[0]?.title || 'N/A'}
+                    Program: {editingExam.enrollment.program && editingExam.enrollment.program.length > 0 ? editingExam.enrollment.program[0].title : 'N/A'}
                   </p>
                 )}
               </div>
