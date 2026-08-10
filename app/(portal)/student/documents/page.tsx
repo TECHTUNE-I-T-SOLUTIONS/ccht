@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FileText, Download, GraduationCap, ShieldCheck, Calendar, User } from 'lucide-react'
 import { toast } from 'sonner'
-import { generateAdmissionLetter } from '@/lib/templates/admission-letter'
+import { generateAdmissionLetter } from '@/lib/templates/admission-letter-new'
 import { generateOathForm } from '@/lib/templates/oath-form'
 
 export default function StudentDocumentsPage() {
@@ -44,7 +44,7 @@ export default function StudentDocumentsPage() {
     }
   }
 
-  const downloadAdmissionLetter = () => {
+  const downloadAdmissionLetter = async () => {
     if (!studentData || !programData) {
       toast.error('Student data not loaded')
       return
@@ -52,7 +52,7 @@ export default function StudentDocumentsPage() {
 
     const admissionDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
     
-    const doc = generateAdmissionLetter({
+    const pdfBytes = await generateAdmissionLetter({
       firstName: studentData.profiles?.first_name || '',
       lastName: studentData.profiles?.last_name || '',
       matricNumber: studentData.matric_number || '',
@@ -62,7 +62,13 @@ export default function StudentDocumentsPage() {
       admissionDate
     })
 
-    doc.save(`Admission_Letter_${studentData.matric_number}.pdf`)
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `Admission_Letter_${studentData.matric_number}.pdf`
+    link.click()
+    URL.revokeObjectURL(url)
     toast.success('Admission letter downloaded')
   }
 

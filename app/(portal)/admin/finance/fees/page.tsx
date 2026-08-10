@@ -145,7 +145,7 @@ export default function AdminFeeSchedulesPage() {
       amount: fee.amount?.toString() || '',
       description: fee.description || '',
       dueInDays: fee.due_in_days?.toString() || '',
-      sessionId: fee.session_id || '',
+      sessionId: fee.session_id || 'all',
       isActive: fee.is_active ?? true
     })
     setIsEditModalOpen(true)

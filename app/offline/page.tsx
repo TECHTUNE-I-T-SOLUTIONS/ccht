@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { ROUTES } from '@/lib/constants'
 import { WifiOff, RefreshCw, Home } from 'lucide-react'

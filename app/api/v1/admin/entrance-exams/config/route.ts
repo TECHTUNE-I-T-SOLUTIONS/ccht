@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('[admin/exams/config] Error fetching configs:', error)
-      return NextResponse.json({ error: 'Failed to fetch exam configurations' }, { status: 500 })
+      console.error('[admin/entrance-exams/config] Error fetching configs:', error)
+      return NextResponse.json({ error: 'Failed to fetch entrance exam configurations' }, { status: 500 })
     }
 
     // Format data to include question count
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: formattedData })
   } catch (error) {
-    console.error('[admin/exams/config] Unexpected error:', error)
+    console.error('[admin/entrance-exams/config] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -61,13 +61,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('[admin/exams/config] Error creating config:', error)
-      return NextResponse.json({ error: 'Failed to create exam configuration' }, { status: 500 })
+      console.error('[admin/entrance-exams/config] Error creating config:', error)
+      return NextResponse.json({ error: 'Failed to create entrance exam configuration' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, data: config }, { status: 201 })
   } catch (error) {
-    console.error('[admin/exams/config] Unexpected error:', error)
+    console.error('[admin/entrance-exams/config] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

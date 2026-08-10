@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { ROUTES } from '@/lib/constants'
 import { Search, Home, ArrowLeft } from 'lucide-react'

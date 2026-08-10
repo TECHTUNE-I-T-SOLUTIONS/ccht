@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { Navbar } from '@/components/public/navbar'
 import { Footer } from '@/components/public/footer'

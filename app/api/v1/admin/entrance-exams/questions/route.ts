@@ -17,13 +17,13 @@ export async function GET(request: NextRequest) {
       .order('question_order', { ascending: true })
 
     if (error) {
-      console.error('[admin/exams/questions] Error fetching questions:', error)
+      console.error('[admin/entrance-exams/questions] Error fetching questions:', error)
       return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, data: questions || [] })
   } catch (error) {
-    console.error('[admin/exams/questions] Unexpected error:', error)
+    console.error('[admin/entrance-exams/questions] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -49,13 +49,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('[admin/exams/questions] Error creating question:', error)
+      console.error('[admin/entrance-exams/questions] Error creating question:', error)
       return NextResponse.json({ error: 'Failed to create question' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, data: question }, { status: 201 })
   } catch (error) {
-    console.error('[admin/exams/questions] Unexpected error:', error)
+    console.error('[admin/entrance-exams/questions] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

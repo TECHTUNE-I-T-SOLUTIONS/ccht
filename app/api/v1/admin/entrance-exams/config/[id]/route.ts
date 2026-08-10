@@ -20,7 +20,7 @@ export async function GET(
       .single()
 
     if (error || !config) {
-      return NextResponse.json({ error: 'Exam configuration not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Entrance exam configuration not found' }, { status: 404 })
     }
 
     const formattedConfig = {
@@ -30,7 +30,7 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: formattedConfig })
   } catch (error) {
-    console.error('[admin/exams/config] Unexpected error:', error)
+    console.error('[admin/entrance-exams/config] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -60,13 +60,13 @@ export async function PUT(
       .single()
 
     if (error) {
-      console.error('[admin/exams/config] Error updating config:', error)
-      return NextResponse.json({ error: 'Failed to update exam configuration' }, { status: 500 })
+      console.error('[admin/entrance-exams/config] Error updating config:', error)
+      return NextResponse.json({ error: 'Failed to update entrance exam configuration' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, data: config })
   } catch (error) {
-    console.error('[admin/exams/config] Unexpected error:', error)
+    console.error('[admin/entrance-exams/config] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -85,13 +85,13 @@ export async function DELETE(
       .eq('id', id)
 
     if (error) {
-      console.error('[admin/exams/config] Error deleting config:', error)
-      return NextResponse.json({ error: 'Failed to delete exam configuration' }, { status: 500 })
+      console.error('[admin/entrance-exams/config] Error deleting config:', error)
+      return NextResponse.json({ error: 'Failed to delete entrance exam configuration' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, message: 'Exam configuration deleted successfully' })
+    return NextResponse.json({ success: true, message: 'Entrance exam configuration deleted successfully' })
   } catch (error) {
-    console.error('[admin/exams/config] Unexpected error:', error)
+    console.error('[admin/entrance-exams/config] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

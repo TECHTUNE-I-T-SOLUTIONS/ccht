@@ -4,26 +4,26 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function GET(request: NextRequest) {
   try {
     const admin = createAdminClient()
-    const configId = request.nextUrl.searchParams.get('configId')
+    const sessionId = request.nextUrl.searchParams.get('sessionId')
 
-    if (!configId) {
-      return NextResponse.json({ error: 'configId is required' }, { status: 400 })
+    if (!sessionId) {
+      return NextResponse.json({ error: 'sessionId is required' }, { status: 400 })
     }
 
     const { data: questions, error } = await admin
-      .from('exam_questions')
+      .from('student_exam_questions')
       .select('*')
-      .eq('exam_config_id', configId)
-      .order('question_order', { ascending: true })
+      .eq('exam_session_id', sessionId)
+      .order('question_number', { ascending: true })
 
     if (error) {
-      console.error('[admin/exams/questions] Error fetching questions:', error)
+      console.error('[admin/student-exams/questions] Error fetching questions:', error)
       return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, data: questions || [] })
   } catch (error) {
-    console.error('[admin/exams/questions] Unexpected error:', error)
+    console.error('[admin/student-exams/questions] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -34,28 +34,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     
     const { data: question, error } = await admin
-      .from('exam_questions')
+      .from('student_exam_questions')
       .insert({
-        exam_config_id: body.exam_config_id || body.configId,
+        exam_session_id: body.exam_session_id || body.sessionId,
         question_text: body.question_text,
         question_type: body.question_type || 'multiple_choice',
-        question_order: body.question_order || body.question_number || 1,
-        points: body.points || body.marks || 1,
+        question_number: body.question_number || 1,
+        marks: body.marks || body.points || 1,
         options: body.options || [],
         correct_answer: body.correct_answer,
+        explanation: body.explanation,
         is_active: body.is_active ?? true,
       })
       .select()
       .single()
 
     if (error) {
-      console.error('[admin/exams/questions] Error creating question:', error)
+      console.error('[admin/student-exams/questions] Error creating question:', error)
       return NextResponse.json({ error: 'Failed to create question' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, data: question }, { status: 201 })
   } catch (error) {
-    console.error('[admin/exams/questions] Unexpected error:', error)
+    console.error('[admin/student-exams/questions] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

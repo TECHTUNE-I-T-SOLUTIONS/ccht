@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { Menu, X, LogOut, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText, ChevronsLeft, ChevronsRight, BellDot, Award, CreditCard, Lock as LockIcon, UserCheck, Briefcase, Shield, Loader2, Mail } from 'lucide-react'
+import { Menu, X, LogOut, BookOpen, BarChart3, Settings, Users, FileText, Bell, ChevronRight, CalendarDays, ShieldCheck, LayoutDashboard, ClipboardList, GraduationCap, ReceiptText, ChevronsLeft, ChevronsRight, BellDot, Award, CreditCard, Lock as LockIcon, UserCheck, Briefcase, Shield, Loader2, Mail, DollarSign } from 'lucide-react'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { ThemeToggle } from '@/components/public/theme-toggle'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -179,6 +179,7 @@ export function PortalLayout({ children, role }: PortalLayoutProps) {
         { label: 'Lecturers', href: '/admin/management/lecturers', icon: UserCheck },
         { label: 'Admins', href: '/admin/management/admins', icon: Shield },
         { label: 'Exams', href: '/admin/management/exams', icon: ClipboardList },
+        { label: 'Payments', href: '/admin/management/payments', icon: DollarSign },
         { label: 'Programs', href: '/admin/programs', icon: BookOpen },
         { label: 'Timetable', href: '/admin/timetable', icon: CalendarDays },
         { label: 'Finance', href: '/admin/finance/fees', icon: CreditCard },

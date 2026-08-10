@@ -53,7 +53,7 @@ export default function AdminExamsPage() {
   const loadExams = async () => {
     try {
       setLoading(true)
-      const res = await fetch('/api/v1/admin/exams')
+      const res = await fetch('/api/v1/admin/student-exams')
       if (!res.ok) throw new Error('Failed to load exams')
       const data = await res.json()
       setExams(data.data || [])

@@ -305,8 +305,10 @@ CREATE TABLE public.fees (
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  session_id uuid,
   CONSTRAINT fees_pkey PRIMARY KEY (id),
-  CONSTRAINT fees_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.programs(id)
+  CONSTRAINT fees_program_id_fkey FOREIGN KEY (program_id) REFERENCES public.programs(id),
+  CONSTRAINT fees_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.academic_sessions(id)
 );
 CREATE TABLE public.invoices (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

@@ -10,17 +10,19 @@ export async function GET(
     const admin = createAdminClient()
     
     const { data: config, error } = await admin
-      .from('entrance_exam_config')
+      .from('student_exam_sessions')
       .select(`
         *,
-        creator:profiles(first_name, last_name),
-        questions:exam_questions(id)
+        course:courses(code, title),
+        session:academic_sessions(name),
+        semester:academic_semesters(semester_name),
+        questions:student_exam_questions(id)
       `)
       .eq('id', id)
       .single()
 
     if (error || !config) {
-      return NextResponse.json({ error: 'Exam configuration not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Student exam configuration not found' }, { status: 404 })
     }
 
     const formattedConfig = {
@@ -30,7 +32,7 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: formattedConfig })
   } catch (error) {
-    console.error('[admin/exams/config] Unexpected error:', error)
+    console.error('[admin/student-exams/config] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -45,28 +47,38 @@ export async function PUT(
     const body = await request.json()
     
     const { data: config, error } = await admin
-      .from('entrance_exam_config')
+      .from('student_exam_sessions')
       .update({
-        exam_name: body.exam_name,
+        course_id: body.course_id,
+        session_id: body.session_id,
+        semester_id: body.semester_id,
+        exam_title: body.exam_title,
         exam_description: body.exam_description,
+        exam_type: body.exam_type,
+        start_date: body.start_date,
+        end_date: body.end_date,
         duration_minutes: body.duration_minutes,
-        total_questions: body.total_questions,
-        passing_score: body.passing_score,
+        total_marks: body.total_marks,
+        passing_marks: body.passing_marks,
         instructions: body.instructions,
-        is_active: body.is_active,
+        is_published: body.is_published,
+        allow_review: body.allow_review,
+        review_start_date: body.review_start_date,
+        review_end_date: body.review_end_date,
+        proctoring_enabled: body.proctoring_enabled,
       })
       .eq('id', id)
       .select()
       .single()
 
     if (error) {
-      console.error('[admin/exams/config] Error updating config:', error)
-      return NextResponse.json({ error: 'Failed to update exam configuration' }, { status: 500 })
+      console.error('[admin/student-exams/config] Error updating config:', error)
+      return NextResponse.json({ error: 'Failed to update student exam configuration' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, data: config })
   } catch (error) {
-    console.error('[admin/exams/config] Unexpected error:', error)
+    console.error('[admin/student-exams/config] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -80,18 +92,18 @@ export async function DELETE(
     const admin = createAdminClient()
     
     const { error } = await admin
-      .from('entrance_exam_config')
+      .from('student_exam_sessions')
       .delete()
       .eq('id', id)
 
     if (error) {
-      console.error('[admin/exams/config] Error deleting config:', error)
-      return NextResponse.json({ error: 'Failed to delete exam configuration' }, { status: 500 })
+      console.error('[admin/student-exams/config] Error deleting config:', error)
+      return NextResponse.json({ error: 'Failed to delete student exam configuration' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, message: 'Exam configuration deleted successfully' })
+    return NextResponse.json({ success: true, message: 'Student exam configuration deleted successfully' })
   } catch (error) {
-    console.error('[admin/exams/config] Unexpected error:', error)
+    console.error('[admin/student-exams/config] Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

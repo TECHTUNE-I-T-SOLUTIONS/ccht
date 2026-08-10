@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { EmailTemplates } from '@/lib/services/email-templates'
-import { emailService } from '@/lib/services/email.service'
 
 export const runtime = 'nodejs'
 
@@ -11,11 +9,13 @@ export async function GET() {
     const admin = createAdminClient()
     
     const { data, error } = await admin
-      .from('entrance_exam_config')
+      .from('student_exam_sessions')
       .select(`
         *,
-        creator:profiles(first_name, last_name),
-        questions:exam_questions(id)
+        course:courses(code, title),
+        session:academic_sessions(name),
+        semester:academic_semesters(semester_name),
+        questions:student_exam_questions(id)
       `)
       .order('created_at', { ascending: false })
 
@@ -23,23 +23,16 @@ export async function GET() {
 
     // Format the data to include question count
     const formattedData = (data || []).map(exam => ({
-      id: exam.id,
-      title: exam.exam_name,
-      description: exam.exam_description,
-      duration_minutes: exam.duration_minutes,
-      passing_score: exam.passing_score,
-      instructions: exam.instructions,
-      is_active: exam.is_active,
-      created_at: exam.created_at,
+      ...exam,
       question_count: exam.questions?.length || 0,
-      creator: exam.creator,
+      creator: null,
       creator_role: 'admin'
     }))
 
     return NextResponse.json({ success: true, data: formattedData })
   } catch (error: any) {
-    console.error('Error fetching admin exams:', error)
-    return NextResponse.json({ error: error?.message || 'Failed to load exams' }, { status: 500 })
+    console.error('Error fetching student exams:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to load student exams' }, { status: 500 })
   }
 }
 
@@ -133,60 +126,9 @@ export async function POST(request: Request) {
 
     if (error) throw error
 
-    // Send result publication notification email if exam is published
-    if (body.is_published) {
-      try {
-        // Get all students enrolled in the course
-        const { data: enrollments } = await admin
-          .from('student_enrollments')
-          .select('student_id')
-          .eq('course_id', body.course_id)
-
-        if (enrollments && enrollments.length > 0) {
-          const studentIds = enrollments.map(e => e.student_id)
-          
-          const { data: students } = await admin
-            .from('profiles')
-            .select('id, first_name, last_name, email')
-            .in('id', studentIds)
-            .eq('is_active', true)
-
-          if (students && students.length > 0) {
-            // Get course details
-            const { data: course } = await admin
-              .from('courses')
-              .select('title, code')
-              .eq('id', body.course_id)
-              .single()
-
-            for (const student of students) {
-              try {
-                const resultEmail = EmailTemplates.studentResultPublished({
-                  email: student.email,
-                  fullName: `${student.first_name} ${student.last_name}`,
-                  course: course?.title || 'Course',
-                  courseCode: course?.code || 'N/A',
-                  score: 0,
-                  grade: 'N/A',
-                  semester: 'N/A',
-                  academicYear: 'N/A',
-                })
-                emailService.sendEmailAsync(resultEmail)
-              } catch (emailError) {
-                console.error('Error sending result email to student:', student.email, emailError)
-              }
-            }
-          }
-        }
-      } catch (notificationError) {
-        console.error('Error sending exam notifications:', notificationError)
-        // Don't fail the request if notifications fail
-      }
-    }
-
-    return NextResponse.json({ success: true, data, message: 'Exam created successfully' })
+    return NextResponse.json({ success: true, data, message: 'Student exam created successfully' })
   } catch (error: any) {
-    console.error('Exam creation error:', error)
-    return NextResponse.json({ error: error?.message || 'Failed to create exam' }, { status: 500 })
+    console.error('Student exam creation error:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to create student exam' }, { status: 500 })
   }
 }

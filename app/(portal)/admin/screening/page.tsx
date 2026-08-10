@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { GraduationCap, Plus, Search, Filter, Edit, Trash2, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
 
 type ExamConfig = {
   id: string
@@ -21,6 +23,7 @@ type ExamConfig = {
 }
 
 export default function AdminScreeningManagementPage() {
+  const router = useRouter()
   const [exams, setExams] = useState<ExamConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -33,16 +36,47 @@ export default function AdminScreeningManagementPage() {
   const loadExams = async () => {
     try {
       setLoading(true)
-      const res = await fetch('/api/v1/admin/exams')
+      const res = await fetch('/api/v1/admin/entrance-exams')
       const data = await res.json()
       if (data.success) {
         setExams(data.data)
       }
     } catch (error) {
       console.error('Failed to load exams:', error)
+      toast.error('Failed to load exams')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleEdit = (examId: string) => {
+    router.push(`/admin/exams?edit=${examId}`)
+  }
+
+  const handleDelete = async (examId: string) => {
+    if (!window.confirm('Are you sure you want to delete this exam configuration? This will also delete all associated questions.')) {
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/v1/admin/entrance-exams/config/${examId}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success('Exam deleted successfully')
+        loadExams()
+      } else {
+        toast.error(data.error || 'Failed to delete exam')
+      }
+    } catch (error) {
+      console.error('Failed to delete exam:', error)
+      toast.error('Failed to delete exam')
+    }
+  }
+
+  const handleCreateExam = () => {
+    router.push('/admin/exams')
   }
 
   const getStatusColor = (isActive: boolean) => {
@@ -78,7 +112,7 @@ export default function AdminScreeningManagementPage() {
             <GraduationCap className="h-4 w-4" />
             Refresh
           </Button>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={handleCreateExam}>
             <Plus className="h-4 w-4" />
             Create Exam
           </Button>
@@ -193,11 +227,11 @@ export default function AdminScreeningManagementPage() {
               </div>
 
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1 gap-2">
+                <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={() => handleEdit(exam.id)}>
                   <Edit className="h-4 w-4" />
                   Edit
                 </Button>
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => handleDelete(exam.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>

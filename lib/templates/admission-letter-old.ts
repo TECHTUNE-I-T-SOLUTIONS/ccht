@@ -1,4 +1,4 @@
-import { jsPDF } from 'jspdf'
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 
 export interface AdmissionLetterData {
   firstName: string
@@ -13,7 +13,7 @@ export interface AdmissionLetterData {
   firstDayOfClass?: string
 }
 
-export function generateAdmissionLetter(data: AdmissionLetterData): jsPDF {
+export async function generateAdmissionLetter(data: AdmissionLetterData): Promise<Uint8Array> {
   const {
     firstName,
     lastName,
@@ -27,27 +27,29 @@ export function generateAdmissionLetter(data: AdmissionLetterData): jsPDF {
     firstDayOfClass = 'To be announced'
   } = data
 
-  const doc = new jsPDF()
-  const pageHeight = doc.internal.pageSize.height
-  const pageWidth = doc.internal.pageSize.width
-  const margin = 15
-  const lineHeight = 5
-  let y = margin
+  const pdfDoc = await PDFDocument.create()
+  const page = pdfDoc.addPage([595.28, 841.89]) // A4 size in points
+  const { height, width } = page.getSize()
+  const margin = 50
+  let y = height - margin
 
-  const addPageIfNeeded = (additionalSpace = 20) => {
-    if (y + additionalSpace > pageHeight - margin) {
-      doc.addPage()
-      y = margin
-    }
-  }
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  const fontItalic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique)
 
   // Draw decorative border
-  doc.setDrawColor(0, 102, 204)
-  doc.setLineWidth(0.5)
-  doc.line(margin, margin, pageWidth - margin, margin)
-  doc.line(margin, pageHeight - margin, pageWidth - margin, pageHeight - margin)
-
-  // Add school logo centered at top
+  page.drawLine({
+    start: { x: margin, y: margin },
+    end: { x: width - margin, y: margin },
+    thickness: 1,
+    color: rgb(0, 0.4, 0.8),
+  })
+  page.drawLine({
+    start: { x: margin, y: height - margin },
+    end: { x: width - margin, y: height - margin },
+    thickness: 1,
+    color: rgb(0, 0.4, 0.8),
+  })
   try {
     const logoWidth = 40
     const logoX = (pageWidth - logoWidth) / 2
