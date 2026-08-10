@@ -60,7 +60,14 @@ export async function GET(request: NextRequest) {
     // Get student's payment history from payments table
     const { data: payments } = await supabase
       .from('payments')
-      .select('id, student_id, enrollment_id, invoice_id, amount, currency, payment_method, paystack_reference, status, description, paid_at, created_at')
+      .select('id, student_id, enrollment_id, invoice_id, amount, currency, payment_method, paystack_reference, status, description, paid_at, created_at, payment_plan_type, installment_number, payment_plan_id, due_date')
+      .eq('student_id', user.id)
+      .order('created_at', { ascending: false })
+
+    // Get student's payment plans
+    const { data: paymentPlans } = await supabase
+      .from('payment_plans')
+      .select('*')
       .eq('student_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -97,13 +104,16 @@ export async function GET(request: NextRequest) {
       data: {
         fees: relevantFees,
         payments: allPayments,
+        paymentPlans: paymentPlans || [],
         summary: {
           totalFees,
           totalPaid,
           pendingFees,
           currentSession,
           currentLevel,
-          program: enrollments?.program || null
+          program: enrollments?.program || null,
+          hasPaymentPlan: (paymentPlans || []).length > 0,
+          activePaymentPlan: (paymentPlans || []).find((p: any) => p.status !== 'completed') || null
         }
       }
     })

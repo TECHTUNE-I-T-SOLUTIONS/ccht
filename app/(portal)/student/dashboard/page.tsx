@@ -25,6 +25,8 @@ export default function StudentDashboard() {
   const [profileForm, setProfileForm] = useState<Record<string, string>>({})
   const [savingProfile, setSavingProfile] = useState(false)
   const [academicSessions, setAcademicSessions] = useState<{ id: string; name: string }[]>([])
+  const [examEligibility, setExamEligibility] = useState<any>(null)
+  const [checkingEligibility, setCheckingEligibility] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -82,6 +84,11 @@ export default function StudentDashboard() {
             }, {} as Record<string, string>))
             setShowProfileModal(true)
           }
+
+          // Check exam eligibility when student profile is loaded
+          if (studentProfileRes.data.admission_session) {
+            checkExamEligibilityFunction(studentProfileRes.data.admission_session)
+          }
         }
         
         // Combine regular payments and aspirant payments
@@ -100,6 +107,31 @@ export default function StudentDashboard() {
     }
     getUser()
   }, [])
+
+  const checkExamEligibilityFunction = async (admissionSession: string) => {
+    setCheckingEligibility(true)
+    try {
+      // Get current session ID
+      const { data: sessionData } = await supabase
+        .from('academic_sessions')
+        .select('id')
+        .eq('name', admissionSession)
+        .single()
+
+      if (!sessionData) return
+
+      const response = await fetch(`/api/v1/student/exam-eligibility?sessionId=${sessionData.id}`)
+      const data = await response.json()
+      
+      if (response.ok) {
+        setExamEligibility(data.data)
+      }
+    } catch (error) {
+      console.error('Error checking exam eligibility:', error)
+    } finally {
+      setCheckingEligibility(false)
+    }
+  }
 
   if (loading) return <div className="p-8">Loading...</div>
 
@@ -145,6 +177,11 @@ export default function StudentDashboard() {
       setStudentProfile(updatedProfile)
       setShowProfileModal(false)
       setMissingFields([])
+      
+      // Re-check eligibility after profile update
+      if (updatedProfile?.admission_session) {
+        checkExamEligibilityFunction(updatedProfile.admission_session)
+      }
     } catch (error) {
       console.error('Failed to update profile:', error)
       alert('Failed to update profile. Please try again.')
@@ -305,6 +342,77 @@ export default function StudentDashboard() {
           </div>
         </Card>
 
+        {/* Exam Eligibility Status */}
+        <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
+          <div className="flex items-center gap-3">
+            <div className={`rounded-2xl p-3 ${
+              examEligibility?.is_eligible 
+                ? 'bg-emerald-500/10 text-emerald-600' 
+                : 'bg-red-500/10 text-red-600'
+            }`}>
+              <Award className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold">Exam Eligibility</h2>
+              <p className="text-sm text-muted-foreground">Current session status</p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-3">
+            {checkingEligibility ? (
+              <p className="text-sm text-muted-foreground">Checking eligibility...</p>
+            ) : examEligibility ? (
+              <>
+                <div className={`rounded-2xl border p-4 ${
+                  examEligibility.is_eligible 
+                    ? 'border-emerald-500/30 bg-emerald-500/5' 
+                    : 'border-red-500/30 bg-red-500/5'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {examEligibility.is_eligible ? (
+                      <BadgeCheck className="h-5 w-5 text-emerald-600" />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5 text-red-600" />
+                    )}
+                    <span className={`font-semibold ${
+                      examEligibility.is_eligible ? 'text-emerald-600' : 'text-red-600'
+                    }`}>
+                      {examEligibility.is_eligible ? 'Eligible for Exams' : 'Not Eligible for Exams'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{examEligibility.message}</p>
+                </div>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Fees Status:</span>
+                    <span className={`font-semibold ${
+                      examEligibility.fees_paid ? 'text-emerald-600' : 'text-red-600'
+                    }`}>
+                      {examEligibility.fees_paid ? 'Paid' : 'Unpaid'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Approved Courses:</span>
+                    <span className={`font-semibold ${
+                      examEligibility.courses_approved ? 'text-emerald-600' : 'text-red-600'
+                    }`}>
+                      {examEligibility.approved_course_count || (examEligibility.courses_approved ? 'Yes' : 'No')}
+                    </span>
+                  </div>
+                </div>
+                {!examEligibility.is_eligible && (
+                  <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3">
+                    <p className="text-xs text-amber-700">
+                      Complete the required actions above to become eligible for exams.
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Unable to check eligibility status</p>
+            )}
+          </div>
+        </Card>
+
         <Card className="rounded-[2rem] border bg-white p-6 shadow-sm dark:bg-blue-800/20">
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-primary/10 p-3 text-primary"><Bell className="h-5 w-5" /></div>
@@ -371,7 +479,7 @@ export default function StudentDashboard() {
                 <p className="text-sm text-muted-foreground">No recent results yet.</p>
               ) : (
                 results.map((result) => (
-                  <div key={result.id} className="rounded-2xl border border-border bg-slate-50 p-4">
+                  <div key={result.id} className="rounded-2xl border border-border bg-slate-50 dark:bg-background p-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-semibold text-foreground">{result.course_name}</p>
                       <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">

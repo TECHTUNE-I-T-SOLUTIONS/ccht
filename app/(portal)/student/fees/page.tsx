@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CreditCard, Receipt, ShieldCheck, Coins, CalendarDays, Download, AlertCircle } from 'lucide-react'
+import { CreditCard, Receipt, ShieldCheck, Coins, CalendarDays, Download, AlertCircle, BadgeCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
@@ -31,6 +31,30 @@ type Payment = {
   paid_at?: string
   created_at: string
   fee_structure_id?: string
+  payment_plan_type?: 'full' | 'installment_1' | 'installment_2'
+  installment_number?: 1 | 2
+  payment_plan_id?: string
+  due_date?: string
+}
+
+type PaymentPlan = {
+  id: string
+  student_id: string
+  total_amount: number
+  amount_paid: number
+  amount_remaining: number
+  plan_type: 'full' | 'installment'
+  first_installment_amount?: number
+  first_installment_paid: boolean
+  first_installment_paid_at?: string
+  second_installment_amount?: number
+  second_installment_paid: boolean
+  second_installment_paid_at?: string
+  second_installment_due_date?: string
+  status: 'pending' | 'partial' | 'completed' | 'overdue'
+  is_late: boolean
+  created_at: string
+  updated_at: string
 }
 
 export default function StudentFeesPage() {
@@ -38,6 +62,7 @@ export default function StudentFeesPage() {
   const [studentData, setStudentData] = useState<any | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([])
+  const [paymentPlans, setPaymentPlans] = useState<PaymentPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [initiating, setInitiating] = useState(false)
   const [selectedSession, setSelectedSession] = useState('')
@@ -45,6 +70,9 @@ export default function StudentFeesPage() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [selectedFee, setSelectedFee] = useState<FeeStructure | null>(null)
   const [availableSessions, setAvailableSessions] = useState<string[]>([])
+  const [showPaymentPlanDialog, setShowPaymentPlanDialog] = useState(false)
+  const [selectedPaymentPlan, setSelectedPaymentPlan] = useState<PaymentPlan | null>(null)
+  const [creatingPaymentPlan, setCreatingPaymentPlan] = useState(false)
 
   const semesters = ['all', 'first', 'second']
 
@@ -77,6 +105,7 @@ export default function StudentFeesPage() {
       if (feeData?.data) {
         setFeeStructures(feeData.data.fees || [])
         setPayments(feeData.data.payments || [])
+        setPaymentPlans(feeData.data.paymentPlans || [])
         
         // Extract unique sessions from fees
         const uniqueSessions = Array.from(new Set(feeData.data.fees?.map((f: FeeStructure) => f.session) || [])) as string[]
@@ -117,6 +146,16 @@ export default function StudentFeesPage() {
   const remainingBalance = Math.max(0, totalFees - paidAmount)
   const paymentStatus = remainingBalance === 0 ? 'fully_paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid'
 
+  // Get active payment plan for current session
+  const activePaymentPlan = paymentPlans.find(plan => 
+    plan.status !== 'completed' && 
+    (selectedSession ? plan.session_id === selectedSession : true)
+  ) || null
+
+  const canCreatePaymentPlan = !activePaymentPlan && remainingBalance > 0
+  const firstInstallmentAmount = activePaymentPlan?.first_installment_amount || Math.round(totalFees * 0.6)
+  const secondInstallmentAmount = activePaymentPlan?.second_installment_amount || Math.round(totalFees * 0.4)
+
   const initiatePayment = async (fee: FeeStructure) => {
     if (!student) return
     setInitiating(true)
@@ -144,6 +183,103 @@ export default function StudentFeesPage() {
           key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
           email: student.email,
           amount: fee.amount * 100, // Convert to kobo
+          ref: payload.reference,
+          onClose: function() {
+            toast.info('Payment closed')
+            setInitiating(false)
+          },
+          callback: function(response: any) {
+            // Verify payment
+            fetch('/api/v1/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ reference: response.reference }),
+            }).then(async (verifyRes) => {
+              const verifyData = await verifyRes.json()
+              if (verifyRes.ok && verifyData.success) {
+                toast.success('Payment successful!')
+                await loadPaymentData()
+              } else {
+                toast.error('Payment verification failed')
+              }
+              setInitiating(false)
+            }).catch(() => {
+              toast.error('Payment verification error')
+              setInitiating(false)
+            })
+          },
+        }).openIframe()
+      }
+      script.onerror = () => {
+        toast.error('Failed to load payment gateway')
+        setInitiating(false)
+      }
+      document.body.appendChild(script)
+    } catch (err: any) {
+      toast.error(err.message)
+      setInitiating(false)
+    }
+  }
+
+  const createPaymentPlan = async (planType: 'full' | 'installment') => {
+    if (!student) return
+    setCreatingPaymentPlan(true)
+    try {
+      const response = await fetch('/api/v1/student/payment-plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalAmount: totalFees,
+          planType,
+          enrollmentId: studentData?.enrollment_id,
+          sessionId: selectedSession,
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Failed to create payment plan')
+
+      toast.success('Payment plan created successfully!')
+      await loadPaymentData()
+      setShowPaymentPlanDialog(false)
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setCreatingPaymentPlan(false)
+    }
+  }
+
+  const initiateInstallmentPayment = async (installmentNumber: 1 | 2) => {
+    if (!student || !activePaymentPlan) return
+    setInitiating(true)
+    try {
+      const amount = installmentNumber === 1 
+        ? activePaymentPlan.first_installment_amount 
+        : activePaymentPlan.second_installment_amount
+
+      const response = await fetch('/api/v1/student/payment-plans/initiate-installment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentPlanId: activePaymentPlan.id,
+          installmentNumber,
+          email: student.email,
+          enrollmentId: studentData?.enrollment_id,
+          description: `Installment ${installmentNumber} - ${selectedSession}`,
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Failed to initiate payment')
+
+      // Load Paystack inline JS dynamically
+      const script = document.createElement('script')
+      script.src = 'https://js.paystack.co/v1/inline.js'
+      script.async = true
+      script.onload = () => {
+        const paystack = (window as any).PaystackPop
+        paystack.setup({
+          key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
+          email: student.email,
+          amount: amount * 100, // Convert to kobo
           ref: payload.reference,
           onClose: function() {
             toast.info('Payment closed')
@@ -339,6 +475,156 @@ export default function StudentFeesPage() {
             </div>
           </div>
         </Card>
+
+        {/* Payment Plan Options */}
+        {canCreatePaymentPlan && (
+          <Card className="p-6 lg:col-span-2">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <h2 className="text-xl font-bold">Payment Plan Options</h2>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-lg">Full Payment</h3>
+                  <span className="text-sm font-bold text-primary">₦{totalFees.toLocaleString()}</span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">Pay the full amount at once</p>
+                <Button 
+                  onClick={() => createPaymentPlan('full')}
+                  disabled={creatingPaymentPlan}
+                  className="w-full"
+                >
+                  {creatingPaymentPlan ? 'Creating...' : 'Pay Full Amount'}
+                </Button>
+              </div>
+              <div className="rounded-xl border-2 border-amber-500/20 bg-amber-500/5 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-lg">Installment Plan</h3>
+                  <span className="text-sm font-bold text-amber-600">60% + 40%</span>
+                </div>
+                <div className="space-y-2 mb-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">First (60%):</span>
+                    <span className="font-semibold">₦{firstInstallmentAmount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Second (40%):</span>
+                    <span className="font-semibold">₦{secondInstallmentAmount.toLocaleString()}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Second payment due within 1 month</p>
+                </div>
+                <Button 
+                  onClick={() => createPaymentPlan('installment')}
+                  disabled={creatingPaymentPlan}
+                  variant="outline"
+                  className="w-full border-amber-500 text-amber-600 hover:bg-amber-500/10"
+                >
+                  {creatingPaymentPlan ? 'Creating...' : 'Choose Installment Plan'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Active Payment Plan */}
+        {activePaymentPlan && (
+          <Card className="p-6 lg:col-span-2">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                <CalendarDays className="h-5 w-5" />
+              </div>
+              <h2 className="text-xl font-bold">Active Payment Plan</h2>
+              <span className={`ml-auto rounded-full px-3 py-1 text-xs font-semibold ${
+                activePaymentPlan.status === 'completed' 
+                  ? 'bg-emerald-500/10 text-emerald-600' 
+                  : activePaymentPlan.status === 'partial'
+                  ? 'bg-amber-500/10 text-amber-600'
+                  : 'bg-blue-500/10 text-blue-600'
+              }`}>
+                {activePaymentPlan.status === 'completed' ? 'Completed' : activePaymentPlan.status === 'partial' ? 'In Progress' : 'Pending'}
+              </span>
+            </div>
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className={`rounded-xl p-4 border-2 ${
+                  activePaymentPlan.first_installment_paid 
+                    ? 'border-emerald-500/30 bg-emerald-500/5' 
+                    : 'border-primary/20 bg-primary/5'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-bold">First Installment (60%)</h3>
+                    {activePaymentPlan.first_installment_paid && (
+                      <BadgeCheck className="h-5 w-5 text-emerald-600" />
+                    )}
+                  </div>
+                  <div className="text-2xl font-bold mb-2">₦{activePaymentPlan.first_installment_amount?.toLocaleString() || 0}</div>
+                  {activePaymentPlan.first_installment_paid ? (
+                    <p className="text-sm text-emerald-600">
+                      Paid on {new Date(activePaymentPlan.first_installment_paid_at || '').toLocaleDateString()}
+                    </p>
+                  ) : (
+                    <Button 
+                      onClick={() => initiateInstallmentPayment(1)}
+                      disabled={initiating}
+                      className="w-full"
+                    >
+                      {initiating ? 'Processing...' : 'Pay First Installment'}
+                    </Button>
+                  )}
+                </div>
+                <div className={`rounded-xl p-4 border-2 ${
+                  activePaymentPlan.second_installment_paid 
+                    ? 'border-emerald-500/30 bg-emerald-500/5' 
+                    : !activePaymentPlan.first_installment_paid
+                    ? 'border-slate-200 bg-slate-50 opacity-50'
+                    : 'border-amber-500/20 bg-amber-500/5'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-bold">Second Installment (40%)</h3>
+                    {activePaymentPlan.second_installment_paid && (
+                      <BadgeCheck className="h-5 w-5 text-emerald-600" />
+                    )}
+                  </div>
+                  <div className="text-2xl font-bold mb-2">₦{activePaymentPlan.second_installment_amount?.toLocaleString() || 0}</div>
+                  {activePaymentPlan.second_installment_paid ? (
+                    <p className="text-sm text-emerald-600">
+                      Paid on {new Date(activePaymentPlan.second_installment_paid_at || '').toLocaleDateString()}
+                    </p>
+                  ) : !activePaymentPlan.first_installment_paid ? (
+                    <p className="text-sm text-muted-foreground">Available after first installment</p>
+                  ) : (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Due: {activePaymentPlan.second_installment_due_date 
+                          ? new Date(activePaymentPlan.second_installment_due_date).toLocaleDateString()
+                          : 'Within 1 month of first payment'}
+                      </p>
+                      <Button 
+                        onClick={() => initiateInstallmentPayment(2)}
+                        disabled={initiating}
+                        variant="outline"
+                        className="w-full border-amber-500 text-amber-600 hover:bg-amber-500/10"
+                      >
+                        {initiating ? 'Processing...' : 'Pay Second Installment'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                <span className="text-sm text-muted-foreground">Total Paid</span>
+                <span className="font-bold text-emerald-600">₦{activePaymentPlan.amount_paid.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                <span className="text-sm text-muted-foreground">Remaining Balance</span>
+                <span className="font-bold text-primary">₦{activePaymentPlan.amount_remaining.toLocaleString()}</span>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Fee Breakdown */}
         <Card className="p-6 lg:col-span-2">

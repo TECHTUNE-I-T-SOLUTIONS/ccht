@@ -195,6 +195,18 @@ export default function StudentExamTakePage() {
         const questionsData = await questionsRes.json()
         const profileData = await profileRes.json()
 
+        // Check exam eligibility before allowing exam access
+        if (examData.data?.session_id) {
+          const eligibilityRes = await fetch(`/api/v1/student/exam-eligibility?sessionId=${examData.data.session_id}&courseId=${examData.data.course_id}`)
+          const eligibilityData = await eligibilityRes.json()
+          
+          if (eligibilityRes.ok && !eligibilityData.data?.is_eligible) {
+            toast.error(eligibilityData.data?.message || 'You are not eligible to take this exam')
+            router.push('/student/exams')
+            return
+          }
+        }
+
         setExam(examData.data)
         setQuestions(questionsData.data || [])
         setTimeLeft((examData.data.duration_minutes || 60) * 60)

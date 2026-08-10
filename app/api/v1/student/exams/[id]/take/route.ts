@@ -49,6 +49,25 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       return NextResponse.json({ error: 'Exam has ended' }, { status: 403 })
     }
 
+    // Check exam eligibility (fees paid and courses approved)
+    if (exam.session_id && exam.course_id) {
+      const { data: eligibilityResult } = await admin
+        .rpc('check_student_exam_eligibility', {
+          student_id: user.id,
+          course_id: exam.course_id,
+          session_id: exam.session_id
+        })
+
+      const eligibility = eligibilityResult && eligibilityResult.length > 0 ? eligibilityResult[0] : null
+      
+      if (eligibility && !eligibility.is_eligible) {
+        return NextResponse.json({ 
+          error: eligibility.message || 'You are not eligible to take this exam',
+          eligibility: eligibility
+        }, { status: 403 })
+      }
+    }
+
     // Check if student has an active attempt
     const { data: attempts } = await admin
       .from('student_exam_attempts')

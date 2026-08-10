@@ -162,6 +162,7 @@ export default function AspirantManagementPage() {
       color: 'bg-green-500/10 text-green-600',
       links: [
         { label: 'Payment History', href: '/admin/payments/aspirants', description: 'View all aspirant payments' },
+        { label: 'Offline Payment Entry', href: '/admin/management/aspirants/manual-payment', description: 'Record offline cash/bank transfer payments' },
         { label: 'Fee Structure', href: '/admin/finance/fees', description: 'Manage fee structures' },
         { label: 'Pending Payments', href: '/admin/payments/aspirants?status=pending', description: 'Payments awaiting confirmation' },
       ],
