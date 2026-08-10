@@ -50,6 +50,7 @@ type StudentExamAttempt = {
   passed: boolean
   status: string
   exam_session?: ExamSession
+  enrollment?: Enrollment
 }
 
 type Course = {
@@ -142,6 +143,15 @@ export default function ExamEntriesPage() {
             course:courses(code, title),
             total_marks,
             passing_marks
+          ),
+          enrollment:enrollments(
+            id,
+            student_id,
+            program_id,
+            program:programs(title),
+            selected_courses:selected_courses(
+              course:courses(id, code, title)
+            )
           )
         `)
         .eq('student_id', studentId)
@@ -184,11 +194,30 @@ export default function ExamEntriesPage() {
   }
 
   const handleEditExam = (exam: StudentExamAttempt) => {
-    setEditingExam({
-      ...exam,
-      total_score: exam.total_score || 0,
-      percentage_score: exam.percentage_score || 0
-    })
+    // If enrollment data is not already loaded, fetch it
+    if (!exam.enrollment && exam.enrollment_id) {
+      const enrollment = enrollments.find(e => e.id === exam.enrollment_id)
+      if (enrollment) {
+        setEditingExam({
+          ...exam,
+          enrollment,
+          total_score: exam.total_score || 0,
+          percentage_score: exam.percentage_score || 0
+        })
+      } else {
+        setEditingExam({
+          ...exam,
+          total_score: exam.total_score || 0,
+          percentage_score: exam.percentage_score || 0
+        })
+      }
+    } else {
+      setEditingExam({
+        ...exam,
+        total_score: exam.total_score || 0,
+        percentage_score: exam.percentage_score || 0
+      })
+    }
     setEditDialogOpen(true)
   }
 
@@ -707,6 +736,11 @@ export default function ExamEntriesPage() {
                 <p className="text-sm text-muted-foreground">
                   Total Marks: {editingExam.exam_session?.total_marks} | Passing Marks: {editingExam.exam_session?.passing_marks}
                 </p>
+                {editingExam.enrollment && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Program: {editingExam.enrollment.program?.[0]?.title || 'N/A'}
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Total Score</Label>

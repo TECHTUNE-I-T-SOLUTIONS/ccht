@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { ArrowLeft, Plus, Edit2, Trash2, Save, X, Upload, FileSpreadsheet, FileText, Shield } from 'lucide-react'
+import { ArrowLeft, Plus, Edit2, Trash2, Save, X, Upload, FileSpreadsheet, FileText, Shield, Loader2 } from 'lucide-react'
 
 type ExamQuestion = {
   id: string
@@ -44,6 +44,7 @@ export default function AdminExamDetailPage() {
   const [examDialogOpen, setExamDialogOpen] = useState(false)
   const [editingExam, setEditingExam] = useState<any>(null)
   const [savingExam, setSavingExam] = useState(false)
+  const [parsingDocument, setParsingDocument] = useState(false)
 
   const [questionForm, setQuestionForm] = useState({
     question_text: '',
@@ -85,7 +86,7 @@ export default function AdminExamDetailPage() {
     try {
       const [examRes, qRes] = await Promise.all([
         fetch(`/api/v1/admin/exams/${params.id}`).then((r) => r.json()),
-        fetch(`/api/v1/admin/exams/${params.id}/questions`).then((r) => r.json()),
+        fetch(`/api/v1/admin/exam-sessions/${params.id}/questions`).then((r) => r.json()),
       ])
       setExam(examRes.data || null)
       const mappedQuestions = (qRes.data || []).map((q: any) => ({
@@ -105,16 +106,14 @@ export default function AdminExamDetailPage() {
   const saveQuestion = async () => {
     try {
       const method = editingQuestion ? 'PUT' : 'POST'
-      const url = editingQuestion 
-        ? `/api/v1/admin/exams/questions/${editingQuestion.id}` 
-        : `/api/v1/admin/exams/${params.id}/questions`
+      const url = `/api/v1/admin/exam-sessions/${params.id}/questions`
       
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...questionForm,
-          exam_session_id: params.id,
+          id: editingQuestion?.id,
         }),
       })
 
@@ -133,7 +132,7 @@ export default function AdminExamDetailPage() {
 
   const deleteQuestion = async (id: string) => {
     try {
-      const res = await fetch(`/api/v1/admin/exams/questions/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/v1/admin/exam-sessions/${params.id}/questions?questionId=${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete question')
       
       toast.success('Question deleted')
@@ -226,6 +225,7 @@ export default function AdminExamDetailPage() {
     const fileName = file.name.toLowerCase()
     const isAIParsed = fileName.endsWith('.pdf') || fileName.endsWith('.doc') || fileName.endsWith('.docx')
 
+    setParsingDocument(true)
     try {
       let questions: any[] = []
 
@@ -276,18 +276,19 @@ export default function AdminExamDetailPage() {
     } catch (error: any) {
       toast.error(error.message || 'Failed to parse questions')
       console.error(error)
+    } finally {
+      setParsingDocument(false)
     }
   }
 
   const saveReviewedQuestions = async () => {
     try {
       const importPromises = parsedQuestions.map((q: any) =>
-        fetch('/api/v1/admin/exams/questions', {
+        fetch(`/api/v1/admin/exam-sessions/${params.id}/questions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...q,
-            exam_session_id: params.id,
             question_number: q.question_number,
             marks: q.marks,
           }),
@@ -727,17 +728,30 @@ export default function AdminExamDetailPage() {
                 type="file"
                 accept=".csv,.xlsx,.xls,.pdf,.doc,.docx"
                 onChange={handleFileUpload}
+                disabled={parsingDocument}
               />
             </div>
 
+            {parsingDocument && (
+              <div className="flex items-center justify-center gap-2 py-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm text-muted-foreground">Parsing document...</span>
+              </div>
+            )}
+
             <div className="flex gap-3">
-              <Button onClick={() => document.getElementById('file_upload')?.click()} className="flex-1 border border-primary hover:shadow-lg hover:shadow-blue-600">
+              <Button 
+                onClick={() => document.getElementById('file_upload')?.click()} 
+                className="flex-1 border border-primary hover:shadow-lg hover:shadow-blue-600"
+                disabled={parsingDocument}
+              >
                 <Upload className="mr-2 h-4 w-4" />
                 Upload File
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setUploadDialogOpen(false)}
+                disabled={parsingDocument}
               >
                 Cancel
               </Button>
