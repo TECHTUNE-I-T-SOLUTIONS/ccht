@@ -15,17 +15,6 @@ const nextConfig = {
       },
     ],
   },
-  // Fix for Vercel build issue with (public) route group
-  experimental: {
-    serverComponentsExternalPackages: [],
-  },
-  // Additional build optimization
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals.push('_http_common')
-    }
-    return config
-  },
 }
 
 export default nextConfig
