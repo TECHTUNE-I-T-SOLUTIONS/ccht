@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { examAttemptId, answers, timeSpentSeconds, submittedAt } = body
+    const { examAttemptId, answers, timeSpentSeconds, submittedAt, webcamRecordingUrl, screenRecordingUrl } = body
 
     if (!examAttemptId) {
       return NextResponse.json({ error: 'Exam attempt ID is required' }, { status: 400 })
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     const percentage = totalMarks > 0 ? Math.round((totalScore / totalMarks) * 100) : 0
     const passed = percentage >= 50 // Default passing threshold
 
-    // Update the exam attempt with score
+    // Update the exam attempt with score and recording URLs
     const { data: updatedAttempt, error: attemptError } = await admin
       .from('student_exam_attempts')
       .update({
@@ -89,6 +89,8 @@ export async function POST(request: Request) {
         percentage_score: percentage,
         time_spent_seconds: timeSpentSeconds || 0,
         passed: passed,
+        webcam_recording_url: webcamRecordingUrl || null,
+        screen_recording_url: screenRecordingUrl || null,
       })
       .eq('id', examAttemptId)
       .eq('student_id', user.id)

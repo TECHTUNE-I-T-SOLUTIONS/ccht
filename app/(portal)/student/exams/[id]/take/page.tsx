@@ -87,6 +87,8 @@ export default function StudentExamTakePage() {
   const [enrollmentId, setEnrollmentId] = useState<string | null>(null)
   const [timeSpentSeconds, setTimeSpentSeconds] = useState(0)
   const [recordingStartTime, setRecordingStartTime] = useState<Date | null>(null)
+  const [webcamRecordingUrl, setWebcamRecordingUrl] = useState<string | null>(null)
+  const [screenRecordingUrl, setScreenRecordingUrl] = useState<string | null>(null)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const screenVideoRef = useRef<HTMLVideoElement>(null)
@@ -364,7 +366,10 @@ export default function StudentExamTakePage() {
 
       mediaRecorder.onstop = async () => {
         const screenBlob = new Blob(screenChunksRef.current, { type: 'video/webm' })
-        await uploadRecordingToCloudinary(screenBlob, 'screen', recordingStartTime)
+        const url = await uploadRecordingToCloudinary(screenBlob, 'screen', recordingStartTime)
+        if (url) {
+          setScreenRecordingUrl(url)
+        }
       }
 
       mediaRecorder.start()
@@ -393,7 +398,10 @@ export default function StudentExamTakePage() {
 
       mediaRecorder.onstop = async () => {
         const webcamBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
-        await uploadRecordingToCloudinary(webcamBlob, 'webcam', recordingStartTime)
+        const url = await uploadRecordingToCloudinary(webcamBlob, 'webcam', recordingStartTime)
+        if (url) {
+          setWebcamRecordingUrl(url)
+        }
       }
 
       mediaRecorder.start()
@@ -407,8 +415,8 @@ export default function StudentExamTakePage() {
   }
 
   // Upload recording to Cloudinary
-  const uploadRecordingToCloudinary = async (blob: Blob, type: 'webcam' | 'screen', startedAt: Date | null) => {
-    if (!examAttemptId) return
+  const uploadRecordingToCloudinary = async (blob: Blob, type: 'webcam' | 'screen', startedAt: Date | null): Promise<string | null> => {
+    if (!examAttemptId) return null
 
     try {
       const file = new File([blob], `${type}-${examAttemptId}-${Date.now()}.webm`, { type: 'video/webm' })
@@ -452,12 +460,15 @@ export default function StudentExamTakePage() {
       if (!res.ok) {
         const errData = await res.json()
         console.error('Failed to save recording:', errData)
+        return null
       } else {
         console.log(`${type} recording uploaded:`, result.secure_url)
+        return result.secure_url
       }
     } catch (error) {
       console.error(`Failed to upload ${type} recording:`, error)
       toast.error(`Failed to upload ${type} recording`)
+      return null
     }
   }
 
@@ -666,9 +677,10 @@ export default function StudentExamTakePage() {
   }, [])
 
   // Stop recordings and wait for them to upload before submission
-  const stopAndUploadRecordings = async (): Promise<void> => {
+  const stopAndUploadRecordings = async (): Promise<{ webcamUrl: string | null, screenUrl: string | null }> => {
     return new Promise((resolve) => {
       let pendingUploads = 0
+      const results: { webcamUrl: string | null, screenUrl: string | null } = { webcamUrl: null, screenUrl: null }
       
       // Stop webcam recording
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -676,8 +688,11 @@ export default function StudentExamTakePage() {
         const originalOnstop = mediaRecorderRef.current.onstop
         mediaRecorderRef.current.onstop = async (event) => {
           if (originalOnstop) await (originalOnstop as Function)(event)
+          // Wait a bit for the upload to complete and state to update
+          await new Promise(r => setTimeout(r, 1000))
+          results.webcamUrl = webcamRecordingUrl
           pendingUploads--
-          if (pendingUploads <= 0) resolve()
+          if (pendingUploads <= 0) resolve(results)
         }
         mediaRecorderRef.current.stop()
       }
@@ -688,17 +703,20 @@ export default function StudentExamTakePage() {
         const originalOnstop = screenRecorderRef.current.onstop
         screenRecorderRef.current.onstop = async (event) => {
           if (originalOnstop) await (originalOnstop as Function)(event)
+          // Wait a bit for the upload to complete and state to update
+          await new Promise(r => setTimeout(r, 1000))
+          results.screenUrl = screenRecordingUrl
           pendingUploads--
-          if (pendingUploads <= 0) resolve()
+          if (pendingUploads <= 0) resolve(results)
         }
         screenRecorderRef.current.stop()
       }
       
       // If no recordings were active, resolve immediately
-      if (pendingUploads === 0) resolve()
+      if (pendingUploads === 0) resolve(results)
       
-      // Safety timeout - resolve after 30s even if upload fails
-      setTimeout(() => resolve(), 30000)
+      // Safety timeout - resolve after 45s even if upload fails
+      setTimeout(() => resolve(results), 45000)
     })
   }
 
@@ -715,9 +733,11 @@ export default function StudentExamTakePage() {
       }
 
       // Stop recordings and wait for uploads to complete first
-      await stopAndUploadRecordings()
+      const recordingUrls = await stopAndUploadRecordings()
+      
+      console.log('[Exam Submission] Recording URLs:', recordingUrls)
 
-      // Then submit the exam answers
+      // Then submit the exam answers with recording URLs
       const res = await fetch('/api/v1/student/exams/attempts/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -729,6 +749,8 @@ export default function StudentExamTakePage() {
           })),
           timeSpentSeconds,
           submittedAt: new Date().toISOString(),
+          webcamRecordingUrl: recordingUrls.webcamUrl,
+          screenRecordingUrl: recordingUrls.screenUrl,
         }),
       })
 
@@ -748,9 +770,12 @@ export default function StudentExamTakePage() {
       if (screenStream) {
         screenStream.getTracks().forEach(track => track.stop())
       }
+
+
     } catch (error) {
       toast.error('Failed to submit exam. Please try again.')
       console.error(error)
+      setCurrentStep('exam') // Go back to exam step on error
     } finally {
       setSubmitting(false)
     }
@@ -1316,6 +1341,13 @@ export default function StudentExamTakePage() {
 
   // Step 8: Completed - NO score or result shown to student
   if (currentStep === 'completed') {
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        router.push('/student/exams')
+      }, 3000)
+      return () => clearTimeout(timer)
+    }, [router])
+
     return (
       <div className="mx-auto max-w-3xl px-6 py-12">
         <Card className="space-y-6 rounded-[2.5rem] border bg-white p-10 shadow-sm dark:bg-slate-900">
@@ -1337,6 +1369,10 @@ export default function StudentExamTakePage() {
                 <p className="mt-1">Your results will be reviewed and released by your instructors. You will be notified once your results are available. Please check back later.</p>
               </div>
             </div>
+          </div>
+
+          <div className="text-center text-sm text-muted-foreground">
+            <p>Redirecting to exams list in 3 seconds...</p>
           </div>
 
           <div className="flex justify-center">

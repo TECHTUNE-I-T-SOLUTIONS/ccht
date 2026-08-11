@@ -61,6 +61,7 @@ export default function AspirantEntranceExam() {
   const [recordingUploaded, setRecordingUploaded] = useState(false)
   const [recordingStartTime, setRecordingStartTime] = useState<Date | null>(null)
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null)
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null)
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
   const [faceDetected, setFaceDetected] = useState(true)
   const [audioDetected, setAudioDetected] = useState(false)
@@ -184,6 +185,7 @@ export default function AspirantEntranceExam() {
             const result = await response.json()
             console.log('Screen recording uploaded successfully:', result)
             setRecordingUploaded(true)
+            setRecordingUrl(result.data?.recording_url || null)
           } else {
             console.error('Failed to upload recording:', await response.text())
           }
@@ -291,16 +293,22 @@ export default function AspirantEntranceExam() {
     console.log('[exam] Stopping screen recording with session ID:', currentSessionId)
     await stopScreenRecording(currentSessionId || undefined)
     
-    // Wait for recording to finish uploading (increased time)
+    // Wait for recording to finish uploading with proper state check
     console.log('[exam] Waiting for recording upload...')
-    await new Promise(resolve => setTimeout(resolve, 5000))
-    console.log('[exam] Recording upload wait complete')
+    let attempts = 0
+    const maxAttempts = 15 // 15 seconds max wait
+    while (!recordingUploaded && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      attempts++
+      console.log(`[exam] Waiting for upload... attempt ${attempts}/${maxAttempts}`)
+    }
+    console.log('[exam] Recording upload wait complete, uploaded:', recordingUploaded, 'url:', recordingUrl)
     
     try {
       const score = questions.reduce((count: number, q: Question) => (answers[q.id] === q.correct_answer ? count + 1 : count), 0)
       const finalPercentage = Math.round((score / questions.length) * 100)
 
-      // Update exam session with all required fields
+      // Update exam session with all required fields including recording URL
       if (examSessionId) {
         await fetch('/api/v1/admissions/exam-session', {
           method: 'PATCH',
@@ -314,6 +322,7 @@ export default function AspirantEntranceExam() {
             submittedAt: new Date().toISOString(),
             examType: 'Entrance Examination',
             academicYear: String(new Date().getFullYear()),
+            screenRecordingUrl: recordingUrl,
           }),
         })
       }
@@ -329,6 +338,7 @@ export default function AspirantEntranceExam() {
           semester: 1,
           percentage: finalPercentage,
           answers: answers, // Include the actual answers
+          screenRecordingUrl: recordingUrl,
         }),
       })
 
@@ -359,6 +369,7 @@ export default function AspirantEntranceExam() {
       // Clear media recorder
       setMediaRecorder(null)
       
+      // Navigate to thank you page (it will auto-redirect to dashboard after 10 seconds)
       router.push('/aspirant/exam/thank-you')
     } catch {
       toast.error('Failed to submit exam. Please try again.')
