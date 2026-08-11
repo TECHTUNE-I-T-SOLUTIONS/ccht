@@ -1,10 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/client'
 
 export class ManagementService {
   // Aspirant Management
   static async getAspirantStats() {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const [totalResult, pendingResult, approvedResult, rejectedResult, inReviewResult] = await Promise.all([
@@ -31,7 +30,7 @@ export class ManagementService {
   }
 
   static async getRecentAspirants(limit = 10) {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const { data, error } = await supabase
@@ -80,7 +79,7 @@ export class ManagementService {
 
   // Student Management
   static async getStudentStats() {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const [totalResult, activeResult, inactiveResult, suspendedResult, graduatedResult] = await Promise.all([
@@ -105,7 +104,7 @@ export class ManagementService {
   }
 
   static async getRecentStudents(limit = 10) {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const { data, error } = await supabase
@@ -147,7 +146,7 @@ export class ManagementService {
   }
 
   static async getAllStudentsForExport() {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const { data, error } = await supabase
@@ -188,7 +187,7 @@ export class ManagementService {
 
   // Lecturer Management
   static async getLecturerStats() {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const [totalResult, activeResult, inactiveResult, suspendedResult, partTimeResult] = await Promise.all([
@@ -213,7 +212,7 @@ export class ManagementService {
   }
 
   static async getRecentLecturers(limit = 10) {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const { data, error } = await supabase
@@ -258,7 +257,7 @@ export class ManagementService {
 
   // Admin Management
   static async getAdminStats() {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const [totalResult, superAdminResult, operationsResult, academicsResult, financeResult] = await Promise.all([
@@ -283,7 +282,7 @@ export class ManagementService {
   }
 
   static async getRecentAdmins(limit = 10) {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const { data, error } = await supabase
@@ -334,7 +333,7 @@ export class ManagementService {
 
   // Dashboard Stats
   static async getDashboardStats() {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const [
@@ -400,7 +399,7 @@ export class ManagementService {
 
   // Student Selected Courses for Assessment Entries
   static async getStudentSelectedCourses(studentId: string) {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const { data, error } = await supabase
@@ -439,7 +438,7 @@ export class ManagementService {
 
   // Student Enrollments for Exam Entries
   static async getStudentEnrollments(studentId: string) {
-    const supabase = await createAdminClient() // Use admin client to bypass RLS
+    const supabase = createClient()
     
     try {
       const { data, error } = await supabase
@@ -451,7 +450,7 @@ export class ManagementService {
           enrollment_date,
           expected_graduation_date,
           status,
-          program:programs(id, title, code),
+          program:programs(id, title),
           academic_session:academic_sessions(id, name)
         `)
         .eq('student_id', studentId)

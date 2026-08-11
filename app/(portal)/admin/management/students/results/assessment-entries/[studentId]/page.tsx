@@ -15,7 +15,7 @@ import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus, Trash2 } from 'lucide-
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { createClient } from '@/lib/supabase/client'
-import { ManagementService } from '@/lib/services/admin/management-service'
+
 
 type Student = {
   matric_number: string
@@ -195,7 +195,7 @@ export default function StudentAssessmentEntriesPage() {
             program:programs(title)
           `)
           .eq('student_id', studentId),
-        ManagementService.getStudentSelectedCourses(studentId)
+        fetch(`/api/v1/admin/management/students/courses/${studentId}`).then(res => res.json())
       ])
 
       if (coursesRes.error) throw coursesRes.error
@@ -207,6 +207,7 @@ export default function StudentAssessmentEntriesPage() {
       setSessions(sessionsRes.data || [])
       setSemesters(semestersRes.data || [])
       setEnrollments(enrollmentsRes.data || [])
+      setSelectedCourses(selectedCoursesRes.success ? selectedCoursesRes.data : [])
       setSelectedCourses(selectedCoursesRes)
       
       // Load teachers for teacher dropdown

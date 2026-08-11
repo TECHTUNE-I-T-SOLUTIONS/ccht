@@ -10,14 +10,18 @@ export function OfflineDetect() {
   useEffect(() => {
     const handleOffline = () => {
       setIsOffline(true)
+      // Store the current URL before redirecting
+      sessionStorage.setItem('previousUrl', window.location.pathname + window.location.search)
       router.push('/offline')
     }
 
     const handleOnline = () => {
       setIsOffline(false)
-      // If we're on the offline page and come back online, go home
+      // If we're on the offline page and come back online, go back to previous page
       if (window.location.pathname === '/offline') {
-        router.push('/')
+        const previousUrl = sessionStorage.getItem('previousUrl') || '/'
+        sessionStorage.removeItem('previousUrl')
+        router.push(previousUrl)
       }
     }
 

@@ -57,11 +57,13 @@ export type AdminScope = typeof ADMIN_SCOPES[number]['value'];
 
 // Admin Permissions
 export const ADMIN_PERMISSIONS = [
-  { key: 'can_manage_users', label: 'Manage Users', description: 'Can create, edit, and delete user accounts' },
-  { key: 'can_manage_content', label: 'Manage Content', description: 'Can manage blog posts, events, and notices' },
-  { key: 'can_manage_academics', label: 'Manage Academics', description: 'Can manage courses, assessments, and results' },
-  { key: 'can_manage_finance', label: 'Manage Finance', description: 'Can manage fees, invoices, and payments' },
+  { key: 'canManageUsers', label: 'Manage Users', description: 'Can create, edit, and delete user accounts' },
+  { key: 'canManageContent', label: 'Manage Content', description: 'Can manage blog posts, events, and notices' },
+  { key: 'canManageAcademics', label: 'Manage Academics', description: 'Can manage courses, assessments, and results' },
+  { key: 'canManageFinance', label: 'Manage Finance', description: 'Can manage fees, invoices, and payments' },
 ] as const;
+
+export type AdminPermission = typeof ADMIN_PERMISSIONS[number]['key'];
 
 export type AdminPermission = typeof ADMIN_PERMISSIONS[number]['key'];
 

@@ -118,17 +118,53 @@ export class AuthService {
     }
     if (!data.user) throw new Error('Failed to create user')
 
-    // Update profiles table with phone and middle_name
-    const { error: profileUpdateError } = await admin
+    // Ensure profiles table record exists and update with phone and middle_name
+    const { data: existingProfile, error: profileCheckError } = await admin
       .from('profiles')
-      .update({
-        phone: input.phone || null,
-        middle_name: input.middleName || null,
-      })
+      .select('id')
       .eq('id', data.user.id)
+      .single()
 
-    if (profileUpdateError) {
-      console.error('[AuthService] Failed to update profile with phone/middle_name:', profileUpdateError)
+    if (profileCheckError && profileCheckError.code === 'PGRST116') {
+      // Profile doesn't exist, create it
+      console.log('[AuthService] Profile does not exist, creating it for user:', data.user.id)
+      const { error: profileInsertError } = await admin
+        .from('profiles')
+        .insert({
+          id: data.user.id,
+          email: input.email,
+          first_name: input.firstName,
+          last_name: input.lastName,
+          middle_name: input.middleName || null,
+          phone: input.phone || null,
+          role: input.role,
+        })
+
+      if (profileInsertError) {
+        console.error('[AuthService] Failed to create profile:', profileInsertError)
+        // Cleanup auth user on failure
+        await admin.auth.admin.deleteUser(data.user.id)
+        throw new Error(`Failed to create profile: ${profileInsertError.message}`)
+      }
+      console.log('[AuthService] Profile created successfully for user:', data.user.id)
+    } else if (profileCheckError) {
+      console.error('[AuthService] Error checking profile:', profileCheckError)
+      // Cleanup auth user on failure
+      await admin.auth.admin.deleteUser(data.user.id)
+      throw new Error(`Failed to check profile: ${profileCheckError.message}`)
+    } else {
+      // Profile exists, update it
+      const { error: profileUpdateError } = await admin
+        .from('profiles')
+        .update({
+          phone: input.phone || null,
+          middle_name: input.middleName || null,
+        })
+        .eq('id', data.user.id)
+
+      if (profileUpdateError) {
+        console.error('[AuthService] Failed to update profile with phone/middle_name:', profileUpdateError)
+      }
     }
 
     // Create or update aspirant profile if role is aspirant
@@ -183,12 +219,18 @@ export class AuthService {
 
     // Create admin profile if role is admin
     if (input.role === 'admin') {
+      console.log('[AuthService] Creating admin profile for user:', data.user.id)
+      
       // Check if admin profile already exists
-      const { data: existingProfile } = await admin
+      const { data: existingProfile, error: checkError } = await admin
         .from('admin_profiles')
         .select('profile_id, staff_id')
         .eq('profile_id', data.user.id)
         .single()
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('[AuthService] Error checking existing admin profile:', checkError)
+      }
 
       const staffId = existingProfile?.staff_id || await this.generateStaffId()
       
@@ -198,11 +240,13 @@ export class AuthService {
         department: input.department || null,
         designation: input.designation || null,
         admin_scope: input.adminScope || 'operations',
-        can_manage_users: input.canManageUsers || false,
-        can_manage_content: input.canManageContent || false,
-        can_manage_academics: input.canManageAcademics || false,
-        can_manage_finance: input.canManageFinance || false,
+        can_manage_users: Boolean(input.canManageUsers),
+        can_manage_content: Boolean(input.canManageContent),
+        can_manage_academics: Boolean(input.canManageAcademics),
+        can_manage_finance: Boolean(input.canManageFinance),
       }
+
+      console.log('[AuthService] Admin profile data:', profileData)
 
       if (!existingProfile) {
         // Create new profile
@@ -212,6 +256,11 @@ export class AuthService {
 
         if (profileError) {
           console.error('[AuthService] Failed to create admin profile:', profileError)
+          // Cleanup auth user on failure
+          await admin.auth.admin.deleteUser(data.user.id)
+          throw new Error(`Failed to create admin profile: ${profileError.message}`)
+        } else {
+          console.log('[AuthService] Admin profile created successfully for user:', data.user.id)
         }
       } else {
         // Update existing profile with new data
@@ -230,6 +279,7 @@ export class AuthService {
 
         if (updateError) {
           console.error('[AuthService] Failed to update admin profile:', updateError)
+          throw new Error(`Failed to update admin profile: ${updateError.message}`)
         } else {
           console.log('[AuthService] Admin profile updated successfully')
         }

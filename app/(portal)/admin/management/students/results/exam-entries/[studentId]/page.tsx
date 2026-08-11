@@ -15,7 +15,7 @@ import { ArrowLeft, Loader2, Search, Edit, Save, X, Plus, Trash2 } from 'lucide-
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { createClient } from '@/lib/supabase/client'
-import { ManagementService } from '@/lib/services/admin/management-service'
+
 
 type Student = {
   matric_number: string
@@ -51,7 +51,19 @@ type StudentExamAttempt = {
   passed: boolean
   status: string
   exam_session?: ExamSession
-  enrollment?: Enrollment
+  enrollment?: {
+    id: string
+    student_id: string
+    program_id: string
+    program?: {
+      id: string
+      title: string
+    }
+    academic_session?: {
+      id: string
+      name: string
+    }
+  }
 }
 
 type Course = {
@@ -70,8 +82,7 @@ type Enrollment = {
   program?: {
     id: string
     title: string
-    code: string
-  }[]
+  }
   academicSession?: {
     id: string
     name: string
@@ -151,7 +162,8 @@ export default function ExamEntriesPage() {
             id,
             student_id,
             program_id,
-            program:programs(title)
+            program:programs(id, title),
+            academic_session:academic_sessions(id, name)
           )
         `)
         .eq('student_id', studentId)
@@ -164,7 +176,7 @@ export default function ExamEntriesPage() {
       const [coursesRes, examSessionsRes, enrollmentsRes] = await Promise.all([
         supabase.from('courses').select('id, code, title').order('code'),
         supabase.from('student_exam_sessions').select('id, exam_title, course_id, total_marks, passing_marks, course:courses(code, title)').order('exam_title'),
-        ManagementService.getStudentEnrollments(studentId)
+        fetch(`/api/v1/admin/management/students/enrollments/${studentId}`).then(res => res.json())
       ])
 
       if (coursesRes.error) throw coursesRes.error
@@ -172,7 +184,7 @@ export default function ExamEntriesPage() {
 
       setCourses(coursesRes.data || [])
       setExamSessions(examSessionsRes.data || [])
-      setEnrollments(enrollmentsRes)
+      setEnrollments(enrollmentsRes.success ? enrollmentsRes.data : [])
     } catch (error) {
       console.error('Failed to load data:', error)
       toast.error('Failed to load student data')
@@ -392,12 +404,14 @@ export default function ExamEntriesPage() {
                     onValueChange={(value) => setNewExam({ ...newExam, enrollment_id: value })}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Auto-selected" />
+                      <SelectValue placeholder="Select enrollment" />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
                       {enrollments.map((enrollment) => (
                         <SelectItem key={enrollment.id} value={enrollment.id}>
-                          {enrollment.program && enrollment.program.length > 0 ? enrollment.program[0].title : 'No Program'}
+                          {enrollment.program?.title || 'No Program'} 
+                          {enrollment.academicSession?.name && ` - ${enrollment.academicSession.name}`}
+                          {enrollment.status && ` (${enrollment.status})`}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -703,7 +717,7 @@ export default function ExamEntriesPage() {
                 </p>
                 {editingExam.enrollment && (
                   <p className="text-sm text-muted-foreground mt-2">
-                    Program: {editingExam.enrollment.program && editingExam.enrollment.program.length > 0 ? editingExam.enrollment.program[0].title : 'N/A'}
+                    Program: {editingExam.enrollment.program?.title || 'N/A'}
                   </p>
                 )}
               </div>

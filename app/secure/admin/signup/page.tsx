@@ -9,7 +9,7 @@ import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ADMIN_DEPARTMENTS, ADMIN_DESIGNATIONS, ADMIN_SCOPES, ADMIN_PERMISSIONS, getDepartmentLabel, getDesignationLabel, getScopeLabel } from '@/lib/admin-constants'
+import { ADMIN_DEPARTMENTS, ADMIN_DESIGNATIONS, ADMIN_SCOPES, ADMIN_PERMISSIONS, getDepartmentLabel, getDesignationLabel, getScopeLabel, type AdminPermission } from '@/lib/admin-constants'
 
 type PortalUser = {
   id: string
@@ -42,7 +42,7 @@ type FormData = {
   canManageContent: boolean
   canManageAcademics: boolean
   canManageFinance: boolean
-}
+} & Record<string, any>
 
 const steps = [
   { title: 'Personal Info', icon: User },
@@ -533,7 +533,7 @@ export default function AdminSignupPage() {
                       <label key={permission.key} className="flex items-start gap-3 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={formData[permission.key as keyof FormData] as boolean}
+                          checked={formData[permission.key as keyof FormData] === true}
                           onChange={(e) => setFormData({ ...formData, [permission.key]: e.target.checked })}
                           className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700 dark:bg-slate-900"
                         />
@@ -679,7 +679,7 @@ export default function AdminSignupPage() {
       {/* Confirmation Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <Card className="w-full max-w-md p-6 shadow-xl">
+          <Card className="w-full max-w-md p-6 shadow-xl bg-white dark:bg-black">
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
                 <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
