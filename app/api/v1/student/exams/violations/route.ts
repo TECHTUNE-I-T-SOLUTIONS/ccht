@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getNigerianTime } from '@/lib/timezone'
 
 export const runtime = 'nodejs'
 
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
         violation_type: violationType,
         severity: severity || 'warning',
         description: details || violationType,
+        timestamp: getNigerianTime().toISOString(),
       })
       .select()
       .single()

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Clock, Calendar, FileText, AlertCircle, CheckCircle, Play, Lock, Loader2, BookOpen, Hourglass } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { formatNigerianTime, getNigerianTime } from '@/lib/timezone'
 
 type ExamAttempt = {
   id: string
@@ -154,7 +155,7 @@ export default function StudentExamsPage() {
   }
 
   const getExamStatus = (exam: ExamSession) => {
-    const now = new Date()
+    const now = getNigerianTime()
     const startDate = new Date(exam.start_date)
     const endDate = new Date(exam.end_date)
 
@@ -194,7 +195,7 @@ export default function StudentExamsPage() {
 
   const canReviewExam = (exam: ExamSession) => {
     if (!exam.allow_review || !exam.review_start_date || !exam.review_end_date) return false
-    const now = new Date()
+    const now = getNigerianTime()
     const reviewStart = new Date(exam.review_start_date)
     const reviewEnd = new Date(exam.review_end_date)
     return now >= reviewStart && now <= reviewEnd && exam.attempt
@@ -259,23 +260,11 @@ export default function StudentExamsPage() {
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="h-4 w-4" />
-                    <span>Starts: {new Date(exam.start_date).toLocaleDateString('en-GB', { 
-                      day: 'numeric', 
-                      month: 'short', 
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}</span>
+                    <span>Starts: {formatNigerianTime(exam.start_date)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="h-4 w-4" />
-                    <span>Ends: {new Date(exam.end_date).toLocaleDateString('en-GB', { 
-                      day: 'numeric', 
-                      month: 'short', 
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}</span>
+                    <span>Ends: {formatNigerianTime(exam.end_date)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <BookOpen className="h-4 w-4" />

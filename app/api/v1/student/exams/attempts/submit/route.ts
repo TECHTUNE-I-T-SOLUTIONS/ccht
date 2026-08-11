@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getNigerianTime } from '@/lib/timezone'
 
 export const runtime = 'nodejs'
 
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
         answer: answer.selectedAnswer,
         is_correct: isCorrect,
         marks_obtained: marksObtained,
-        answered_at: submittedAt || new Date().toISOString(),
+        answered_at: submittedAt || getNigerianTime().toISOString(),
       }
     })
 
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
       .from('student_exam_attempts')
       .update({
         status: 'submitted',
-        submitted_at: submittedAt || new Date().toISOString(),
+        submitted_at: submittedAt || getNigerianTime().toISOString(),
         total_score: totalScore,
         percentage_score: percentage,
         time_spent_seconds: timeSpentSeconds || 0,

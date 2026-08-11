@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { ArrowLeft, Plus, Edit2, Trash2, Save, X, Upload, FileSpreadsheet, FileText, Shield, Loader2 } from 'lucide-react'
+import { toNigerianTime, fromNigerianTime, formatNigerianTime } from '@/lib/timezone'
 
 type ExamQuestion = {
   id: string
@@ -322,12 +323,6 @@ export default function AdminExamDetailPage() {
 
   const startEditExam = () => {
     if (!exam) return
-    // Format dates for datetime-local input (YYYY-MM-DDTHH:MM)
-    const formatDateForInput = (dateStr: string | null) => {
-      if (!dateStr) return ''
-      const date = new Date(dateStr)
-      return date.toISOString().slice(0, 16)
-    }
 
     setExamForm({
       exam_title: exam.exam_title || '',
@@ -341,11 +336,11 @@ export default function AdminExamDetailPage() {
       session_id: exam.session_id || '',
       semester_id: exam.semester_id || '',
       course_id: exam.course_id || '',
-      start_date: formatDateForInput(exam.start_date),
-      end_date: formatDateForInput(exam.end_date),
+      start_date: fromNigerianTime(exam.start_date),
+      end_date: fromNigerianTime(exam.end_date),
       allow_review: exam.allow_review || false,
-      review_start_date: formatDateForInput(exam.review_start_date),
-      review_end_date: formatDateForInput(exam.review_end_date),
+      review_start_date: fromNigerianTime(exam.review_start_date),
+      review_end_date: fromNigerianTime(exam.review_end_date),
     })
     setEditingExam(exam)
     setExamDialogOpen(true)
@@ -354,13 +349,13 @@ export default function AdminExamDetailPage() {
   const saveExam = async () => {
     setSavingExam(true)
     try {
-      // Convert empty date strings to null for PostgreSQL
+      // Convert dates to Nigerian time before saving
       const dataToSave = {
         ...examForm,
-        start_date: examForm.start_date || null,
-        end_date: examForm.end_date || null,
-        review_start_date: examForm.review_start_date || null,
-        review_end_date: examForm.review_end_date || null,
+        start_date: examForm.start_date ? toNigerianTime(examForm.start_date) : null,
+        end_date: examForm.end_date ? toNigerianTime(examForm.end_date) : null,
+        review_start_date: examForm.review_start_date ? toNigerianTime(examForm.review_start_date) : null,
+        review_end_date: examForm.review_end_date ? toNigerianTime(examForm.review_end_date) : null,
       }
 
       const res = await fetch(`/api/v1/admin/exams/${params.id}`, {
@@ -460,11 +455,11 @@ export default function AdminExamDetailPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Start Date:</span>
-              <span className="font-medium">{exam?.start_date ? new Date(exam.start_date).toLocaleString() : 'N/A'}</span>
+              <span className="font-medium">{formatNigerianTime(exam?.start_date)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">End Date:</span>
-              <span className="font-medium">{exam?.end_date ? new Date(exam.end_date).toLocaleString() : 'N/A'}</span>
+              <span className="font-medium">{formatNigerianTime(exam?.end_date)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">

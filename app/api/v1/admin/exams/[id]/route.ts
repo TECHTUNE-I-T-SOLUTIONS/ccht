@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getNigerianTime } from '@/lib/timezone'
 
 export const runtime = 'nodejs'
 
@@ -105,7 +106,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       passing_marks: body.passing_marks,
       instructions: body.instructions,
       is_published: body.is_published,
-      published_at: body.is_published ? new Date().toISOString() : null,
+      published_at: body.is_published ? getNigerianTime().toISOString() : null,
       allow_review: body.allow_review,
       review_start_date: body.review_start_date,
       review_end_date: body.review_end_date,

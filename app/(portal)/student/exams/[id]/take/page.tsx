@@ -28,6 +28,7 @@ import {
   MonitorSmartphone
 } from 'lucide-react'
 import { uploadFileToCloudinary } from '@/lib/cloudinary'
+import { getNigerianTime } from '@/lib/timezone'
 
 type Question = {
   id: string
@@ -146,7 +147,7 @@ export default function StudentExamTakePage() {
       setViolations(prev => [...prev, {
         type: violationType,
         details: details || violationType,
-        timestamp: new Date(),
+        timestamp: getNigerianTime(),
       }])
     } catch (error) {
       console.error('Failed to log violation:', error)
@@ -405,7 +406,7 @@ export default function StudentExamTakePage() {
       }
 
       mediaRecorder.start()
-      setRecordingStartTime(new Date())
+      setRecordingStartTime(getNigerianTime())
       setRecordingStarted(true)
       return true
     } catch (error) {
@@ -748,7 +749,7 @@ export default function StudentExamTakePage() {
             selectedAnswer,
           })),
           timeSpentSeconds,
-          submittedAt: new Date().toISOString(),
+          submittedAt: getNigerianTime().toISOString(),
           webcamRecordingUrl: recordingUrls.webcamUrl,
           screenRecordingUrl: recordingUrls.screenUrl,
         }),

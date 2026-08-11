@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getNigerianTime } from '@/lib/timezone'
 
 export const runtime = 'nodejs'
 
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
       student_id: user.id,
       attempt_number: nextAttemptNumber,
       status: 'in_progress',
-      started_at: new Date().toISOString(),
+      started_at: getNigerianTime().toISOString(),
     }
 
     // Include enrollment_id if available

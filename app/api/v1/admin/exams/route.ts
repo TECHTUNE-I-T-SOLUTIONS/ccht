@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { EmailTemplates } from '@/lib/services/email-templates'
 import { emailService } from '@/lib/services/email.service'
+import { getNigerianTime } from '@/lib/timezone'
 
 export const runtime = 'nodejs'
 
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
         passing_marks: body.passing_marks ?? 60,
         instructions: body.instructions || null,
         is_published: body.is_published ?? false,
-        published_at: body.is_published ? new Date().toISOString() : null,
+        published_at: body.is_published ? getNigerianTime().toISOString() : null,
         published_by: user.id,
         allow_review: body.allow_review ?? true,
         review_start_date: body.review_start_date || null,

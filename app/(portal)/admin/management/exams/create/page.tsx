@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { ArrowLeft, Save, X, ChevronRight, Shield, Settings, CheckCircle2, Loader2 } from 'lucide-react'
+import { toNigerianTime, formatNigerianTime } from '@/lib/timezone'
 
 type Course = {
   id: string
@@ -132,6 +133,11 @@ export default function AdminCreateExamPage() {
     try {
       const payload = {
         ...formData,
+        // Convert dates to Nigerian time before sending to API
+        start_date: toNigerianTime(formData.start_date),
+        end_date: toNigerianTime(formData.end_date),
+        review_start_date: formData.review_start_date ? toNigerianTime(formData.review_start_date) : null,
+        review_end_date: formData.review_end_date ? toNigerianTime(formData.review_end_date) : null,
         proctoring_config: formData.proctoring_enabled 
           ? formData.proctoring_config 
           : null,
@@ -712,6 +718,12 @@ export default function AdminCreateExamPage() {
               
               <span className="text-muted-foreground">Publish Immediately:</span>
               <span className="font-medium">{formData.is_published ? 'Yes' : 'No'}</span>
+              
+              <span className="text-muted-foreground">Start Date:</span>
+              <span className="font-medium">{formData.start_date ? formatNigerianTime(formData.start_date) : 'N/A'}</span>
+              
+              <span className="text-muted-foreground">End Date:</span>
+              <span className="font-medium">{formData.end_date ? formatNigerianTime(formData.end_date) : 'N/A'}</span>
               
               <span className="text-muted-foreground">Allow Review:</span>
               <span className="font-medium">{formData.allow_review ? 'Yes' : 'No'}</span>
