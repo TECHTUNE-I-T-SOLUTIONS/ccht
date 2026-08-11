@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { CheckCircle, XCircle, Clock, ArrowLeft, Loader2, User, AlertCircle } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { CheckCircle, XCircle, Clock, ArrowLeft, Loader2, User, AlertCircle, Trash2, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 
@@ -40,6 +41,7 @@ type StudentData = {
   student_profiles?: {
     matric_number: string
     current_level: string
+    can_add_courses: boolean
   }
 }
 
@@ -52,6 +54,11 @@ export default function StudentCourseRegistrationsPage() {
   const [loading, setLoading] = useState(true)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [processing, setProcessing] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [unapproveDialogOpen, setUnapproveDialogOpen] = useState(false)
+  const [singleActionId, setSingleActionId] = useState<string | null>(null)
+  const [canAddCourses, setCanAddCourses] = useState(false)
+  const [updatingPermission, setUpdatingPermission] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -64,7 +71,7 @@ export default function StudentCourseRegistrationsPage() {
       const [studentRes, registrationsRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('*, student_profiles(matric_number, current_level)')
+          .select('*, student_profiles(matric_number, current_level, can_add_courses)')
           .eq('id', studentId)
           .single(),
         supabase
@@ -89,6 +96,7 @@ export default function StudentCourseRegistrationsPage() {
 
       setStudent(studentRes.data)
       setRegistrations(registrationsRes.data || [])
+      setCanAddCourses(studentRes.data.student_profiles?.can_add_courses || false)
     } catch (error) {
       console.error('Failed to load data:', error)
       toast.error('Failed to load student data')
@@ -199,6 +207,138 @@ export default function StudentCourseRegistrationsPage() {
     }
   }
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) {
+      toast.error('No courses selected')
+      return
+    }
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmBulkDelete = async () => {
+    setDeleteDialogOpen(false)
+    setProcessing(true)
+    try {
+      const idsToDelete = singleActionId ? [singleActionId] : Array.from(selectedIds)
+      const { error } = await supabase
+        .from('selected_courses')
+        .delete()
+        .in('id', idsToDelete)
+
+      if (error) throw error
+      toast.success(`${idsToDelete.length} course registration(s) deleted`)
+      setSelectedIds(new Set())
+      setSingleActionId(null)
+      loadData()
+    } catch (error) {
+      console.error('Failed to bulk delete:', error)
+      toast.error('Failed to delete course registrations')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleBulkUnapprove = async () => {
+    if (selectedIds.size === 0) {
+      toast.error('No courses selected')
+      return
+    }
+    setUnapproveDialogOpen(true)
+  }
+
+  const confirmBulkUnapprove = async () => {
+    setUnapproveDialogOpen(false)
+    setProcessing(true)
+    try {
+      const idsToUnapprove = singleActionId ? [singleActionId] : Array.from(selectedIds)
+      const { error } = await supabase
+        .from('selected_courses')
+        .update({ 
+          status: 'pending',
+          reviewed_at: null,
+          review_notes: null
+        })
+        .in('id', idsToUnapprove)
+
+      if (error) throw error
+      toast.success(`${idsToUnapprove.length} course(s) unapproved`)
+      setSelectedIds(new Set())
+      setSingleActionId(null)
+      loadData()
+    } catch (error) {
+      console.error('Failed to bulk unapprove:', error)
+      toast.error('Failed to unapprove courses')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    setSingleActionId(id)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleUnapprove = async (id: string) => {
+    setSingleActionId(id)
+    setUnapproveDialogOpen(true)
+  }
+
+  const handleToggleCanAddCourses = async () => {
+    setUpdatingPermission(true)
+    try {
+      // Get current admin user
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      const { error } = await supabase
+        .from('student_profiles')
+        .update({ 
+          can_add_courses: !canAddCourses,
+          can_add_courses_granted_at: !canAddCourses ? new Date().toISOString() : null,
+          can_add_courses_granted_by: !canAddCourses ? user?.id : null
+        })
+        .eq('profile_id', studentId)
+
+      if (error) throw error
+
+      const newStatus = !canAddCourses
+      setCanAddCourses(newStatus)
+      
+      if (newStatus) {
+        toast.success('Special course addition access granted to student')
+        // Send email notification
+        if (student?.email && student?.first_name && student?.last_name) {
+          await sendSpecialAccessEmail(student.email, `${student.first_name} ${student.last_name}`)
+        }
+      } else {
+        toast.success('Special course addition access revoked from student')
+      }
+      
+      // Reload student data to reflect changes
+      loadData()
+    } catch (error) {
+      console.error('Failed to update permission:', error)
+      toast.error('Failed to update permission')
+    } finally {
+      setUpdatingPermission(false)
+    }
+  }
+
+  const sendSpecialAccessEmail = async (email: string, studentName: string) => {
+    try {
+      await fetch('/api/v1/admin/notifications/special-course-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          studentName,
+        }),
+      })
+    } catch (error) {
+      console.error('Failed to send email notification:', error)
+      // Don't fail the operation if email fails
+    }
+  }
+
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds)
     if (newSelected.has(id)) {
@@ -210,11 +350,10 @@ export default function StudentCourseRegistrationsPage() {
   }
 
   const toggleSelectAll = () => {
-    const pendingRegistrations = registrations.filter(r => r.status === 'pending')
-    if (selectedIds.size === pendingRegistrations.length && pendingRegistrations.length > 0) {
+    if (selectedIds.size === registrations.length && registrations.length > 0) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(pendingRegistrations.map(r => r.id)))
+      setSelectedIds(new Set(registrations.map(r => r.id)))
     }
   }
 
@@ -224,12 +363,15 @@ export default function StudentCourseRegistrationsPage() {
         return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle className="h-3 w-3 mr-1" /> Approved</Badge>
       case 'rejected':
         return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"><XCircle className="h-3 w-3 mr-1" /> Rejected</Badge>
-      default:
+      case 'pending':
         return <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"><Clock className="h-3 w-3 mr-1" /> Pending</Badge>
+      default:
+        return <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400">{status}</Badge>
     }
   }
 
   const pendingCount = registrations.filter(r => r.status === 'pending').length
+  const approvedCount = registrations.filter(r => r.status === 'approved').length
 
   if (loading) {
     return (
@@ -261,7 +403,7 @@ export default function StudentCourseRegistrationsPage() {
             </div>
             <div className="flex-1">
               <h3 className="text-xl font-bold">{student.first_name} {student.last_name}</h3>
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Email</p>
                   <p className="font-semibold">{student.email}</p>
@@ -277,6 +419,31 @@ export default function StudentCourseRegistrationsPage() {
                 <div>
                   <p className="text-muted-foreground">Total Courses</p>
                   <p className="font-semibold">{registrations.length}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Approved</p>
+                  <p className="font-semibold text-emerald-600">{approvedCount}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Pending</p>
+                  <p className="font-semibold text-yellow-600">{pendingCount}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Special Access</p>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="can_add_courses"
+                      checked={canAddCourses}
+                      onCheckedChange={handleToggleCanAddCourses}
+                      disabled={updatingPermission}
+                    />
+                    <label 
+                      htmlFor="can_add_courses" 
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {canAddCourses ? 'Enabled' : 'Disabled'}
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -296,7 +463,7 @@ export default function StudentCourseRegistrationsPage() {
             )}
           </div>
           {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
                 size="sm"
                 onClick={handleBulkApprove}
@@ -316,6 +483,26 @@ export default function StudentCourseRegistrationsPage() {
                 {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <XCircle className="h-4 w-4 mr-2" />}
                 Reject Selected
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleBulkUnapprove}
+                disabled={processing}
+                className="text-orange-600 hover:text-orange-700"
+              >
+                {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
+                Unapprove Selected
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleBulkDelete}
+                disabled={processing}
+                className="text-red-600 hover:text-red-700"
+              >
+                {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                Delete Selected
+              </Button>
             </div>
           )}
         </div>
@@ -328,21 +515,19 @@ export default function StudentCourseRegistrationsPage() {
             <div className="grid gap-4 md:hidden">
               <div className="flex items-center gap-2 mb-2">
                 <Checkbox
-                  checked={selectedIds.size === registrations.filter(r => r.status === 'pending').length && registrations.filter(r => r.status === 'pending').length > 0}
+                  checked={selectedIds.size === registrations.length && registrations.length > 0}
                   onCheckedChange={toggleSelectAll}
                 />
-                <span className="text-sm text-muted-foreground">Select All Pending</span>
+                <span className="text-sm text-muted-foreground">Select All</span>
               </div>
               {registrations.map((reg) => (
                 <Card key={reg.id} className="p-4">
                   <div className="flex items-start gap-3">
                     <div className="mt-1">
-                      {reg.status === 'pending' && (
-                        <Checkbox
-                          checked={selectedIds.has(reg.id)}
-                          onCheckedChange={() => toggleSelect(reg.id)}
-                        />
-                      )}
+                      <Checkbox
+                        checked={selectedIds.has(reg.id)}
+                        onCheckedChange={() => toggleSelect(reg.id)}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-2">
@@ -388,6 +573,28 @@ export default function StudentCourseRegistrationsPage() {
                           </Button>
                         </div>
                       )}
+                      {reg.status === 'approved' && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleUnapprove(reg.id)}
+                            className="flex-1 text-orange-600 hover:text-orange-700"
+                          >
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                            Unapprove
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDelete(reg.id)}
+                            className="flex-1 text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        </div>
+                      )}
                       {reg.review_notes && (
                         <p className="text-xs text-muted-foreground mt-2">Note: {reg.review_notes}</p>
                       )}
@@ -404,7 +611,7 @@ export default function StudentCourseRegistrationsPage() {
                   <TableRow>
                     <TableHead className="w-12">
                       <Checkbox
-                        checked={selectedIds.size === registrations.filter(r => r.status === 'pending').length && registrations.filter(r => r.status === 'pending').length > 0}
+                        checked={selectedIds.size === registrations.length && registrations.length > 0}
                         onCheckedChange={toggleSelectAll}
                       />
                     </TableHead>
@@ -420,12 +627,10 @@ export default function StudentCourseRegistrationsPage() {
                   {registrations.map((reg) => (
                     <TableRow key={reg.id}>
                       <TableCell>
-                        {reg.status === 'pending' && (
-                          <Checkbox
-                            checked={selectedIds.has(reg.id)}
-                            onCheckedChange={() => toggleSelect(reg.id)}
-                          />
-                        )}
+                        <Checkbox
+                          checked={selectedIds.has(reg.id)}
+                          onCheckedChange={() => toggleSelect(reg.id)}
+                        />
                       </TableCell>
                       <TableCell>
                         <div>
@@ -460,6 +665,28 @@ export default function StudentCourseRegistrationsPage() {
                             </Button>
                           </div>
                         )}
+                        {reg.status === 'approved' && (
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleUnapprove(reg.id)}
+                              className="text-orange-600 hover:text-orange-700"
+                            >
+                              <RotateCcw className="h-4 w-4 mr-1" />
+                              Unapprove
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDelete(reg.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Delete
+                            </Button>
+                          </div>
+                        )}
                         {reg.review_notes && (
                           <p className="text-xs text-muted-foreground text-right">{reg.review_notes}</p>
                         )}
@@ -472,6 +699,68 @@ export default function StudentCourseRegistrationsPage() {
           </>
         )}
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              {singleActionId 
+                ? 'Are you sure you want to delete this course registration? This action cannot be undone and the student will need to re-register for this course.'
+                : `Are you sure you want to delete ${selectedIds.size} course registration(s)? This action cannot be undone and the student will need to re-register for these courses.`
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setDeleteDialogOpen(false)
+              setSingleActionId(null)
+            }} disabled={processing}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={confirmBulkDelete} 
+              disabled={processing}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unapprove Confirmation Dialog */}
+      <Dialog open={unapproveDialogOpen} onOpenChange={setUnapproveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Unapproval</DialogTitle>
+            <DialogDescription>
+              {singleActionId 
+                ? 'Are you sure you want to unapprove this course? This will change the status back to pending and allow the student to modify or delete this registration.'
+                : `Are you sure you want to unapprove ${selectedIds.size} course(s)? This will change their status back to pending and allow the student to modify or delete these registrations.`
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setUnapproveDialogOpen(false)
+              setSingleActionId(null)
+            }} disabled={processing}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={confirmBulkUnapprove} 
+              disabled={processing}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
+              Unapprove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -171,19 +171,36 @@ BEGIN
     AND payment_plans.status IN ('completed', 'partial')
   LIMIT 1;
   
-  -- If no payment plan found, check for full payment directly
+  -- If no payment plan found, check for full payment directly via invoices
   IF fees_complete IS NULL THEN
+    -- First check if there's a paid invoice for this session
     SELECT 
       CASE 
         WHEN COUNT(*) > 0 THEN true
         ELSE false
       END
     INTO fees_complete
-    FROM public.payments
+    FROM public.invoices
     WHERE 
-      payments.student_id = p_student_id
-      AND payments.status = 'success'
-      AND payments.description LIKE '%' || (SELECT name FROM public.academic_sessions WHERE id = p_session_id) || '%';
+      invoices.student_id = p_student_id
+      AND invoices.session_id = p_session_id
+      AND invoices.status = 'paid';
+      
+    -- If no paid invoice, check for successful payments linked to this session via invoice
+    IF NOT fees_complete THEN
+      SELECT 
+        CASE 
+          WHEN COUNT(*) > 0 THEN true
+          ELSE false
+        END
+      INTO fees_complete
+      FROM public.payments
+      INNER JOIN public.invoices ON payments.invoice_id = invoices.id
+      WHERE 
+        payments.student_id = p_student_id
+        AND invoices.session_id = p_session_id
+        AND payments.status = 'success';
+    END IF;
       
     payment_status_text := CASE WHEN fees_complete THEN 'paid' ELSE 'unpaid' END;
   END IF;
@@ -251,18 +268,36 @@ BEGIN
     AND payment_plans.session_id = p_session_id
   LIMIT 1;
   
-  -- If no payment plan, check direct payments
+  -- If no payment plan, check direct payments via invoices
   IF fees_complete IS NULL THEN
+    -- First check if there's a paid invoice for this session
     SELECT 
       CASE 
         WHEN COUNT(*) > 0 THEN true
         ELSE false
       END
     INTO fees_complete
-    FROM public.payments
+    FROM public.invoices
     WHERE 
-      payments.student_id = p_student_id
-      AND payments.status = 'success';
+      invoices.student_id = p_student_id
+      AND invoices.session_id = p_session_id
+      AND invoices.status = 'paid';
+      
+    -- If no paid invoice, check for successful payments linked to this session via invoice
+    IF NOT fees_complete THEN
+      SELECT 
+        CASE 
+          WHEN COUNT(*) > 0 THEN true
+          ELSE false
+        END
+      INTO fees_complete
+      FROM public.payments
+      INNER JOIN public.invoices ON payments.invoice_id = invoices.id
+      WHERE 
+        payments.student_id = p_student_id
+        AND invoices.session_id = p_session_id
+        AND payments.status = 'success';
+    END IF;
       
     payment_status_text := CASE WHEN fees_complete THEN 'paid' ELSE 'unpaid' END;
   END IF;

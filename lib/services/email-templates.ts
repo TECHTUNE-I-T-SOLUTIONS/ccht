@@ -1365,4 +1365,63 @@ export class EmailTemplates {
       html: wrapEmailContent(content, `Upcoming Event: ${data.eventTitle}`),
     }
   }
+
+  // ==================== STUDENT COURSE REGISTRATION EMAILS ====================
+
+  static specialCourseAccessGranted(data: {
+    email: string
+    fullName: string
+  }): EmailTemplate {
+    const content = `
+      <div class="greeting">Dear ${data.fullName},</div>
+      <div class="message">
+        We are pleased to inform you that you have been granted <span class="success">special access</span> to add additional courses to your registration.
+      </div>
+      <div class="info-box">
+        <h3>🎓 Special Course Addition Access</h3>
+        <p>This special permission allows you to add more courses to your current registration, even if your initial course registration has already been approved.</p>
+        <ul>
+          <li><strong>Access Type:</strong> <span class="highlight">Temporary Special Access</span></li>
+          <li><strong>Granted Date:</strong> ${new Date().toLocaleDateString('en-NG', { year: 'numeric', month: 'long', day: 'numeric' })}</li>
+          <li><strong>Duration:</strong> This access will remain active until your new course additions are approved</li>
+        </ul>
+      </div>
+      <div class="message">
+        <strong>📝 How to use this access:</strong>
+        <ol style="margin-top: 10px; padding-left: 20px; line-height: 2;">
+          <li>Log in to your student portal</li>
+          <li>Navigate to the Course Registration section</li>
+          <li>Add the additional courses you need</li>
+          <li>Submit your new course additions for approval</li>
+          <li>Once approved, this special access will be automatically revoked</li>
+        </ol>
+      </div>
+      <div class="warning-box">
+        <h3>⚠️ Important Notes</h3>
+        <ul>
+          <li>This is a <strong>limited-time access</strong> granted for special circumstances</li>
+          <li>Please add only the courses you genuinely need</li>
+          <li>After your new courses are approved, you won't be able to add more courses without special permission</li>
+          <li>Contact the administration if you need assistance with course selection</li>
+        </ul>
+      </div>
+      <div class="message">
+        <a href="${portalUrl}" class="button">Access Student Portal</a>
+      </div>
+      <div class="message">
+        If you have any questions about course selection or need guidance, please don't hesitate to contact the academic affairs office.
+      </div>
+      <div class="message">
+        Best regards,<br>
+        <strong>Academic Affairs Office</strong><br>
+        ${schoolFullName}
+      </div>
+    `
+
+    return {
+      to: data.email,
+      subject: 'Special Course Addition Access Granted',
+      html: wrapEmailContent(content, 'Special Course Addition Access Granted'),
+    }
+  }
 }

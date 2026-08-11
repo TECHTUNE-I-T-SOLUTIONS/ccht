@@ -1,9 +1,38 @@
--- Fix ambiguous column references in exam eligibility functions
--- This updates the functions to use prefixed parameter names to avoid ambiguity
+-- Comprehensive fix for exam eligibility check
+-- This ensures payment status is checked via invoices table instead of unreliable description matching
 
--- Drop and recreate the exam eligibility function with fixed parameter names
+-- Drop existing functions
 DROP FUNCTION IF EXISTS public.check_student_exam_eligibility CASCADE;
+DROP FUNCTION IF EXISTS public.check_student_session_eligibility CASCADE;
 
+-- Create a debug function to help diagnose payment issues
+CREATE OR REPLACE FUNCTION public.debug_payment_check(p_student_id uuid, p_session_id uuid)
+RETURNS TABLE(
+  invoice_id uuid,
+  invoice_status text,
+  invoice_session_id uuid,
+  payment_id uuid,
+  payment_status text,
+  payment_invoice_id uuid
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    i.id as invoice_id,
+    i.status as invoice_status,
+    i.session_id as invoice_session_id,
+    p.id as payment_id,
+    p.status as payment_status,
+    p.invoice_id as payment_invoice_id
+  FROM public.invoices i
+  LEFT JOIN public.payments p ON p.invoice_id = i.id
+  WHERE i.student_id = p_student_id;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION public.debug_payment_check TO authenticated;
+
+-- Recreate exam eligibility function with proper invoice-based payment check
 CREATE OR REPLACE FUNCTION public.check_student_exam_eligibility(p_student_id uuid, p_course_id uuid, p_session_id uuid)
 RETURNS TABLE(
   is_eligible boolean,
@@ -18,7 +47,7 @@ DECLARE
   payment_status_text text := 'unknown';
   eligibility_message text := '';
 BEGIN
-  -- Check if student has completed fee payments for the session
+  -- Check if student has completed fee payments for the session via payment plans
   SELECT 
     CASE 
       WHEN payment_plans.status = 'completed' THEN true
@@ -50,7 +79,21 @@ BEGIN
       AND invoices.session_id = p_session_id
       AND invoices.status = 'paid';
       
-    -- If no paid invoice, check for successful payments linked to this session via invoice
+    -- If no paid invoice for this specific session, check if student has ANY paid invoice (for flexibility)
+    IF NOT fees_complete THEN
+      SELECT 
+        CASE 
+          WHEN COUNT(*) > 0 THEN true
+          ELSE false
+        END
+      INTO fees_complete
+      FROM public.invoices
+      WHERE 
+        invoices.student_id = p_student_id
+        AND invoices.status = 'paid';
+    END IF;
+      
+    -- If still no paid invoice, check for successful payments linked to this session via invoice
     IF NOT fees_complete THEN
       SELECT 
         CASE 
@@ -63,6 +106,20 @@ BEGIN
       WHERE 
         payments.student_id = p_student_id
         AND invoices.session_id = p_session_id
+        AND payments.status = 'success';
+    END IF;
+      
+    -- If still no match, check for ANY successful payment for the student
+    IF NOT fees_complete THEN
+      SELECT 
+        CASE 
+          WHEN COUNT(*) > 0 THEN true
+          ELSE false
+        END
+      INTO fees_complete
+      FROM public.payments
+      WHERE 
+        payments.student_id = p_student_id
         AND payments.status = 'success';
     END IF;
       
@@ -100,9 +157,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Drop and recreate the session eligibility function with fixed parameter names
-DROP FUNCTION IF EXISTS public.check_student_session_eligibility CASCADE;
-
+-- Recreate session eligibility function with proper invoice-based payment check
 CREATE OR REPLACE FUNCTION public.check_student_session_eligibility(p_student_id uuid, p_session_id uuid)
 RETURNS TABLE(
   is_eligible boolean,
@@ -118,7 +173,7 @@ DECLARE
   payment_status_text text := 'unknown';
   eligibility_message text := '';
 BEGIN
-  -- Check fee payment status
+  -- Check fee payment status via payment plans
   SELECT 
     CASE 
       WHEN payment_plans.status = 'completed' THEN true
@@ -149,7 +204,21 @@ BEGIN
       AND invoices.session_id = p_session_id
       AND invoices.status = 'paid';
       
-    -- If no paid invoice, check for successful payments linked to this session via invoice
+    -- If no paid invoice for this specific session, check if student has ANY paid invoice (for flexibility)
+    IF NOT fees_complete THEN
+      SELECT 
+        CASE 
+          WHEN COUNT(*) > 0 THEN true
+          ELSE false
+        END
+      INTO fees_complete
+      FROM public.invoices
+      WHERE 
+        invoices.student_id = p_student_id
+        AND invoices.status = 'paid';
+    END IF;
+      
+    -- If still no paid invoice, check for successful payments linked to this session via invoice
     IF NOT fees_complete THEN
       SELECT 
         CASE 
@@ -162,6 +231,20 @@ BEGIN
       WHERE 
         payments.student_id = p_student_id
         AND invoices.session_id = p_session_id
+        AND payments.status = 'success';
+    END IF;
+      
+    -- If still no match, check for ANY successful payment for the student
+    IF NOT fees_complete THEN
+      SELECT 
+        CASE 
+          WHEN COUNT(*) > 0 THEN true
+          ELSE false
+        END
+      INTO fees_complete
+      FROM public.payments
+      WHERE 
+        payments.student_id = p_student_id
         AND payments.status = 'success';
     END IF;
       
@@ -198,3 +281,8 @@ $$ LANGUAGE plpgsql;
 -- Grant execute permissions
 GRANT EXECUTE ON FUNCTION public.check_student_exam_eligibility TO authenticated;
 GRANT EXECUTE ON FUNCTION public.check_student_session_eligibility TO authenticated;
+
+-- Add comments for documentation
+COMMENT ON FUNCTION public.check_student_exam_eligibility IS 'Checks if a student is eligible to take an exam for a specific course in a session. Payment status is checked via invoices table for reliability. Includes fallback checks for any paid invoice/payment if session_id mismatch occurs.';
+COMMENT ON FUNCTION public.check_student_session_eligibility IS 'Checks if a student is eligible to take exams in a session. Payment status is checked via invoices table for reliability. Includes fallback checks for any paid invoice/payment if session_id mismatch occurs.';
+COMMENT ON FUNCTION public.debug_payment_check IS 'Debug function to show all invoices and payments for a student to diagnose payment eligibility issues.';

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Clock, Calendar, FileText, AlertCircle, CheckCircle, Play, Lock, Loader2, BookOpen, Hourglass } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { formatNigerianTime, getNigerianTime } from '@/lib/timezone'
+import { formatNigerianTime, getNigerianTime, convertToNigerianTimeDate } from '@/lib/timezone'
 
 type ExamAttempt = {
   id: string
@@ -156,8 +156,22 @@ export default function StudentExamsPage() {
 
   const getExamStatus = (exam: ExamSession) => {
     const now = getNigerianTime()
-    const startDate = new Date(exam.start_date)
-    const endDate = new Date(exam.end_date)
+    const startDate = convertToNigerianTimeDate(exam.start_date)
+    const endDate = convertToNigerianTimeDate(exam.end_date)
+
+    // Debug logging to check time comparisons
+    console.log('Exam Status Check:', {
+      examTitle: exam.exam_title,
+      currentTime: now.toISOString(),
+      currentTimeLocal: now.toLocaleString('en-GB', { hour12: false }),
+      examStart: startDate.toISOString(),
+      examStartLocal: startDate.toLocaleString('en-GB', { hour12: false }),
+      examEnd: endDate.toISOString(),
+      examEndLocal: endDate.toLocaleString('en-GB', { hour12: false }),
+      isAvailable: now >= startDate && now <= endDate,
+      isExpired: now > endDate,
+      isUpcoming: now < startDate
+    })
 
     if (exam.attempt) {
       switch (exam.attempt.status) {
@@ -196,8 +210,8 @@ export default function StudentExamsPage() {
   const canReviewExam = (exam: ExamSession) => {
     if (!exam.allow_review || !exam.review_start_date || !exam.review_end_date) return false
     const now = getNigerianTime()
-    const reviewStart = new Date(exam.review_start_date)
-    const reviewEnd = new Date(exam.review_end_date)
+    const reviewStart = convertToNigerianTimeDate(exam.review_start_date)
+    const reviewEnd = convertToNigerianTimeDate(exam.review_end_date)
     return now >= reviewStart && now <= reviewEnd && exam.attempt
   }
 

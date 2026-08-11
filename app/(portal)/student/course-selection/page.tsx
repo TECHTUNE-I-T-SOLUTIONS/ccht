@@ -38,6 +38,16 @@ type Enrollment = {
 
 type StudentProfile = {
   current_level: string
+  can_add_courses: boolean
+}
+
+type SelectedCourse = {
+  id: string
+  course_id: string
+  status: 'pending' | 'approved' | 'rejected'
+  session: string
+  semester: string
+  course: Course
 }
 
 export default function CourseSelectionPage() {
@@ -46,6 +56,8 @@ export default function CourseSelectionPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set())
   const [pendingCourseIds, setPendingCourseIds] = useState<Set<string>>(new Set())
+  const [approvedCourseIds, setApprovedCourseIds] = useState<Set<string>>(new Set())
+  const [allSelectedCourses, setAllSelectedCourses] = useState<SelectedCourse[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -74,9 +86,9 @@ export default function CourseSelectionPage() {
 
       const [enrollmentRes, studentProfileRes, coursesRes, selectedRes] = await Promise.all([
         supabase.from('enrollments').select('*, program:programs(title, department:departments(name))').eq('student_id', user.id).eq('status', 'active').single(),
-        supabase.from('student_profiles').select('current_level').eq('profile_id', user.id).single(),
+        supabase.from('student_profiles').select('current_level, can_add_courses').eq('profile_id', user.id).single(),
         supabase.from('courses').select('*').order('code'),
-        supabase.from('selected_courses').select('course_id').eq('student_id', user.id).eq('session', selectedSession).eq('status', 'pending')
+        supabase.from('selected_courses').select('*, course:courses(*)').eq('student_id', user.id).eq('session', selectedSession)
       ])
 
       if (enrollmentRes.data) {
@@ -89,8 +101,14 @@ export default function CourseSelectionPage() {
         setCourses(coursesRes.data)
       }
       if (selectedRes.data) {
-        const pendingIds = new Set(selectedRes.data.map(sc => sc.course_id))
+        setAllSelectedCourses(selectedRes.data || [])
+        
+        // Separate pending and approved courses
+        const pendingIds = new Set(selectedRes.data.filter(sc => sc.status === 'pending').map(sc => sc.course_id))
+        const approvedIds = new Set(selectedRes.data.filter(sc => sc.status === 'approved').map(sc => sc.course_id))
+        
         setPendingCourseIds(pendingIds)
+        setApprovedCourseIds(approvedIds)
       }
     } catch (error) {
       console.error('Failed to load data:', error)
@@ -188,7 +206,7 @@ export default function CourseSelectionPage() {
 
       const hasApproved = existingSelections?.some(sc => sc.status === 'approved')
 
-      if (hasApproved) {
+      if (hasApproved && !studentProfile?.can_add_courses) {
         toast.error('Your course selection has already been approved. Contact your department to make changes.')
         return
       }
@@ -338,6 +356,43 @@ export default function CourseSelectionPage() {
         </div>
       </Card>
 
+      {/* Already Selected Courses */}
+      {allSelectedCourses.length > 0 && (
+        <Card className="p-6 bg-primary/5 border-primary/20">
+          <div className="mb-4">
+            <h3 className="font-bold text-lg">Your Selected Courses ({selectedSession})</h3>
+            <p className="text-sm text-muted-foreground">
+              {allSelectedCourses.filter(sc => sc.status === 'approved').length} approved · 
+              {allSelectedCourses.filter(sc => sc.status === 'pending').length} pending
+            </p>
+          </div>
+          <div className="space-y-2">
+            {allSelectedCourses.map((selectedCourse) => (
+              <div 
+                key={selectedCourse.id} 
+                className="flex items-center justify-between p-3 rounded-lg bg-background border"
+              >
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{selectedCourse.course?.code}</span>
+                    {selectedCourse.status === 'approved' && (
+                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Approved</span>
+                    )}
+                    {selectedCourse.status === 'pending' && (
+                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Pending</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{selectedCourse.course?.title}</p>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {selectedCourse.course?.credit_units} credits
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Courses Grid */}
       {filteredCourses.length === 0 ? (
         <Card className="p-12 text-center">
@@ -372,18 +427,21 @@ export default function CourseSelectionPage() {
             {paginatedCourses.map((course) => {
               const isSelected = selectedCourseIds.has(course.id)
               const isPending = pendingCourseIds.has(course.id)
+              const isApproved = approvedCourseIds.has(course.id)
               return (
                 <Card 
                   key={course.id} 
                   className={`p-6 transition-all hover:shadow-md ${
                     isSelected ? 'border-primary bg-primary/5' : ''
-                  } ${isPending ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20 opacity-75 cursor-not-allowed' : 'cursor-pointer'}`}
-                  onClick={() => !isPending && toggleCourseSelection(course.id)}
+                  } ${isPending ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20 opacity-75 cursor-not-allowed' : ''} ${
+                    isApproved ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 opacity-75 cursor-not-allowed' : 'cursor-pointer'
+                  }`}
+                  onClick={() => !isPending && !isApproved && toggleCourseSelection(course.id)}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        {!isPending && (
+                        {!isPending && !isApproved && (
                           <Checkbox
                             checked={isSelected}
                             onChange={() => toggleCourseSelection(course.id)}
@@ -393,6 +451,9 @@ export default function CourseSelectionPage() {
                         <span className="font-bold text-lg">{course.code}</span>
                         {isPending && (
                           <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Pending</span>
+                        )}
+                        {isApproved && (
+                          <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Approved</span>
                         )}
                       </div>
                       <h3 className="font-semibold mb-1">{course.title}</h3>
@@ -419,6 +480,13 @@ export default function CourseSelectionPage() {
                     <div className="mt-4 flex items-center gap-2 text-sm text-primary">
                       <CheckCircle className="h-4 w-4" />
                       <span>Selected</span>
+                    </div>
+                  )}
+
+                  {isApproved && (
+                    <div className="mt-4 flex items-center gap-2 text-sm text-emerald-600">
+                      <CheckCircle className="h-4 w-4" />
+                      <span>Already Approved</span>
                     </div>
                   )}
                 </Card>

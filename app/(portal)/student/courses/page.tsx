@@ -47,6 +47,7 @@ type Enrollment = {
 
 type StudentProfile = {
   current_level: string
+  can_add_courses: boolean
 }
 
 export default function CoursesPage() {
@@ -85,7 +86,7 @@ export default function CoursesPage() {
           .order('created_at', { ascending: false }),
         supabase
           .from('student_profiles')
-          .select('current_level')
+          .select('current_level, can_add_courses')
           .eq('profile_id', user.id)
           .single()
       ])
@@ -151,6 +152,7 @@ export default function CoursesPage() {
 
   const hasSubmittedSelections = selectedCourses.length > 0
   const hasApprovedSelections = selectedCourses.some(sc => sc.status === 'approved')
+  const hasSpecialAccess = studentProfile?.can_add_courses || false
 
   if (loading) {
     return (
@@ -181,7 +183,7 @@ export default function CoursesPage() {
               )}
             </p>
           </div>
-          {!hasApprovedSelections && (
+          {(!hasApprovedSelections || hasSpecialAccess) && (
             <Button asChild className="rounded-xl gap-2">
               <Link href="/student/course-selection">
                 <Plus className="h-4 w-4" />
@@ -440,7 +442,7 @@ export default function CoursesPage() {
         </Tabs>
       )}
 
-      {hasApprovedSelections && (
+      {hasApprovedSelections && !hasSpecialAccess && (
         <Card className="p-6 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900">
           <div className="flex items-center gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600" />
@@ -454,6 +456,28 @@ export default function CoursesPage() {
               <Link href="/student/course-form">
                 <Button variant="outline" className="border border-primary hover:shadow-lg hover:shadow-blue-600">View your Course Form</Button>
               </Link>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {hasApprovedSelections && hasSpecialAccess && (
+        <Card className="p-6 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900">
+          <div className="flex items-center gap-3">
+            <Check className="h-5 w-5 text-emerald-600" />
+            <div>
+              <p className="font-semibold text-emerald-900 dark:text-emerald-100">Special Access Granted</p>
+              <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                You have been granted special access to add more courses. This access will be revoked after your new course additions are approved.
+              </p>
+            </div>
+            <div>
+              <Button asChild className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700">
+                <Link href="/student/course-selection">
+                  <Plus className="h-4 w-4" />
+                  Add More Courses
+                </Link>
+              </Button>
             </div>
           </div>
         </Card>

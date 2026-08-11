@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { ArrowLeft, Plus, Edit2, Trash2, Save, X, Upload, FileSpreadsheet, FileText } from 'lucide-react'
+import { formatNigerianTime } from '@/lib/timezone'
 
 type ExamQuestion = {
   id: string
@@ -306,11 +307,11 @@ export default function TeacherExamDetailPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
             <p className="text-xs text-muted-foreground">Start Date</p>
-            <p className="text-lg font-bold">{exam.start_date ? new Date(exam.start_date).toLocaleString() : 'Not set'}</p>
+            <p className="text-lg font-bold">{formatNigerianTime(exam.start_date)}</p>
           </div>
           <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
             <p className="text-xs text-muted-foreground">End Date</p>
-            <p className="text-lg font-bold">{exam.end_date ? new Date(exam.end_date).toLocaleString() : 'Not set'}</p>
+            <p className="text-lg font-bold">{formatNigerianTime(exam.end_date)}</p>
           </div>
           <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50">
             <p className="text-xs text-muted-foreground">Duration</p>

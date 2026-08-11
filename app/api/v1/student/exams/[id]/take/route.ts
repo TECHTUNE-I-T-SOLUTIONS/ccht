@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getNigerianTime } from '@/lib/timezone'
+import { getNigerianTime, convertToNigerianTimeDate } from '@/lib/timezone'
 
 export const runtime = 'nodejs'
 
@@ -36,8 +36,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 
     // Check if exam is currently available (using Nigerian time)
     const now = getNigerianTime()
-    const startDate = new Date(exam.start_date)
-    const endDate = new Date(exam.end_date)
+    const startDate = convertToNigerianTimeDate(exam.start_date)
+    const endDate = convertToNigerianTimeDate(exam.end_date)
 
     if (now < startDate) {
       return NextResponse.json({ 

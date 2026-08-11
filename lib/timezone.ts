@@ -6,24 +6,32 @@
 const NIGERIA_OFFSET = 60;
 
 /**
- * Convert a datetime-local input value (treated as Nigerian time) to UTC ISO string
- * @param localDateTime - The datetime-local input value (YYYY-MM-DDTHH:MM) - this is treated as Nigerian time
+ * Convert a datetime-local input value to UTC ISO string for database storage
+ * The input is treated as Nigerian time (UTC+1), so we convert to UTC
+ * @param localDateTime - The datetime-local input value (YYYY-MM-DDTHH:MM)
  * @returns ISO string in UTC for database storage
  */
 export function toNigerianTime(localDateTime: string): string {
   if (!localDateTime) return '';
   
-  // Parse the local datetime (treat this as Nigerian time)
+  // Parse the datetime-local input (this is in local browser time - Nigerian time)
   const date = new Date(localDateTime);
   
   // Check if date is valid
   if (isNaN(date.getTime())) return '';
   
-  // Since the input is in Nigerian time (UTC+1), we need to convert to UTC
-  // by subtracting the Nigerian offset (1 hour = 60 minutes = 3600000 ms)
-  const utcDate = new Date(date.getTime() - (NIGERIA_OFFSET * 60000));
+  // The datetime-local input is in the user's local timezone (Nigeria UTC+1)
+  // When we create a Date from it, JavaScript automatically converts to UTC
+  // So the ISO string will already be in UTC with the correct Nigerian time
+  // Example: 10:36 PM (22:36) Nigerian time -> 21:36 UTC
   
-  return utcDate.toISOString();
+  console.log('toNigerianTime - Converting Nigerian time to UTC:', {
+    input: localDateTime,
+    inputLocal: date.toLocaleString(),
+    outputUTC: date.toISOString()
+  });
+  
+  return date.toISOString();
 }
 
 /**
@@ -39,8 +47,17 @@ export function fromNigerianTime(isoString: string | null): string {
   // Check if date is valid
   if (isNaN(date.getTime())) return '';
   
-  // Convert UTC to Nigerian time (UTC+1)
+  // The database stores UTC time (e.g., 21:36 UTC for 10:36 PM Nigerian time)
+  // We need to convert it back to Nigerian time for the datetime-local input
+  // Add 1 hour to convert UTC to Nigerian time
   const nigeriaDate = new Date(date.getTime() + (NIGERIA_OFFSET * 60000));
+  
+  console.log('fromNigerianTime - Converting UTC to Nigerian time:', {
+    input: isoString,
+    inputUTC: date.toISOString(),
+    outputNigeria: nigeriaDate.toISOString(),
+    outputFormatted: nigeriaDate.toISOString().slice(0, 16)
+  });
   
   // Format for datetime-local input
   return nigeriaDate.toISOString().slice(0, 16);
@@ -60,6 +77,7 @@ export function formatNigerianTime(
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true, // Use 12-hour format for display (10:36 PM)
     timeZone: 'Africa/Lagos'
   }
 ): string {
@@ -79,6 +97,7 @@ export function formatNigerianTime(
  */
 export function getNigerianTime(): Date {
   const now = new Date();
+  // Add Nigerian offset to get current Nigerian time
   return new Date(now.getTime() + (NIGERIA_OFFSET * 60000));
 }
 
@@ -90,7 +109,18 @@ export function getNigerianTime(): Date {
  */
 export function isWithinNigerianTimeRange(startDate: string, endDate: string): boolean {
   const now = getNigerianTime();
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const start = convertToNigerianTimeDate(startDate);
+  const end = convertToNigerianTimeDate(endDate);
   return now >= start && now <= end;
+}
+
+/**
+ * Convert UTC ISO string to Nigerian time Date object for comparison
+ * @param isoString - The ISO string from the database (UTC)
+ * @returns Date object in Nigerian time
+ */
+export function convertToNigerianTimeDate(isoString: string): Date {
+  const date = new Date(isoString);
+  // Convert UTC to Nigerian time for comparison
+  return new Date(date.getTime() + (NIGERIA_OFFSET * 60000));
 }

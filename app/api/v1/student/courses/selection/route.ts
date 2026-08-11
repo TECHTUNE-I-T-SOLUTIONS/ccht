@@ -66,9 +66,18 @@ export async function POST(request: NextRequest) {
       .limit(1)
 
     if (existingApproved && existingApproved.length > 0) {
-      return NextResponse.json({ 
-        error: 'Cannot modify course selection. Courses have already been approved for this session.' 
-      }, { status: 400 })
+      // Check if student has special permission to add courses
+      const { data: studentProfile } = await supabase
+        .from('student_profiles')
+        .select('can_add_courses')
+        .eq('profile_id', user.id)
+        .single()
+
+      if (!studentProfile?.can_add_courses) {
+        return NextResponse.json({ 
+          error: 'Cannot modify course selection. Courses have already been approved for this session. Please contact administration if you need to add more courses.' 
+        }, { status: 400 })
+      }
     }
 
     // Delete existing pending selections for this session/semester
