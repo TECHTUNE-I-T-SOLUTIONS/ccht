@@ -157,7 +157,7 @@ export default function AdminExamsPage() {
                       <div>
                         <span className="text-muted-foreground">Creator:</span>
                         <span className="ml-2 font-medium">
-                          {exam.creator ? `${exam.creator.first_name} ${exam.creator.last_name}` : 'Unknown'}
+                          {exam.creator ? `${exam.creator.first_name} ${exam.creator.last_name}` : 'Admin'}
                         </span>
                       </div>
                     </div>
