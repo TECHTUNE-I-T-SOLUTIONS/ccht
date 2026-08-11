@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
-export function usePageTracker() {
+export function PageTracker() {
   const pathname = usePathname()
 
   useEffect(() => {
@@ -12,4 +12,6 @@ export function usePageTracker() {
       sessionStorage.setItem('lastVisitedPage', pathname)
     }
   }, [pathname])
+
+  return null
 }

@@ -598,25 +598,26 @@ export class EmailTemplates {
     const content = `
         <div class="greeting">Dear ${data.fullName},</div>
         <div class="message">
-          <strong>🎉 Congratulations!</strong> Your journey as a student at <strong>${schoolFullName}</strong> has officially begun! Your student account has been <span class="success">successfully created</span>, and we're thrilled to welcome you to our community.
+          <strong>🎉 Congratulations!</strong> Your journey as a student at <strong>${schoolFullName}</strong> has officially begun! Your application has been <span class="success">successfully processed</span>, and you have been migrated to student status.
         </div>
         <div class="info-box">
-          <h3>🎊 Your Account Information</h3>
+          <h3>🎊 Your Student Information</h3>
           <ul>
             ${data.applicationId ? `<li><strong>Application ID:</strong> ${data.applicationId}</li>` : ''}
             <li><strong>Matric Number:</strong> <span class="highlight">${data.matricNumber}</span></li>
             <li><strong>Email:</strong> ${data.email}</li>
-            <li><strong>Temporary Password:</strong> <span class="highlight">${data.password}</span></li>
+            <li><strong>Login:</strong> Use your existing password</li>
             <li><strong>Program:</strong> ${data.program}</li>
             <li><strong>Department:</strong> ${data.department}</li>
           </ul>
         </div>
         <div class="message">
-          <strong>🔐 Security Information:</strong>
+          <strong>🔐 Important Login Information:</strong>
           <ul style="margin-top: 10px; padding-left: 20px; line-height: 2;">
-            <li>Your temporary password is provided above</li>
-            <li>You <strong>must</strong> change this password after your first login</li>
-            <li>Use a strong password with at least 10 characters, including numbers and special characters</li>
+            <li>Your existing account has been upgraded to student status</li>
+            <li>Use your current email and password to log in</li>
+            <li>You will now have access to all student portal features</li>
+            <li>Consider updating your password for security</li>
             <li>Never share your login credentials with anyone</li>
           </ul>
         </div>
@@ -632,10 +633,10 @@ export class EmailTemplates {
         <div class="message">
           <strong>What's Next?</strong>
           <ol style="margin-top: 10px; padding-left: 20px; line-height: 2;">
-            <li>Log in to the student portal using your credentials</li>
-            <li>Change your password immediately</li>
-            <li>Complete your profile information</li>
-            <li>Register for your courses</li>
+            <li>Log in to the student portal using your existing credentials</li>
+            <li>Review your student profile information</li>
+            <li>Register for your courses for the upcoming semester</li>
+            <li>Check your timetable and academic calendar</li>
             <li>Make payment for your fees</li>
             <li>Attend orientation program</li>
           </ol>

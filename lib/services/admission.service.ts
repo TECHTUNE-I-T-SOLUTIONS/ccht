@@ -3,6 +3,8 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createPublicClient } from '@/lib/supabase/public'
 import { buildCloudinaryPublicUrl, getCloudinaryConfig, uploadFileToCloudinary } from '@/lib/cloudinary'
+import { emailService } from '@/lib/services/email.service'
+import { EmailTemplates } from '@/lib/services/email-templates'
 
 export type AspirantProfile = {
   profile_id: string
@@ -300,6 +302,46 @@ export class AdmissionService {
           })
           .eq('profile_id', profileId)
         if (aspirantUpdateError) throw aspirantUpdateError
+
+        // Get student profile information for email
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('email, first_name, last_name')
+          .eq('id', profileId)
+          .single()
+
+        // Get program information
+        const { data: programData } = await supabase
+          .from('programs')
+          .select('title')
+          .eq('id', aspirant.preferred_program_id)
+          .single()
+
+        // Send migration email to the new student
+        if (profileData?.email && profileData.first_name) {
+          try {
+            const fullName = `${profileData.first_name} ${profileData.last_name || ''}`.trim()
+            const program = programData?.title || 'Health Technology Program'
+            
+            // Use the aspirant migrated to student template
+            const emailTemplate = EmailTemplates.aspirantMigratedToStudent({
+              email: profileData.email,
+              fullName: fullName,
+              matricNumber: matricNumber,
+              password: 'Use your existing password', // Since they already have an account
+              program: program,
+              department: deptCode,
+              applicationId: profileId
+            })
+
+            console.log('[AdmissionService] Sending migration email to:', profileData.email)
+            await emailService.sendEmailAsync(emailTemplate)
+            console.log('[AdmissionService] Migration email sent successfully to:', profileData.email)
+          } catch (emailError) {
+            console.error('[AdmissionService] Failed to send migration email:', emailError)
+            // Don't fail the migration if email fails
+          }
+        }
 
         migrated.push(profileId)
       } catch (error: any) {

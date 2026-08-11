@@ -3,6 +3,7 @@ import Script from 'next/script'
 import { Plus_Jakarta_Sans, DM_Sans, Space_Grotesk } from 'next/font/google'
 import { Providers } from '@/components/providers'
 import { OfflineDetect } from '@/components/offline-detect'
+import { PageTracker } from '@/components/page-tracker'
 import './globals.css'
 import { cn } from '@/lib/utils'
 
@@ -63,6 +64,7 @@ export default function RootLayout({
       )}>
         <Providers>
           <OfflineDetect />
+          <PageTracker />
           {children}
         </Providers>
       </body>
