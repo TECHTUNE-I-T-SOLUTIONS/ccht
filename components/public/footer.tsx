@@ -9,7 +9,7 @@ import Image from 'next/image'
 export function Footer() {
   return (
     <footer className="bg-foreground text-background dark:bg-card border-t border-white/5">
-      <div className="mx-auto w-full max-w-none px-6 py-20 sm:px-12 md:px-16 lg:px-24 xl:px-32">
+      <div className="mx-auto w-full max-w-none px-6 py-20 sm:px-12 md:px-16 lg:px-24 xl:px-32 pb-8">
         <div className="grid gap-16 lg:grid-cols-12">
           {/* Brand Column */}
           <div className="lg:col-span-4 space-y-10">
@@ -111,6 +111,9 @@ export function Footer() {
              <Link href={ROUTES.privacy} className="hover:text-primary transition-colors">Privacy Policy</Link>
              <Link href={ROUTES.terms} className="hover:text-primary transition-colors">Terms of Use</Link>
            </div>
+        </div>
+        <div className="flex flex-col items-center center text-sm font-technical tracking-widest text-blue-600 m-4 mb-0 pb-0">
+          Version 1.0.1 - Stable
         </div>
       </div>
     </footer>
