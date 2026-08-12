@@ -91,6 +91,7 @@ export default function StudentExamTakePage() {
   const [webcamRecordingUrl, setWebcamRecordingUrl] = useState<string | null>(null)
   const [screenRecordingUrl, setScreenRecordingUrl] = useState<string | null>(null)
   const [isMobileDevice, setIsMobileDevice] = useState(false)
+  const [attemptReady, setAttemptReady] = useState(false)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const screenVideoRef = useRef<HTMLVideoElement>(null)
@@ -101,6 +102,7 @@ export default function StudentExamTakePage() {
   const timeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const webcamUploadPromiseRef = useRef<Promise<string | null> | null>(null)
   const screenUploadPromiseRef = useRef<Promise<string | null> | null>(null)
+  const progressKey = `student-exam-progress:${examId}`
 
   // Helper functions
   const formatTime = (secs: number) => {
@@ -166,6 +168,37 @@ export default function StudentExamTakePage() {
     const mobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
     setIsMobileDevice(mobile)
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !examId) return
+
+    const savedProgress = window.sessionStorage.getItem(progressKey)
+    if (!savedProgress) return
+
+    try {
+      const parsed = JSON.parse(savedProgress)
+      if (parsed.answers && typeof parsed.answers === 'object') {
+        setAnswers(parsed.answers)
+      }
+      if (typeof parsed.currentQuestionIndex === 'number') {
+        setCurrentQuestionIndex(parsed.currentQuestionIndex)
+      }
+    } catch (error) {
+      console.error('Failed to restore exam progress:', error)
+    }
+  }, [examId, progressKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !examId || loading) return
+
+    window.sessionStorage.setItem(
+      progressKey,
+      JSON.stringify({
+        answers,
+        currentQuestionIndex,
+      }),
+    )
+  }, [answers, currentQuestionIndex, examId, loading, progressKey])
 
   // Attach webcam stream to video element reliably (like aspirant exam page)
   useEffect(() => {
@@ -238,12 +271,20 @@ export default function StudentExamTakePage() {
           }
         }
 
-        // Initialize answers
+        // Initialize answers only when there is no saved progress.
         const initialAnswers: Record<string, string> = {}
         questionsData.data?.forEach((q: Question) => {
           initialAnswers[q.id] = ''
         })
-        setAnswers(initialAnswers)
+
+        if (typeof window !== 'undefined') {
+          const savedProgress = window.sessionStorage.getItem(progressKey)
+          if (!savedProgress) {
+            setAnswers(initialAnswers)
+          }
+        } else {
+          setAnswers(initialAnswers)
+        }
       } catch (error) {
         toast.error('Failed to load exam')
         console.error(error)
@@ -255,7 +296,7 @@ export default function StudentExamTakePage() {
     if (examId) {
       loadExam()
     }
-  }, [examId])
+  }, [examId, progressKey])
 
   // Create exam attempt
   const createExamAttempt = async () => {
@@ -738,6 +779,14 @@ export default function StudentExamTakePage() {
     setCurrentStep('submitting')
 
     try {
+      let activeAttemptId = examAttemptId
+      if (!activeAttemptId) {
+        activeAttemptId = await createExamAttempt()
+        if (!activeAttemptId) {
+          throw new Error('Unable to create exam attempt')
+        }
+      }
+
       if (timeUpdateIntervalRef.current) {
         clearInterval(timeUpdateIntervalRef.current)
         timeUpdateIntervalRef.current = null
@@ -753,7 +802,7 @@ export default function StudentExamTakePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          examAttemptId,
+          examAttemptId: activeAttemptId,
           answers: Object.entries(answers).map(([questionId, selectedAnswer]) => ({
             questionId,
             selectedAnswer,
@@ -765,7 +814,10 @@ export default function StudentExamTakePage() {
         }),
       })
 
-      if (!res.ok) throw new Error('Failed to submit exam')
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null)
+        throw new Error(errorData?.error || 'Failed to submit exam')
+      }
 
       toast.success('Exam submitted successfully!')
       setCurrentStep('completed')
@@ -784,7 +836,7 @@ export default function StudentExamTakePage() {
 
 
     } catch (error) {
-      toast.error('Failed to submit exam. Please try again.')
+      toast.error(error instanceof Error ? error.message : 'Failed to submit exam. Please try again.')
       console.error(error)
       setCurrentStep('exam') // Go back to exam step on error
     } finally {
@@ -865,6 +917,7 @@ export default function StudentExamTakePage() {
 
           <div className="flex gap-3">
             <Button
+              type="button"
               onClick={() => router.back()}
               variant="outline"
               className="flex-1 rounded-xl"
@@ -873,6 +926,7 @@ export default function StudentExamTakePage() {
               Cancel
             </Button>
             <Button
+              type="button"
               onClick={() => setCurrentStep('requirements')}
               disabled={!agreedToRules}
               className="flex-1 rounded-xl border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-200"
@@ -941,6 +995,7 @@ export default function StudentExamTakePage() {
 
           <div className="flex gap-3">
             <Button
+              type="button"
               onClick={() => setCurrentStep('intro')}
               variant="outline"
               className="flex-1 rounded-xl"
@@ -948,6 +1003,7 @@ export default function StudentExamTakePage() {
               Back
             </Button>
             <Button
+              type="button"
               onClick={() => setCurrentStep('permissions')}
               className="flex-1 rounded-xl border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-200"
             >
@@ -1081,6 +1137,7 @@ export default function StudentExamTakePage() {
 
           <div className="flex gap-3">
             <Button
+              type="button"
               onClick={() => setCurrentStep('permissions')}
               variant="outline"
               className="flex-1 rounded-xl"
@@ -1088,6 +1145,7 @@ export default function StudentExamTakePage() {
               Back
             </Button>
             <Button
+              type="button"
               onClick={requestScreenRecording}
               className="flex-1 rounded-xl border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-200"
             >
@@ -1122,6 +1180,7 @@ export default function StudentExamTakePage() {
           </div>
 
           <Button
+            type="button"
             onClick={requestFullscreen}
             className="w-full rounded-xl border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-200"
           >
@@ -1244,6 +1303,7 @@ export default function StudentExamTakePage() {
 
                   <div className="flex items-center justify-between pt-4">
                     <Button
+                      type="button"
                       onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
                       disabled={currentQuestionIndex === 0}
                       variant="outline"
@@ -1254,6 +1314,7 @@ export default function StudentExamTakePage() {
 
                     {currentQuestionIndex < questions.length - 1 ? (
                       <Button
+                        type="button"
                         onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
                         className="rounded-xl border border-primary hover:text-blue-600 hover:shadow-lg hover:shadow-blue-200"
                       >
@@ -1261,6 +1322,7 @@ export default function StudentExamTakePage() {
                       </Button>
                     ) : (
                       <Button
+                        type="button"
                         onClick={submitExam}
                         disabled={submitting}
                         className="rounded-xl bg-green-600 hover:bg-green-700"
@@ -1300,6 +1362,7 @@ export default function StudentExamTakePage() {
                 <div className="grid grid-cols-5 gap-2">
                   {questions.map((q, idx) => (
                     <Button
+                      type="button"
                       key={q.id}
                       size="sm"
                       variant={idx === currentQuestionIndex ? 'default' : 'outline'}
