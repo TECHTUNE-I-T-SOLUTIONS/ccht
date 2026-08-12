@@ -331,7 +331,7 @@ export class PaymentService {
     amount: number,
     enrollmentId?: string,
     description?: string
-  ): Promise<{ accessCode: string; authorizationUrl: string; reference: string }> {
+  ): Promise<{ accessCode: string; authorizationUrl: string; reference: string; paymentId: string }> {
     const supabase = await createClient();
 
     const paymentPlanType = installmentNumber === 1 ? 'installment_1' : 'installment_2';
@@ -399,6 +399,7 @@ export class PaymentService {
           accessCode: data.data.access_code,
           authorizationUrl: data.data.authorization_url,
           reference: data.data.reference,
+          paymentId: payment.id,
         };
       } else {
         throw new Error('Failed to initialize Paystack payment');

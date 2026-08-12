@@ -67,7 +67,10 @@ export async function POST(request: NextRequest) {
       description
     )
 
-    return NextResponse.json({ data: paymentResult })
+    return NextResponse.json({ 
+      data: paymentResult,
+      paymentId: paymentResult.paymentId,
+    })
   } catch (error: any) {
     console.error('Installment payment initiation error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })

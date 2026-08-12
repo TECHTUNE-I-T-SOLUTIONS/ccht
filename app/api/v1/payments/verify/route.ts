@@ -5,7 +5,8 @@ import { z } from 'zod'
 import { NextRequest, NextResponse } from 'next/server'
 
 const paystackVerifySchema = z.object({
-  reference: z.string(),
+  reference: z.string().optional(),
+  paymentId: z.string().uuid().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -23,21 +24,34 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validated = paystackVerifySchema.parse(body)
 
-    // Verify payment with Paystack
-    const verification = await paystackService.verifyPayment(validated.reference)
+    if (!validated.reference && !validated.paymentId) {
+      return NextResponse.json(
+        { error: 'Either reference or paymentId is required' },
+        { status: 400 }
+      )
+    }
 
-    if (!verification.status || verification.status !== 'success') {
+    // Verify payment with Paystack
+    const verification = validated.reference
+      ? await paystackService.verifyPayment(validated.reference)
+      : null
+
+    if (verification && (!verification.status || verification.status !== 'success')) {
       return NextResponse.json(
         { error: 'Payment verification failed', details: verification },
         { status: 400 }
       )
     }
 
-    // Find payment by reference first
-    const { data: existingPayment, error: findError } = await supabase
-      .from('payments')
-      .select('*')
-      .eq('paystack_reference', validated.reference)
+    // Find payment by paymentId first, then reference
+    let paymentQuery = supabase.from('payments').select('*')
+    if (validated.paymentId) {
+      paymentQuery = paymentQuery.eq('id', validated.paymentId)
+    } else if (validated.reference) {
+      paymentQuery = paymentQuery.or(`paystack_reference.eq.${validated.reference},provider_transaction_id.eq.${validated.reference},id.eq.${validated.reference}`)
+    }
+
+    const { data: existingPayment, error: findError } = await paymentQuery
 
     if (findError) {
       console.error('Failed to find payment record:', findError)
@@ -48,9 +62,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (!existingPayment || existingPayment.length === 0) {
-      console.error('Payment not found for reference:', validated.reference)
+      console.error('Payment not found for verification payload:', validated)
       return NextResponse.json(
-        { error: 'Payment record not found', reference: validated.reference },
+        { error: 'Payment record not found', reference: validated.reference, paymentId: validated.paymentId },
         { status: 404 }
       )
     }
@@ -77,8 +91,8 @@ export async function POST(request: NextRequest) {
             invoice_id: payment.invoice_id,
             event_type: 'payment_verified',
             provider: 'paystack',
-            provider_reference: validated.reference,
-            payload: verification,
+            provider_reference: validated.reference || validated.paymentId || payment.id,
+            payload: verification || body,
             signature: null,
             processed: true,
             processed_at: new Date().toISOString(),
@@ -179,8 +193,8 @@ export async function POST(request: NextRequest) {
         invoice_id: payment.invoice_id,
         event_type: 'payment_verified',
         provider: 'paystack',
-        provider_reference: validated.reference,
-        payload: verification,
+        provider_reference: validated.reference || validated.paymentId || payment.id,
+        payload: verification || body,
         signature: null,
         processed: true,
         processed_at: new Date().toISOString(),

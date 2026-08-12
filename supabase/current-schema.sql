@@ -50,6 +50,9 @@ CREATE TABLE public.student_profiles (
   admission_status text DEFAULT 'active'::text CHECK (admission_status = ANY (ARRAY['active'::text, 'suspended'::text, 'graduated'::text, 'withdrawn'::text])),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  can_add_courses boolean NOT NULL DEFAULT false,
+  can_add_courses_granted_at timestamp with time zone,
+  can_add_courses_granted_by uuid,
   CONSTRAINT student_profiles_pkey PRIMARY KEY (profile_id),
   CONSTRAINT student_profiles_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
 );
@@ -347,10 +350,15 @@ CREATE TABLE public.payments (
   paid_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  payment_plan_type text CHECK (payment_plan_type = ANY (ARRAY['full'::text, 'installment_1'::text, 'installment_2'::text])),
+  installment_number integer CHECK (installment_number = ANY (ARRAY[1, 2])),
+  payment_plan_id uuid,
+  due_date date,
   CONSTRAINT payments_pkey PRIMARY KEY (id),
   CONSTRAINT payments_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id),
   CONSTRAINT payments_enrollment_id_fkey FOREIGN KEY (enrollment_id) REFERENCES public.enrollments(id),
-  CONSTRAINT payments_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoices(id)
+  CONSTRAINT payments_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoices(id),
+  CONSTRAINT payments_payment_plan_id_fkey FOREIGN KEY (payment_plan_id) REFERENCES public.payment_plans(id)
 );
 CREATE TABLE public.payment_events (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -1024,4 +1032,29 @@ CREATE TABLE public.online_classes (
   CONSTRAINT online_classes_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.courses(id),
   CONSTRAINT online_classes_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES public.profiles(id),
   CONSTRAINT online_classes_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.payment_plans (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid NOT NULL,
+  enrollment_id uuid,
+  session_id uuid,
+  total_amount numeric NOT NULL,
+  amount_paid numeric NOT NULL DEFAULT 0,
+  amount_remaining numeric NOT NULL,
+  plan_type text NOT NULL DEFAULT 'full'::text CHECK (plan_type = ANY (ARRAY['full'::text, 'installment'::text])),
+  first_installment_amount numeric,
+  first_installment_paid boolean DEFAULT false,
+  first_installment_paid_at timestamp with time zone,
+  second_installment_amount numeric,
+  second_installment_paid boolean DEFAULT false,
+  second_installment_paid_at timestamp with time zone,
+  second_installment_due_date date,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'partial'::text, 'completed'::text, 'overdue'::text])),
+  is_late boolean DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT payment_plans_pkey PRIMARY KEY (id),
+  CONSTRAINT payment_plans_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.profiles(id),
+  CONSTRAINT payment_plans_enrollment_id_fkey FOREIGN KEY (enrollment_id) REFERENCES public.enrollments(id),
+  CONSTRAINT payment_plans_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.academic_sessions(id)
 );

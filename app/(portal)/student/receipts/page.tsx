@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { FileText, Download, DollarSign, Calendar, CheckCircle, Clock, XCircle, User } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { generatePaymentReceipt } from '@/lib/templates/payment-receipt'
 
 type Payment = {
   id: string
@@ -170,29 +169,34 @@ export default function StudentReceiptsPage() {
       return
     }
 
-    const paymentDate = payment.paid_at ? new Date(payment.paid_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Pending'
-    const createdDate = new Date(payment.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-    
-    const doc = generatePaymentReceipt({
-      receiptId: payment.id,
-      firstName: studentData.profiles?.first_name || '',
-      lastName: studentData.profiles?.last_name || '',
-      matricNumber: studentData.matric_number || '',
-      program: studentData.program?.title || '',
-      department: studentData.program?.department?.name || '',
-      email: studentData.profiles?.email || '',
-      phone: studentData.profiles?.phone || studentData.student_number || '',
-      paymentType: payment.payment_type,
-      amount: payment.amount,
-      reference: payment.reference,
-      description: payment.description,
-      status: payment.status,
-      paymentDate,
-      requestDate: createdDate
-    })
+    toast.loading('Generating receipt...', { id: 'receipt-download' })
 
-    doc.save(`Receipt_${payment.payment_type}_${payment.id}.pdf`)
-    toast.success('Receipt downloaded')
+    fetch('/api/v1/student/receipts/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentId: payment.id, source: 'receipts' }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null)
+          throw new Error(errorData?.error || 'Failed to generate receipt')
+        }
+
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `Receipt_${payment.payment_type}_${payment.id}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+        toast.success('Receipt downloaded', { id: 'receipt-download' })
+      })
+      .catch((error) => {
+        console.error('Failed to generate receipt:', error)
+        toast.error(error.message || 'Failed to generate receipt', { id: 'receipt-download' })
+      })
   }
 
   if (loading) {

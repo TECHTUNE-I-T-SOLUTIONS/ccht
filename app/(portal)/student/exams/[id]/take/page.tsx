@@ -236,11 +236,22 @@ export default function StudentExamTakePage() {
           fetch('/api/v1/student/profile'),
         ])
 
-        if (!examRes.ok || !questionsRes.ok) {
-          throw new Error('Failed to load exam')
+        const examData = await examRes.json().catch(() => null)
+        if (!examRes.ok) {
+          const message = examData?.error || 'Failed to load exam'
+          if (examRes.status === 403 || examRes.status === 404) {
+            toast.error(message)
+            router.push('/student/exams')
+            return
+          }
+          throw new Error(message)
         }
 
-        const examData = await examRes.json()
+        if (!questionsRes.ok) {
+          const questionsError = await questionsRes.json().catch(() => null)
+          throw new Error(questionsError?.error || 'Failed to load exam questions')
+        }
+
         const questionsData = await questionsRes.json()
         const profileData = await profileRes.json()
 
@@ -286,7 +297,7 @@ export default function StudentExamTakePage() {
           setAnswers(initialAnswers)
         }
       } catch (error) {
-        toast.error('Failed to load exam')
+        toast.error(error instanceof Error ? error.message : 'Failed to load exam')
         console.error(error)
       } finally {
         setLoading(false)
@@ -598,6 +609,16 @@ export default function StudentExamTakePage() {
     }
   }, [currentStep, webcamStream, recordingStarted])
 
+  useEffect(() => {
+    if (currentStep !== 'completed') return
+
+    const timer = setTimeout(() => {
+      router.push('/student/exams')
+    }, 3000)
+
+    return () => clearTimeout(timer)
+  }, [currentStep, router])
+
   const handleTimeOut = async () => {
     toast.error('Time is up! Submitting your exam automatically.')
     await submitExam()
@@ -764,10 +785,14 @@ export default function StudentExamTakePage() {
     }
 
     const uploads = [webcamUploadPromiseRef.current, screenUploadPromiseRef.current].filter(Boolean) as Promise<string | null>[]
-    const resolved = await Promise.allSettled(uploads)
-
-    if (resolved[0]?.status === 'fulfilled') results.webcamUrl = resolved[0].value || null
-    if (resolved[1]?.status === 'fulfilled') results.screenUrl = resolved[1].value || null
+    if (uploads.length > 0) {
+      Promise.allSettled(uploads).then((resolved) => {
+        if (resolved[0]?.status === 'fulfilled') results.webcamUrl = resolved[0].value || null
+        if (resolved[1]?.status === 'fulfilled') results.screenUrl = resolved[1].value || null
+      }).catch((error) => {
+        console.error('Background recording upload failed:', error)
+      })
+    }
 
     return results
   }
@@ -1415,13 +1440,6 @@ export default function StudentExamTakePage() {
 
   // Step 8: Completed - NO score or result shown to student
   if (currentStep === 'completed') {
-    useEffect(() => {
-      const timer = setTimeout(() => {
-        router.push('/student/exams')
-      }, 3000)
-      return () => clearTimeout(timer)
-    }, [router])
-
     return (
       <div className="mx-auto max-w-3xl px-6 py-12">
         <Card className="space-y-6 rounded-[2.5rem] border bg-white p-10 shadow-sm dark:bg-slate-900">

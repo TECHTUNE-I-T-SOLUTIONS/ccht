@@ -38,22 +38,24 @@ export async function POST(request: Request) {
 
     if (violationError) {
       console.error('Error logging violation:', violationError)
-      return NextResponse.json({ error: 'Failed to log violation' }, { status: 500 })
+      return NextResponse.json(
+        { error: violationError.message || 'Failed to log violation' },
+        { status: 500 },
+      )
     }
 
     // Also log to proctoring_logs table for broader tracking
-    try {
-      await admin
-        .from('proctoring_logs')
-        .insert({
-          aspirant_id: user.id,
-          event_type: violationType,
-          violation_details: details || violationType,
-          screenshot_url: screenshotUrl || null,
-          device_fingerprint: deviceFingerprint || null,
-        })
-    } catch (proctoringError) {
-      // Non-blocking - don't fail the request if proctoring_logs insert fails
+    const { error: proctoringError } = await admin
+      .from('proctoring_logs')
+      .insert({
+        aspirant_id: user.id,
+        event_type: violationType,
+        violation_details: details || violationType,
+        screenshot_url: screenshotUrl || null,
+        device_fingerprint: deviceFingerprint || null,
+      })
+
+    if (proctoringError) {
       console.error('Error logging to proctoring_logs:', proctoringError)
     }
 
