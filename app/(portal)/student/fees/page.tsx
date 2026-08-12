@@ -176,6 +176,7 @@ export default function StudentFeesPage() {
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Failed to initiate payment')
+      const paymentId = payload.paymentId || payload.data?.paymentId || payload.data?.id || payload.data?.payment_id
 
       if (payload.authorizationUrl) {
         // Prefer the authorization URL only if the popup SDK is unavailable.
@@ -205,7 +206,7 @@ export default function StudentFeesPage() {
             fetch('/api/v1/payments/verify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ reference: response.reference, paymentId: payload.paymentId }),
+              body: JSON.stringify({ reference: response.reference, paymentId }),
             }).then(async (verifyRes) => {
               const verifyData = await verifyRes.json()
               if (verifyRes.ok && verifyData.success) {
@@ -281,6 +282,7 @@ export default function StudentFeesPage() {
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Failed to initiate payment')
+      const paymentId = payload.paymentId || payload.data?.paymentId || payload.data?.id || payload.data?.payment_id
 
       // Load Paystack inline JS dynamically
       const script = document.createElement('script')
@@ -302,7 +304,7 @@ export default function StudentFeesPage() {
             fetch('/api/v1/payments/verify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ reference: response.reference }),
+              body: JSON.stringify({ reference: response.reference, paymentId }),
             }).then(async (verifyRes) => {
               const verifyData = await verifyRes.json()
               if (verifyRes.ok && verifyData.success) {
