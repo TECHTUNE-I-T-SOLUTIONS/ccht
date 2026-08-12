@@ -72,6 +72,7 @@ export default function AspirantEntranceExam() {
   const [hasCompletedExam, setHasCompletedExam] = useState(false)
   const [examResult, setExamResult] = useState<any>(null)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [isMobileDevice, setIsMobileDevice] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
   // Helper functions MUST be defined before useEffect that references them
@@ -81,6 +82,15 @@ export default function AspirantEntranceExam() {
   }, [])
 
   const formatTime = (secs: number) => `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, '0')}`
+  const mobileMode = isMobileDevice
+  const cameraConstraints: MediaTrackConstraints = mobileMode
+    ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'user' } }
+    : { width: 640, height: 480, facingMode: 'user' }
+
+  useEffect(() => {
+    const mobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+    setIsMobileDevice(mobile)
+  }, [])
 
   const logViolation = async (violationType: string, severity: string = 'medium', details?: string) => {
     if (!examSessionId) return
@@ -944,6 +954,10 @@ export default function AspirantEntranceExam() {
   // Step 2: Request fullscreen
   const requestFullscreen = async () => {
     try {
+      if (mobileMode) {
+        setCurrentStep('permissions')
+        return
+      }
       const elem = document.documentElement
       if (elem.requestFullscreen) {
         await elem.requestFullscreen()
@@ -961,8 +975,8 @@ export default function AspirantEntranceExam() {
   const requestPermissions = async () => {
     try {
       // Request webcam
-      const webcamStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 640, height: 480, facingMode: 'user' } 
+      const webcamStream = await navigator.mediaDevices.getUserMedia({
+        video: cameraConstraints,
       })
       setWebcamStream(webcamStream)
       setWebcamReady(true)
@@ -1011,9 +1025,9 @@ export default function AspirantEntranceExam() {
           <div className="space-y-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6 dark:bg-amber-500/10">
             <h3 className="font-bold text-foreground">What to expect</h3>
             <ul className="list-inside list-disc space-y-2 text-sm text-muted-foreground">
-              <li>You will need to enable fullscreen mode</li>
+              <li>{mobileMode ? 'Mobile users will use camera and microphone only' : 'You will need to enable fullscreen mode'}</li>
               <li>Camera and microphone access will be required</li>
-              <li>Screen sharing will be monitored for security</li>
+              <li>{mobileMode ? 'No screen sharing is required on mobile' : 'Screen sharing will be monitored for security'}</li>
               <li>Any violations will be logged and reported</li>
             </ul>
           </div>
@@ -1066,8 +1080,8 @@ export default function AspirantEntranceExam() {
           <div className="space-y-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-6 dark:bg-red-500/10">
             <h3 className="font-bold text-foreground">Anti-Malpractice Rules</h3>
             <ul className="list-inside list-disc space-y-2 text-sm text-muted-foreground">
-              <li>Webcam and screen sharing must remain active throughout the exam</li>
-              <li>Exiting fullscreen mode will be flagged as a violation</li>
+              <li>{mobileMode ? 'Camera and microphone must remain active throughout the exam' : 'Webcam and screen sharing must remain active throughout the exam'}</li>
+              <li>{mobileMode ? 'Tab switching will be flagged as a violation' : 'Exiting fullscreen mode will be flagged as a violation'}</li>
               <li>Copy-paste and developer shortcuts are blocked</li>
               <li>Switching tabs or windows will be detected and logged</li>
               <li>No other person should be visible in the webcam frame</li>
@@ -1094,11 +1108,11 @@ export default function AspirantEntranceExam() {
               Back
             </Button>
             <Button
-              onClick={() => setCurrentStep('screen-recording')}
-              disabled={!agreedToRules}
-              className="flex-1 rounded-2xl"
-            >
-              Proceed to Screen Recording
+            onClick={() => setCurrentStep(mobileMode ? 'permissions' : 'screen-recording')}
+            disabled={!agreedToRules}
+            className="flex-1 rounded-2xl"
+          >
+              {mobileMode ? 'Proceed to Camera Setup' : 'Proceed to Screen Recording'}
               <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
@@ -1108,7 +1122,7 @@ export default function AspirantEntranceExam() {
   }
 
   // Step 3: Screen Recording setup
-  if (currentStep === 'screen-recording') {
+  if (currentStep === 'screen-recording' && !mobileMode) {
     return (
       <div className="mx-auto max-w-3xl px-6 py-12">
         <Card className="space-y-6 rounded-[2.5rem] border bg-white p-10 shadow-sm dark:bg-slate-900">
@@ -1192,7 +1206,7 @@ export default function AspirantEntranceExam() {
   }
 
   // Step 4: Fullscreen setup
-  if (currentStep === 'fullscreen') {
+  if (currentStep === 'fullscreen' && !mobileMode) {
     return (
       <div className="mx-auto max-w-3xl px-6 py-12">
         <Card className="space-y-6 rounded-[2.5rem] border bg-white p-10 shadow-sm dark:bg-slate-900">
@@ -1326,8 +1340,8 @@ export default function AspirantEntranceExam() {
   // Step 5: Exam
   if (currentStep === 'exam') {
     return (
-      <div className="grid min-h-screen gap-8 p-6 lg:grid-cols-12">
-        {!isFullscreen && (
+      <div className="grid min-h-screen gap-4 p-4 sm:gap-8 sm:p-6 lg:grid-cols-12">
+        {!mobileMode && !isFullscreen && (
           <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/95 p-6 text-center">
             <AlertTriangle className="mb-6 h-20 w-20 animate-pulse text-red-500" />
             <h2 className="mb-4 text-3xl font-bold text-white">Fullscreen Required</h2>

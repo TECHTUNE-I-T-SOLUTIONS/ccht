@@ -90,6 +90,7 @@ export default function StudentExamTakePage() {
   const [recordingStartTime, setRecordingStartTime] = useState<Date | null>(null)
   const [webcamRecordingUrl, setWebcamRecordingUrl] = useState<string | null>(null)
   const [screenRecordingUrl, setScreenRecordingUrl] = useState<string | null>(null)
+  const [isMobileDevice, setIsMobileDevice] = useState(false)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const screenVideoRef = useRef<HTMLVideoElement>(null)
@@ -98,6 +99,8 @@ export default function StudentExamTakePage() {
   const recordedChunksRef = useRef<Blob[]>([])
   const screenChunksRef = useRef<Blob[]>([])
   const timeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const webcamUploadPromiseRef = useRef<Promise<string | null> | null>(null)
+  const screenUploadPromiseRef = useRef<Promise<string | null> | null>(null)
 
   // Helper functions
   const formatTime = (secs: number) => {
@@ -153,6 +156,16 @@ export default function StudentExamTakePage() {
       console.error('Failed to log violation:', error)
     }
   }
+
+  const mobileMode = isMobileDevice
+  const cameraConstraints: MediaTrackConstraints = mobileMode
+    ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'user' } }
+    : { width: 640, height: 480, facingMode: 'user' }
+
+  useEffect(() => {
+    const mobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+    setIsMobileDevice(mobile)
+  }, [])
 
   // Attach webcam stream to video element reliably (like aspirant exam page)
   useEffect(() => {
@@ -294,9 +307,9 @@ export default function StudentExamTakePage() {
   // Request permissions (camera + microphone)
   const requestPermissions = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 640, height: 480, facingMode: 'user' },
-        audio: true
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: cameraConstraints,
+        audio: true,
       })
       
       setWebcamStream(mediaStream)
@@ -304,7 +317,7 @@ export default function StudentExamTakePage() {
       setMicReady(true)
 
       toast.success('Camera and microphone permissions granted')
-      setCurrentStep('screenrecord')
+      setCurrentStep(mobileMode ? 'exam' : 'screenrecord')
     } catch (error) {
       toast.error('Please grant camera and microphone permissions to continue.')
       console.error('Permission error:', error)
@@ -367,7 +380,9 @@ export default function StudentExamTakePage() {
 
       mediaRecorder.onstop = async () => {
         const screenBlob = new Blob(screenChunksRef.current, { type: 'video/webm' })
-        const url = await uploadRecordingToCloudinary(screenBlob, 'screen', recordingStartTime)
+        const promise = uploadRecordingToCloudinary(screenBlob, 'screen', recordingStartTime)
+        screenUploadPromiseRef.current = promise
+        const url = await promise
         if (url) {
           setScreenRecordingUrl(url)
         }
@@ -399,7 +414,9 @@ export default function StudentExamTakePage() {
 
       mediaRecorder.onstop = async () => {
         const webcamBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
-        const url = await uploadRecordingToCloudinary(webcamBlob, 'webcam', recordingStartTime)
+        const promise = uploadRecordingToCloudinary(webcamBlob, 'webcam', recordingStartTime)
+        webcamUploadPromiseRef.current = promise
+        const url = await promise
         if (url) {
           setWebcamRecordingUrl(url)
         }
@@ -523,6 +540,22 @@ export default function StudentExamTakePage() {
 
     return () => clearInterval(timer)
   }, [currentStep, timeLeft])
+
+  useEffect(() => {
+    if (currentStep !== 'exam' || examAttemptId || loading || !exam) return
+
+    createExamAttempt().then((attemptId) => {
+      if (attemptId) {
+        startTimeUpdateInterval(attemptId)
+      }
+    })
+  }, [currentStep, examAttemptId, loading, exam])
+
+  useEffect(() => {
+    if (currentStep === 'exam' && webcamStream && !recordingStarted) {
+      startWebcamRecording()
+    }
+  }, [currentStep, webcamStream, recordingStarted])
 
   const handleTimeOut = async () => {
     toast.error('Time is up! Submitting your exam automatically.')
@@ -679,46 +712,23 @@ export default function StudentExamTakePage() {
 
   // Stop recordings and wait for them to upload before submission
   const stopAndUploadRecordings = async (): Promise<{ webcamUrl: string | null, screenUrl: string | null }> => {
-    return new Promise((resolve) => {
-      let pendingUploads = 0
-      const results: { webcamUrl: string | null, screenUrl: string | null } = { webcamUrl: null, screenUrl: null }
-      
-      // Stop webcam recording
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        pendingUploads++
-        const originalOnstop = mediaRecorderRef.current.onstop
-        mediaRecorderRef.current.onstop = async (event) => {
-          if (originalOnstop) await (originalOnstop as Function)(event)
-          // Wait a bit for the upload to complete and state to update
-          await new Promise(r => setTimeout(r, 1000))
-          results.webcamUrl = webcamRecordingUrl
-          pendingUploads--
-          if (pendingUploads <= 0) resolve(results)
-        }
-        mediaRecorderRef.current.stop()
-      }
-      
-      // Stop screen recording
-      if (screenRecorderRef.current && screenRecorderRef.current.state !== 'inactive') {
-        pendingUploads++
-        const originalOnstop = screenRecorderRef.current.onstop
-        screenRecorderRef.current.onstop = async (event) => {
-          if (originalOnstop) await (originalOnstop as Function)(event)
-          // Wait a bit for the upload to complete and state to update
-          await new Promise(r => setTimeout(r, 1000))
-          results.screenUrl = screenRecordingUrl
-          pendingUploads--
-          if (pendingUploads <= 0) resolve(results)
-        }
-        screenRecorderRef.current.stop()
-      }
-      
-      // If no recordings were active, resolve immediately
-      if (pendingUploads === 0) resolve(results)
-      
-      // Safety timeout - resolve after 45s even if upload fails
-      setTimeout(() => resolve(results), 45000)
-    })
+    const results: { webcamUrl: string | null, screenUrl: string | null } = { webcamUrl: null, screenUrl: null }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+
+    if (screenRecorderRef.current && screenRecorderRef.current.state !== 'inactive') {
+      screenRecorderRef.current.stop()
+    }
+
+    const uploads = [webcamUploadPromiseRef.current, screenUploadPromiseRef.current].filter(Boolean) as Promise<string | null>[]
+    const resolved = await Promise.allSettled(uploads)
+
+    if (resolved[0]?.status === 'fulfilled') results.webcamUrl = resolved[0].value || null
+    if (resolved[1]?.status === 'fulfilled') results.screenUrl = resolved[1].value || null
+
+    return results
   }
 
   // Submit exam
