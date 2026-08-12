@@ -1,11 +1,13 @@
 import { Navbar } from '@/components/public/navbar'
 import { Footer } from '@/components/public/footer'
+import { generatePageMetadata } from '@/lib/metadata'
 import { SCHOOL_INFO } from '@/lib/constants'
 
-export const metadata = {
-  title: `Privacy Policy - ${SCHOOL_INFO.name}`,
+export const metadata = generatePageMetadata({
+  title: 'Privacy Policy',
   description: 'Privacy policy for Covenant College of Health Technology digital services.',
-}
+  path: '/privacy',
+})
 
 export default function PrivacyPage() {
   return (

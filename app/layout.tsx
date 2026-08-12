@@ -30,6 +30,28 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://covenantcollegeofhealthtech.com.ng',
+    siteName: 'Covenant College of Health Technology',
+    title: 'Covenant College of Health Technology - Quality Education for Health-Filled Society',
+    description: 'Premier health education institution offering quality programs in health technology. Dedicated to producing competent healthcare professionals.',
+    images: [
+      {
+        url: '/images/logo.png',
+        width: 1200,
+        height: 630,
+        alt: 'Covenant College of Health Technology Logo',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Covenant College of Health Technology - Quality Education for Health-Filled Society',
+    description: 'Premier health education institution offering quality programs in health technology. Dedicated to producing competent healthcare professionals.',
+    images: ['/images/logo.png'],
+  },
   icons: {
     icon: [
       {

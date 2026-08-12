@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { TypographyH1, TypographyH3, TypographyLead, TypographyP, TypographyTechnical } from '@/components/ui/typography'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
+import { metadata } from './metadata'
 import { ProgramsService, Program } from '@/lib/services/programs.service'
 
 const initial = {

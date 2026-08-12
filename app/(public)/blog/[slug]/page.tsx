@@ -5,15 +5,19 @@ import { ROUTES } from '@/lib/constants'
 import Link from 'next/link'
 import { ArrowLeft, Calendar, FileText, User } from 'lucide-react'
 import { notFound } from 'next/navigation'
+import { generatePageMetadata } from '@/lib/metadata'
+import type { Metadata } from 'next'
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const resolvedParams = await params
   const post = await BlogService.getBlogPostBySlug(resolvedParams.slug)
   if (!post) return { title: 'Post Not Found - CCHT' }
-  return {
-    title: post.seo_title || `${post.title} - CCHT Blog`,
+  
+  return generatePageMetadata({
+    title: post.seo_title || post.title,
     description: post.seo_description || post.excerpt,
-  }
+    path: `/blog/${resolvedParams.slug}`,
+  })
 }
 
 function formatDate(dateString?: string) {

@@ -4,8 +4,13 @@ import { BlogService } from '@/lib/services/blog.service'
 import { ROUTES } from '@/lib/constants'
 import Link from 'next/link'
 import { ArrowRight, Calendar, Clock3, FileText, Sparkles } from 'lucide-react'
+import { generatePageMetadata } from '@/lib/metadata'
 
-export const metadata = { title: 'Blog - Covenant College of Health Technology' }
+export const metadata = generatePageMetadata({
+  title: 'Blog',
+  description: 'Latest news, updates, and articles from Covenant College of Health Technology.',
+  path: '/blog',
+})
 
 function formatDate(dateString?: string) {
   if (!dateString) return ''

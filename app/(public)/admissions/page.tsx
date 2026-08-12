@@ -4,11 +4,13 @@ import { Navbar } from '@/components/public/navbar'
 import { Footer } from '@/components/public/footer'
 import { ROUTES, SCHOOL_INFO } from '@/lib/constants'
 import { ArrowRight, BadgeCheck, CheckCircle2, GraduationCap, ShieldCheck, Sparkles, Users } from 'lucide-react'
+import { generatePageMetadata } from '@/lib/metadata'
 
-export const metadata = {
-  title: `Admissions | ${SCHOOL_INFO.name}`,
+export const metadata = generatePageMetadata({
+  title: 'Admissions',
   description: 'Admissions information and application entry point for prospective students.',
-}
+  path: '/admissions',
+})
 
 const steps = [
   { title: 'Create your account', text: 'Register with your basic details and confirm your email.' },

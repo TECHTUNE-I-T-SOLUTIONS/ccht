@@ -1,13 +1,14 @@
 import { Navbar } from '@/components/public/navbar'
 import { Footer } from '@/components/public/footer'
 import { ProgramService } from '@/lib/services/program.service'
-import { SCHOOL_INFO } from '@/lib/constants'
 import { ProgramsList } from '@/components/public/programs-list'
+import { generatePageMetadata } from '@/lib/metadata'
 
-export const metadata = {
-  title: `Programs | ${SCHOOL_INFO.name}`,
+export const metadata = generatePageMetadata({
+  title: 'Programs',
   description: 'Available academic programs and their key details.',
-}
+  path: '/programs',
+})
 
 export default async function ProgramsPage() {
   const programs = await ProgramService.getAllPrograms()

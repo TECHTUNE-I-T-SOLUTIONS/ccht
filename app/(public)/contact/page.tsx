@@ -3,8 +3,6 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'motion/react'
-import { Navbar } from '@/components/public/navbar'
-import { Footer } from '@/components/public/footer'
 import { SCHOOL_INFO, ROUTES } from '@/lib/constants'
 import { Mail, Phone, MapPin, Send, Clock, Info, Check } from 'lucide-react'
 import { useState } from 'react'
@@ -62,10 +60,8 @@ export default function ContactPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <Navbar />
+    <>
       <main className="flex-1">
-        {/* HERO SECTION */}
         <section className="bg-secondary text-muted-foreground pt-40 pb-20 overflow-hidden relative">
            <div className="mx-auto px-6 sm:px-12 lg:px-24 xl:px-32 relative z-10">
               <motion.div
@@ -238,16 +234,14 @@ export default function ContactPage() {
            </div>
         </Section>
       </main>
-      <Footer />
 
       <style jsx global>{`
         .input-base {
           @apply w-full h-14 px-6 rounded-2xl bg-muted border-2 border-transparent focus:border-primary/30 focus:bg-background outline-none transition-all font-medium;
         }
       `}</style>
-    </div>
+    </>
   )
-}
 
 function FormField({ label, error, children, className }: { label: string, error?: string, children: React.ReactNode, className?: string }) {
   return (
@@ -273,4 +267,4 @@ function ContactItem({ icon: Icon, label, value }: { icon: any, label: string, v
        </div>
     </div>
   )
-}
+}}

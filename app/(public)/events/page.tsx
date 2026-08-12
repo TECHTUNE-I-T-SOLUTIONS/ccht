@@ -4,8 +4,13 @@ import { EventService } from '@/lib/services/event.service'
 import { ROUTES } from '@/lib/constants'
 import Link from 'next/link'
 import { Calendar, MapPin, ArrowRight, Clock } from 'lucide-react'
+import { generatePageMetadata } from '@/lib/metadata'
 
-export const metadata = { title: 'Events - Covenant College of Health Technology' }
+export const metadata = generatePageMetadata({
+  title: 'Events',
+  description: 'Upcoming events, workshops, seminars, and special activities at Covenant College of Health Technology.',
+  path: '/events',
+})
 
 export default async function EventsPage() {
   const events = await EventService.getAllEvents()
